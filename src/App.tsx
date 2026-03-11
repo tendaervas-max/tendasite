@@ -1,0 +1,1245 @@
+import React, { useState, useEffect } from "react";
+import { BrowserRouter as Router, Routes, Route, Link, useNavigate, useLocation } from "react-router-dom";
+import { motion, AnimatePresence } from "motion/react";
+import { ShoppingCart, User, LogOut, Plus, Trash2, Instagram, Phone, MapPin, Menu, X, ChevronRight, Leaf, Check, Database } from "lucide-react";
+import { supabase } from "./lib/supabase";
+import { Product, CartItem } from "./types";
+import bcrypt from "bcryptjs";
+
+// --- Components ---
+
+const Navbar = ({ cartCount, isAdmin, user }: { cartCount: number, isAdmin: boolean, user: any }) => {
+  const [isOpen, setIsOpen] = useState(false);
+  
+  return (
+    <nav className="sticky top-0 z-50 bg-brand-paper/80 backdrop-blur-md border-b border-brand-beige/20">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+        <div className="flex justify-between h-20 items-center">
+          <Link to="/" className="flex items-center space-x-3">
+            <div className="w-12 h-12 rounded-full border-2 border-brand-olive bg-brand-mint/20 flex items-center justify-center overflow-hidden">
+              <img 
+                src="/logo.png.png" 
+                className="w-full h-full object-cover"
+                alt="Tenda Ervas Logo"
+                onError={(e) => {
+                  (e.target as HTMLImageElement).src = 'https://api.dicebear.com/7.x/initials/svg?seed=TendaErvas&backgroundColor=A7C080&fontFamily=serif';
+                }}
+              />
+            </div>
+            <span className="text-2xl font-serif font-bold tracking-tight text-brand-olive">Tenda Ervas</span>
+          </Link>
+          
+          <div className="hidden md:flex items-center space-x-8">
+            <Link to="/" className="text-sm font-medium hover:text-brand-olive transition-colors">Início</Link>
+            <Link to="/produtos" className="text-sm font-medium hover:text-brand-olive transition-colors">Produtos</Link>
+            {!user && <Link to="/checkout" className="text-sm font-medium hover:text-brand-olive transition-colors">Cadastro</Link>}
+            {user && <Link to="/meus-pedidos" className="text-sm font-medium hover:text-brand-olive transition-colors">Meus Pedidos</Link>}
+            <Link to="/carrinho" className="relative p-2 text-gray-700 hover:text-brand-olive transition-colors">
+              <ShoppingCart size={20} />
+              {cartCount > 0 && (
+                <span className="absolute top-0 right-0 bg-brand-olive text-white text-[10px] font-bold px-1.5 py-0.5 rounded-full">
+                  {cartCount}
+                </span>
+              )}
+            </Link>
+            <Link to="/admin" className="text-xs text-gray-400 hover:text-brand-olive transition-colors ml-2">
+              Admin
+            </Link>
+            {isAdmin && (
+              <Link to="/admin" className="p-2 text-brand-olive hover:opacity-80 transition-colors">
+                <User size={20} />
+              </Link>
+            )}
+          </div>
+
+          <div className="md:hidden flex items-center space-x-4">
+            <Link to="/carrinho" className="relative p-2 text-gray-700">
+              <ShoppingCart size={20} />
+              {cartCount > 0 && (
+                <span className="absolute top-0 right-0 bg-brand-olive text-white text-[10px] font-bold px-1.5 py-0.5 rounded-full">
+                  {cartCount}
+                </span>
+              )}
+            </Link>
+            <button onClick={() => setIsOpen(!isOpen)} className="p-2 text-gray-700">
+              {isOpen ? <X size={24} /> : <Menu size={24} />}
+            </button>
+          </div>
+        </div>
+      </div>
+
+      {/* Mobile Menu */}
+      <AnimatePresence>
+        {isOpen && (
+          <motion.div
+            initial={{ opacity: 0, height: 0 }}
+            animate={{ opacity: 1, height: "auto" }}
+            exit={{ opacity: 0, height: 0 }}
+            className="md:hidden bg-brand-paper border-b border-brand-beige/20 overflow-hidden"
+          >
+            <div className="px-4 pt-2 pb-6 space-y-4">
+              <Link to="/" onClick={() => setIsOpen(false)} className="block text-lg font-medium">Início</Link>
+              <Link to="/produtos" onClick={() => setIsOpen(false)} className="block text-lg font-medium">Produtos</Link>
+              {!user && <Link to="/checkout" onClick={() => setIsOpen(false)} className="block text-lg font-medium">Cadastro</Link>}
+              {user && <Link to="/meus-pedidos" onClick={() => setIsOpen(false)} className="block text-lg font-medium">Meus Pedidos</Link>}
+              {isAdmin && (
+                <Link to="/admin" onClick={() => setIsOpen(false)} className="block text-lg font-medium text-brand-olive">Admin</Link>
+              )}
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+    </nav>
+  );
+};
+
+const Footer = () => (
+  <footer className="bg-brand-olive text-brand-paper py-12">
+    <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-12">
+        <div>
+          <h3 className="text-2xl font-serif mb-4">Tenda Ervas</h3>
+          <p className="text-brand-paper/70 text-sm leading-relaxed">
+            Conectando você à sabedoria ancestral das ervas. 
+          </p>
+        </div>
+        <div>
+          <h4 className="text-lg font-medium mb-4">Contato</h4>
+          <ul className="space-y-3 text-sm text-brand-paper/70">
+            <li className="flex items-center gap-2">
+              <Phone size={16} /> (11) 99865-3889
+            </li>
+            <li className="flex items-center gap-2">
+              <Instagram size={16} /> @tendaervas
+            </li>
+            <li className="flex items-center gap-2">
+              <MapPin size={16} /> São Paulo, SP
+            </li>
+          </ul>
+        </div>
+        <div>
+          <h4 className="text-lg font-medium mb-4">Informações</h4>
+          <p className="text-xs text-brand-paper/50">
+            CNPJ: 63.097.835/0001-21
+          </p>
+          <Link to="/admin" className="mt-4 block text-xs text-brand-paper/30 hover:text-brand-paper transition-colors">
+            Área do Administrador
+          </Link>
+          <p className="mt-4 text-xs text-brand-paper/50">
+            © 2024 Tenda Ervas. Todos os direitos reservados.
+          </p>
+        </div>
+      </div>
+    </div>
+  </footer>
+);
+
+const Home = () => (
+  <div className="space-y-20 pb-20">
+    {/* Hero Section */}
+    <section className="relative h-screen flex items-center justify-center overflow-hidden">
+      {/* Background Image */}
+      <div className="absolute inset-0 z-0">
+        <img 
+          src="/hero.png.png" 
+          className="w-full h-full object-cover"
+          alt="Tenda Ervas Hero"
+          onError={(e) => {
+            (e.target as HTMLImageElement).src = 'https://images.unsplash.com/photo-1540324155974-7523202daa3f?q=80&w=1920&auto=format&fit=crop';
+          }}
+        />
+        <div className="absolute inset-0 bg-black/30 backdrop-blur-[1px]"></div>
+      </div>
+      
+      <div className="relative z-10 text-center px-4 max-w-3xl mx-auto">
+        <motion.div
+          initial={{ opacity: 0, y: 30 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 1, ease: "easeOut" }}
+          className="flex flex-col items-center"
+        >
+          <h1 className="text-6xl md:text-8xl font-serif text-white mb-8 tracking-tight drop-shadow-2xl">
+            Tenda Ervas
+          </h1>
+
+          <p className="text-xl md:text-2xl text-white/90 mb-12 max-w-2xl mx-auto leading-relaxed font-light drop-shadow-lg">
+            Sabedoria ancestral e equilíbrio natural para o seu dia a dia.
+          </p>
+
+          <Link 
+            to="/produtos" 
+            className="inline-flex items-center gap-2 bg-brand-olive text-white px-12 py-5 rounded-full hover:bg-brand-olive/90 transition-all shadow-2xl group text-lg font-bold"
+          >
+            <span>Explorar Produtos</span>
+            <ChevronRight size={22} className="group-hover:translate-x-1 transition-transform" />
+          </Link>
+        </motion.div>
+      </div>
+    </section>
+
+    {/* About Section */}
+    <section className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-16 items-center">
+        <div className="relative">
+          <div className="aspect-square rounded-3xl overflow-hidden shadow-2xl border-8 border-white bg-brand-beige/20">
+            <img 
+              src="/hero.png.png" 
+              className="w-full h-full object-cover"
+              alt="Nossa Essência - Tenda Ervas"
+              onError={(e) => {
+                (e.target as HTMLImageElement).src = 'https://images.unsplash.com/photo-1602928321679-560bb453f190?q=80&w=800&auto=format&fit=crop';
+              }}
+            />
+          </div>
+          <div className="absolute -bottom-10 -left-10 w-64 h-64 bg-brand-mint/20 rounded-full -z-10 blur-3xl"></div>
+        </div>
+        <div className="space-y-6">
+          <h2 className="text-4xl md:text-5xl font-serif text-brand-olive">Nossa Essência</h2>
+          <div className="w-20 h-1 bg-brand-mint"></div>
+          <p className="text-gray-600 leading-relaxed text-lg">
+            Tradição, Axé e Cuidado. Encontre o melhor em artigos religiosos de matriz africana, fitoterapia e itens para rituais. 
+            Das velas que iluminam caminhos aos óleos que renovam o corpo, entregamos a essência do sagrado diretamente na sua casa.
+          </p>
+          <div className="pt-4 grid grid-cols-2 gap-8">
+            <div>
+              <h4 className="font-bold text-brand-olive text-2xl">Axé</h4>
+              <p className="text-sm text-gray-500 uppercase tracking-wider">Energia</p>
+            </div>
+            <div>
+              <h4 className="font-bold text-brand-olive text-2xl">Tradição</h4>
+              <p className="text-sm text-gray-500 uppercase tracking-wider">Ancestral</p>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+  </div>
+);
+
+const ProductCard = ({ product, onAddToCart }: { product: Product, onAddToCart: (p: Product, qty: number) => void }) => {
+  const [qty, setQty] = useState(1);
+
+  return (
+    <motion.div 
+      layout
+      initial={{ opacity: 0, scale: 0.9 }}
+      animate={{ opacity: 1, scale: 1 }}
+      className="group bg-white rounded-2xl overflow-hidden shadow-sm hover:shadow-xl transition-all border border-brand-beige/10"
+    >
+      <div className="aspect-square overflow-hidden relative">
+        <img 
+          src={product.image_url || `https://picsum.photos/seed/${product.id}/600/600`} 
+          className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500"
+          alt={product.name}
+          referrerPolicy="no-referrer"
+        />
+        <div className="absolute top-4 right-4 bg-white/90 backdrop-blur-sm px-3 py-1 rounded-full text-xs font-bold text-brand-olive shadow-sm">
+          R$ {product.price.toFixed(2)}
+        </div>
+      </div>
+      <div className="p-6 space-y-3">
+        <h3 className="text-xl font-serif text-brand-olive">{product.name}</h3>
+        <p className="text-sm text-gray-500 line-clamp-2 leading-relaxed">{product.description}</p>
+        <div className="flex flex-col gap-4 pt-4">
+          <div className="flex items-center justify-between">
+            <span className="text-xs text-gray-400 uppercase tracking-widest">Estoque: {product.quantity}</span>
+            <div className="flex items-center border border-brand-beige/30 rounded-full px-2 py-0.5">
+              <button onClick={() => setQty(Math.max(1, qty - 1))} className="px-2 text-brand-olive">-</button>
+              <span className="mx-2 text-sm font-medium">{qty}</span>
+              <button onClick={() => setQty(qty + 1)} className="px-2 text-brand-olive">+</button>
+            </div>
+          </div>
+          <button 
+            onClick={() => onAddToCart(product, qty)}
+            className="w-full bg-brand-olive text-white py-2 rounded-full hover:bg-brand-olive/90 transition-colors shadow-md flex items-center justify-center gap-2 text-sm font-medium"
+          >
+            <Plus size={16} /> Adicionar R$ {(product.price * qty).toFixed(2)}
+          </button>
+        </div>
+      </div>
+    </motion.div>
+  );
+};
+
+const Products = ({ onAddToCart, isAdmin }: { onAddToCart: (p: Product, qty: number) => void, isAdmin: boolean }) => {
+  const [products, setProducts] = useState<Product[]>([]);
+  const [loading, setLoading] = useState(true);
+  const navigate = useNavigate();
+
+  useEffect(() => {
+    const fetchProducts = async () => {
+      const { data, error } = await supabase
+        .from('products')
+        .select('*')
+        .order('created_at', { ascending: false });
+      
+      if (error) {
+        console.error("Error fetching products:", error);
+      } else {
+        setProducts(data || []);
+      }
+      setLoading(false);
+    };
+    fetchProducts();
+  }, []);
+
+  if (loading) return <div className="min-h-screen flex items-center justify-center">Carregando...</div>;
+
+  return (
+    <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-20">
+      <div className="text-center mb-16 space-y-4">
+        <h2 className="text-5xl font-serif text-brand-olive">Nossa Coleção</h2>
+        <p className="text-gray-500 max-w-xl mx-auto">Escolha os elementos que farão parte do seu próximo ritual.</p>
+        
+        <div className="pt-4">
+          <button 
+            onClick={() => navigate("/admin", { state: { tab: "add" } })}
+            className="inline-flex items-center gap-2 bg-brand-olive text-white px-8 py-3 rounded-full font-bold shadow-lg hover:shadow-xl transition-all transform hover:-translate-y-1"
+          >
+            <Plus size={20} /> + Novo Produto
+          </button>
+        </div>
+      </div>
+      
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-8">
+        {products.map(product => (
+          <div key={product.id}>
+            <ProductCard product={product} onAddToCart={onAddToCart} />
+          </div>
+        ))}
+      </div>
+      
+      {products.length === 0 && (
+        <div className="text-center py-20 space-y-6">
+          <p className="text-gray-400">Nenhum produto cadastrado no momento.</p>
+          <div className="pt-4">
+            <button 
+              onClick={() => navigate("/admin", { state: { tab: "add" } })}
+              className="inline-flex items-center gap-2 bg-brand-olive text-white px-8 py-3 rounded-full font-bold shadow-lg hover:shadow-xl transition-all"
+            >
+              <Plus size={20} /> Cadastrar Primeiro Produto
+            </button>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+};
+
+const Cart = ({ cart, onUpdateQuantity, onRemove, user, onClearCart }: { 
+  cart: CartItem[], 
+  onUpdateQuantity: (id: number, delta: number) => void,
+  onRemove: (id: number) => void,
+  user: any,
+  onClearCart: () => void
+}) => {
+  const navigate = useNavigate();
+  const total = cart.reduce((acc, item) => acc + item.price * item.cartQuantity, 0);
+  
+  // Check for payment status in URL
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const status = params.get("status");
+    if (status === "success") {
+      alert("Pagamento aprovado! Recebemos seu pedido e entraremos em contato em breve.");
+      onClearCart();
+      navigate("/carrinho", { replace: true });
+    } else if (status === "failure") {
+      alert("O pagamento não foi concluído. Por favor, tente novamente.");
+      navigate("/carrinho", { replace: true });
+    }
+  }, []);
+
+  const handleGoToPayment = () => {
+    if (!user) {
+      navigate("/checkout");
+      return;
+    }
+    navigate("/pagamento");
+  };
+
+  return (
+    <div className="max-w-4xl mx-auto px-4 py-20 min-h-screen">
+      <h2 className="text-4xl font-serif text-brand-olive mb-12">Seu Carrinho</h2>
+      
+      {cart.length === 0 ? (
+        <div className="text-center py-20 bg-white rounded-3xl border border-dashed border-brand-beige/40">
+          <p className="text-gray-400 mb-6">Seu carrinho está vazio.</p>
+          <Link to="/produtos" className="text-brand-olive font-medium underline underline-offset-4">Explorar produtos</Link>
+        </div>
+      ) : (
+        <div className="space-y-8">
+          <div className="bg-white rounded-3xl shadow-sm overflow-hidden border border-brand-beige/10">
+            {cart.map(item => (
+              <div key={item.id} className="flex items-center gap-6 p-6 border-b border-brand-beige/10 last:border-0">
+                <img 
+                  src={item.image_url || `https://picsum.photos/seed/${item.id}/200/200`} 
+                  className="w-20 h-20 object-cover rounded-xl"
+                  alt={item.name}
+                  referrerPolicy="no-referrer"
+                />
+                <div className="flex-1">
+                  <h3 className="font-serif text-lg text-brand-olive">{item.name}</h3>
+                  <p className="text-sm text-gray-400">R$ {item.price.toFixed(2)}</p>
+                </div>
+                <div className="flex items-center gap-4">
+                  <div className="flex items-center border border-brand-beige/30 rounded-full px-3 py-1">
+                    <button onClick={() => onUpdateQuantity(item.id, -1)} className="text-brand-olive hover:opacity-50">-</button>
+                    <span className="mx-4 text-sm font-medium">{item.cartQuantity}</span>
+                    <button onClick={() => onUpdateQuantity(item.id, 1)} className="text-brand-olive hover:opacity-50">+</button>
+                  </div>
+                  <button onClick={() => onRemove(item.id)} className="text-red-400 hover:text-red-600 transition-colors">
+                    <Trash2 size={20} />
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
+          
+          <div className="bg-brand-olive text-white p-8 rounded-3xl shadow-xl space-y-6">
+            <div className="flex justify-between items-center text-xl font-serif">
+              <span>Total do Pedido</span>
+              <span>R$ {total.toFixed(2)}</span>
+            </div>
+            <p className="text-sm text-brand-paper/70 leading-relaxed">
+              O pedido será separado e enviado para você, para mais dúvidas, entre em contato com as redes sociais do Tenda Ervas.
+            </p>
+            <button 
+              onClick={handleGoToPayment}
+              className="w-full bg-brand-mint text-brand-olive font-bold py-4 rounded-full hover:bg-brand-mint/90 transition-all shadow-lg flex items-center justify-center gap-2"
+            >
+              Confirme seu pedido
+            </button>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+};
+
+const Admin = ({ onLogin, onLogout }: { onLogin: () => void, onLogout: () => void }) => {
+  const location = useLocation();
+  const [isLoggedIn, setIsLoggedIn] = useState(!!localStorage.getItem("adminToken"));
+  const [activeTab, setActiveTab] = useState<"products" | "add" | "orders" | "supabase">("products");
+
+  useEffect(() => {
+    const state = location.state as { tab?: string };
+    if (state?.tab) {
+      setActiveTab(state.tab as any);
+    }
+  }, [location]);
+  const [username, setUsername] = useState("");
+  const [password, setPassword] = useState("");
+  const [products, setProducts] = useState<Product[]>([]);
+  const [orders, setOrders] = useState<any[]>([]);
+  const [newProduct, setNewProduct] = useState({ name: "", description: "", price: "", quantity: "" });
+  const [image, setImage] = useState<File | null>(null);
+  const [supabaseStatus, setSupabaseStatus] = useState<{ [key: string]: string }>({
+    products: "Checking...",
+    admin: "Checking...",
+    users: "Checking...",
+    orders: "Checking..."
+  });
+
+  useEffect(() => {
+    if (isLoggedIn) {
+      const fetchData = async () => {
+        const { data: productsData } = await supabase.from('products').select('*');
+        setProducts(productsData || []);
+        
+        const { data: ordersData } = await supabase.from('orders').select('*').order('created_at', { ascending: false });
+        setOrders(ordersData || []);
+
+        testSupabase();
+      };
+      fetchData();
+    }
+  }, [isLoggedIn]);
+
+  const testSupabase = async () => {
+    const tables = ['products', 'admin', 'users', 'orders'];
+    const newStatus: { [key: string]: string } = {};
+
+    for (const table of tables) {
+      try {
+        const { error } = await supabase.from(table).select('*').limit(0);
+        if (error) {
+          if (error.code === 'PGRST116' || error.message.includes("does not exist")) {
+            newStatus[table] = "❌ Not Found";
+          } else {
+            newStatus[table] = `⚠️ ${error.message}`;
+          }
+        } else {
+          newStatus[table] = "✅ OK";
+        }
+      } catch (err: any) {
+        newStatus[table] = `❌ Failed: ${err.message}`;
+      }
+    }
+    setSupabaseStatus(newStatus);
+  };
+
+  const handleLogin = async (e: React.FormEvent) => {
+    e.preventDefault();
+    try {
+      // For Netlify/SPA, we'll check the admin table directly
+      // In a real app, you'd use Supabase Auth, but we'll stick to the table check for now
+      const { data, error } = await supabase
+        .from('admin')
+        .select('*')
+        .eq('username', username)
+        .maybeSingle();
+      
+      if (error) throw error;
+      
+      // Note: In a pure SPA, bcrypt.compareSync might be slow or not work if not imported correctly
+      // But we have bcryptjs installed.
+      if (data && bcrypt.compareSync(password, data.password)) {
+        localStorage.setItem("adminToken", "spa-admin-token"); // Mock token for SPA
+        setIsLoggedIn(true);
+        onLogin();
+      } else {
+        alert("Usuário ou senha incorretos");
+      }
+    } catch (err: any) {
+      alert(`Erro no login: ${err.message}`);
+      console.error("Login error:", err);
+    }
+  };
+
+  const handleAddProduct = async (e: React.FormEvent) => {
+    e.preventDefault();
+    try {
+      let imageUrl = "";
+      
+      if (image) {
+        const fileExt = image.name.split('.').pop();
+        const fileName = `${Math.random()}.${fileExt}`;
+        const filePath = `${fileName}`;
+
+        const { error: uploadError } = await supabase.storage
+          .from('product-images')
+          .upload(filePath, image);
+
+        if (uploadError) throw uploadError;
+
+        const { data: { publicUrl } } = supabase.storage
+          .from('product-images')
+          .getPublicUrl(filePath);
+        
+        imageUrl = publicUrl;
+      }
+
+      const { data, error } = await supabase
+        .from('products')
+        .insert([{
+          name: newProduct.name,
+          description: newProduct.description,
+          price: parseFloat(newProduct.price),
+          quantity: parseInt(newProduct.quantity),
+          image_url: imageUrl
+        }])
+        .select()
+        .single();
+
+      if (error) throw error;
+
+      setProducts([...products, data]);
+      setNewProduct({ name: "", description: "", price: "", quantity: "" });
+      setImage(null);
+      alert("Produto cadastrado com sucesso!");
+    } catch (err: any) {
+      alert("Erro ao cadastrar produto: " + err.message);
+    }
+  };
+
+  const handleStatusChange = async (orderId: number, newStatus: string) => {
+    const { error } = await supabase
+      .from('orders')
+      .update({ status: newStatus })
+      .eq('id', orderId);
+
+    if (!error) {
+      setOrders(orders.map(o => o.id === orderId ? { ...o, status: newStatus } : o));
+    } else {
+      alert("Erro ao atualizar status: " + error.message);
+    }
+  };
+
+  const handleDelete = async (id: number) => {
+    const { error } = await supabase
+      .from('products')
+      .delete()
+      .eq('id', id);
+
+    if (!error) {
+      setProducts(products.filter(p => p.id !== id));
+    } else {
+      alert("Erro ao excluir produto: " + error.message);
+    }
+  };
+
+  if (!isLoggedIn) {
+    return (
+      <div className="min-h-screen flex items-center justify-center px-4">
+        <div className="bg-white p-8 rounded-3xl shadow-xl w-full max-w-md border border-brand-beige/20">
+          <h2 className="text-3xl font-serif text-brand-olive mb-8 text-center">Acesso Restrito</h2>
+          <form onSubmit={handleLogin} className="space-y-6">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">Usuário</label>
+              <input 
+                type="text" 
+                value={username} 
+                onChange={e => setUsername(e.target.value)}
+                className="w-full px-4 py-3 rounded-xl border border-brand-beige/30 focus:ring-2 focus:ring-brand-olive outline-none"
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">Senha</label>
+              <input 
+                type="password" 
+                value={password} 
+                onChange={e => setPassword(e.target.value)}
+                className="w-full px-4 py-3 rounded-xl border border-brand-beige/30 focus:ring-2 focus:ring-brand-olive outline-none"
+              />
+            </div>
+            <button className="w-full bg-brand-olive text-white py-4 rounded-full font-bold shadow-lg hover:shadow-xl transition-all">
+              Entrar
+            </button>
+          </form>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="max-w-7xl mx-auto px-4 py-20">
+      <div className="flex justify-between items-center mb-12">
+        <div className="flex items-center gap-8">
+          <h2 className="text-4xl font-serif text-brand-olive">Painel Administrativo</h2>
+          <div className="flex bg-brand-beige/10 p-1 rounded-xl">
+            <button 
+              onClick={() => setActiveTab("products")}
+              className={`px-6 py-2 rounded-lg text-sm font-medium transition-all ${activeTab === "products" ? "bg-brand-olive text-white shadow-md" : "text-gray-500 hover:text-brand-olive"}`}
+            >
+              Lista de Produtos
+            </button>
+            <button 
+              onClick={() => setActiveTab("add")}
+              className={`px-6 py-2 rounded-lg text-sm font-medium transition-all flex items-center gap-2 ${activeTab === "add" ? "bg-brand-olive text-white shadow-md" : "text-gray-500 hover:text-brand-olive"}`}
+            >
+              <Plus size={14} /> Cadastrar Novo
+            </button>
+            <button 
+              onClick={() => setActiveTab("orders")}
+              className={`px-6 py-2 rounded-lg text-sm font-medium transition-all ${activeTab === "orders" ? "bg-brand-olive text-white shadow-md" : "text-gray-500 hover:text-brand-olive"}`}
+            >
+              Pedidos
+            </button>
+            <button 
+              onClick={() => setActiveTab("supabase")}
+              className={`px-6 py-2 rounded-lg text-sm font-medium transition-all flex items-center gap-2 ${activeTab === "supabase" ? "bg-brand-olive text-white shadow-md" : "text-gray-500 hover:text-brand-olive"}`}
+            >
+              <Database size={14} /> Supabase
+            </button>
+          </div>
+        </div>
+        <button 
+          onClick={() => { localStorage.removeItem("adminToken"); setIsLoggedIn(false); onLogout(); }}
+          className="flex items-center gap-2 text-red-500 hover:text-red-700 font-medium"
+        >
+          <LogOut size={20} /> Sair
+        </button>
+      </div>
+
+      {activeTab === "add" ? (
+        <div className="max-w-2xl mx-auto">
+          <div className="bg-white p-8 rounded-3xl shadow-sm border border-brand-beige/20">
+            <h3 className="text-2xl font-serif text-brand-olive mb-6">Cadastrar Novo Produto</h3>
+            <form onSubmit={(e) => { handleAddProduct(e); setActiveTab("products"); }} className="space-y-4">
+              <input 
+                placeholder="Nome do produto" 
+                value={newProduct.name} 
+                onChange={e => setNewProduct({...newProduct, name: e.target.value})}
+                className="w-full px-4 py-2 rounded-lg border border-brand-beige/30"
+                required
+              />
+              <textarea 
+                placeholder="Descrição" 
+                value={newProduct.description} 
+                onChange={e => setNewProduct({...newProduct, description: e.target.value})}
+                className="w-full px-4 py-2 rounded-lg border border-brand-beige/30 h-24"
+              />
+              <div className="grid grid-cols-2 gap-4">
+                <input 
+                  type="number" 
+                  placeholder="Preço (R$)" 
+                  value={newProduct.price} 
+                  onChange={e => setNewProduct({...newProduct, price: e.target.value})}
+                  className="w-full px-4 py-2 rounded-lg border border-brand-beige/30"
+                  required
+                />
+                <input 
+                  type="number" 
+                  placeholder="Qtd em estoque" 
+                  value={newProduct.quantity} 
+                  onChange={e => setNewProduct({...newProduct, quantity: e.target.value})}
+                  className="w-full px-4 py-2 rounded-lg border border-brand-beige/30"
+                  required
+                />
+              </div>
+              <div className="space-y-2">
+                <label className="text-xs text-gray-400 uppercase tracking-widest">Foto do Produto</label>
+                <input 
+                  type="file" 
+                  onChange={e => setImage(e.target.files?.[0] || null)}
+                  className="w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-brand-mint file:text-brand-olive hover:file:bg-brand-mint/80"
+                />
+              </div>
+              <button className="w-full bg-brand-olive text-white py-3 rounded-full font-bold shadow-md hover:shadow-lg transition-all">
+                Cadastrar Produto
+              </button>
+            </form>
+          </div>
+        </div>
+      ) : activeTab === "products" ? (
+        <div className="space-y-6">
+          <div className="flex justify-between items-center">
+            <h3 className="text-2xl font-serif text-brand-olive">Produtos Cadastrados</h3>
+            <button 
+              onClick={() => setActiveTab("add")}
+              className="flex items-center gap-2 bg-brand-olive text-white px-4 py-2 rounded-full text-sm font-medium"
+            >
+              <Plus size={16} /> Novo Produto
+            </button>
+          </div>
+          <div className="bg-white rounded-3xl shadow-sm border border-brand-beige/20 overflow-hidden">
+            {products.map(p => (
+              <div key={p.id} className="flex items-center gap-6 p-6 border-b border-brand-beige/10 last:border-0">
+                <img 
+                  src={p.image_url || `https://picsum.photos/seed/${p.id}/200/200`} 
+                  className="w-16 h-16 object-cover rounded-lg"
+                  alt={p.name}
+                  referrerPolicy="no-referrer"
+                />
+                <div className="flex-1">
+                  <h4 className="font-medium text-brand-olive">{p.name}</h4>
+                  <p className="text-xs text-gray-400">R$ {p.price.toFixed(2)} • Est: {p.quantity}</p>
+                </div>
+                <button onClick={() => handleDelete(p.id)} className="text-red-400 hover:text-red-600">
+                  <Trash2 size={20} />
+                </button>
+              </div>
+            ))}
+            {products.length === 0 && (
+              <div className="p-12 text-center text-gray-400">Nenhum produto cadastrado.</div>
+            )}
+          </div>
+        </div>
+      ) : activeTab === "orders" ? (
+        <div className="space-y-6">
+          <h3 className="text-2xl font-serif text-brand-olive">Pedidos Recebidos</h3>
+          <div className="bg-white rounded-3xl shadow-sm border border-brand-beige/20 overflow-hidden">
+            <div className="grid grid-cols-4 p-4 bg-brand-beige/5 border-b border-brand-beige/10 text-xs font-bold uppercase tracking-wider text-gray-500">
+              <div>Cliente</div>
+              <div>Forma de Pagto</div>
+              <div className="col-span-2">Descrição do Pedido</div>
+            </div>
+            {orders.map(order => (
+              <div key={order.id} className="grid grid-cols-4 p-6 border-b border-brand-beige/10 last:border-0 items-center">
+                <div className="font-medium text-brand-olive">{order.customer_name}</div>
+                <div>
+                  <span className={`px-3 py-1 rounded-full text-[10px] font-bold uppercase ${order.payment_method === "PIX" ? "bg-blue-100 text-blue-600" : "bg-purple-100 text-purple-600"}`}>
+                    {order.payment_method}
+                  </span>
+                </div>
+                <div className="col-span-2 flex justify-between items-center">
+                  <div className="text-sm text-gray-600 flex-1">
+                    {order.description}
+                    <div className="text-[10px] text-gray-400 mt-1">Total: R$ {order.total_price.toFixed(2)} • {new Date(order.created_at).toLocaleString()}</div>
+                  </div>
+                  <div className="ml-4">
+                    <select 
+                      value={order.status}
+                      onChange={(e) => handleStatusChange(order.id, e.target.value)}
+                      className="text-xs border border-brand-beige/30 rounded-lg px-2 py-1 bg-white outline-none focus:ring-1 focus:ring-brand-olive"
+                    >
+                      <option value="pedido recebido">Recebido</option>
+                      <option value="pedido sendo separado">Separando</option>
+                      <option value="pedido enviado para entrega">Enviado</option>
+                      <option value="pedido entregue">Entregue</option>
+                    </select>
+                  </div>
+                </div>
+              </div>
+            ))}
+            {orders.length === 0 && (
+              <div className="p-12 text-center text-gray-400">Nenhum pedido recebido ainda.</div>
+            )}
+          </div>
+        </div>
+      ) : (
+        <div className="space-y-6">
+          <h3 className="text-2xl font-serif text-brand-olive">Integração Supabase</h3>
+          <div className="bg-white p-8 rounded-3xl shadow-sm border border-brand-beige/20 space-y-6">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              {(Object.entries(supabaseStatus) as [string, string][]).map(([table, status]) => (
+                <div key={table} className="flex items-center justify-between p-4 bg-gray-50 rounded-2xl border border-gray-100">
+                  <div className="flex items-center gap-3">
+                    <Database size={16} className="text-brand-olive" />
+                    <span className="text-sm font-medium text-gray-700 capitalize">{table}</span>
+                  </div>
+                  <span className={`text-xs font-bold ${status.includes("✅") ? "text-green-600" : "text-red-500"}`}>
+                    {status}
+                  </span>
+                </div>
+              ))}
+            </div>
+            
+            <div className="space-y-4">
+              <p className="text-sm text-gray-600">
+                Abaixo está o status de cada tabela necessária para o funcionamento completo da Tenda Ervas no Supabase.
+              </p>
+              <div className="bg-brand-mint/10 p-4 rounded-xl border border-brand-mint/20">
+                <code className="text-xs text-brand-olive block">
+                  // Tabelas verificadas:<br/>
+                  - products (Estoque)<br/>
+                  - admin (Acesso administrativo)<br/>
+                  - users (Clientes)<br/>
+                  - orders (Vendas)
+                </code>
+              </div>
+              <button 
+                onClick={testSupabase}
+                className="bg-brand-olive text-white px-6 py-2 rounded-full text-sm font-medium hover:opacity-90 transition-all"
+              >
+                Verificar Novamente
+              </button>
+
+              <div className="mt-8 p-6 bg-green-50 rounded-2xl border border-green-200">
+                <h4 className="text-sm font-bold text-green-800 mb-2">Pronto para Netlify/Vercel! ✅</h4>
+                <p className="text-xs text-green-700 leading-relaxed">
+                  Este projeto foi convertido para uma <strong>SPA (Single Page Application)</strong>. Isso significa que ele funciona perfeitamente na Netlify ou Vercel!
+                </p>
+                <p className="text-xs text-green-700 mt-2 leading-relaxed">
+                  <strong>Importante:</strong> No seu painel do Supabase, você deve criar um <strong>Bucket de Storage</strong> chamado <code>product-images</code> com acesso público para que o upload de fotos funcione.
+                </p>
+                <p className="text-xs text-green-700 mt-2 leading-relaxed">
+                  Certifique-se também de ter as tabelas <code>admin</code>, <code>products</code>, <code>users</code> e <code>orders</code> criadas no seu banco de dados.
+                </p>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+};
+
+const PaymentPage = ({ cart, user, onClearCart }: { cart: CartItem[], user: any, onClearCart: () => void }) => {
+  const [isSuccess, setIsSuccess] = useState(false);
+  const [paymentMethod, setPaymentMethod] = useState("PIX");
+  const [loading, setLoading] = useState(false);
+  const navigate = useNavigate();
+  const total = cart.reduce((acc, item) => acc + item.price * item.cartQuantity, 0);
+
+  useEffect(() => {
+    if (cart.length === 0 && !isSuccess) navigate("/produtos");
+    if (!user) navigate("/checkout");
+  }, [cart, user, isSuccess]);
+
+  const handleFinalize = async () => {
+    setLoading(true);
+    const description = cart.map(item => `${item.cartQuantity}x ${item.name}`).join(", ");
+    
+    try {
+      const { error } = await supabase
+        .from('orders')
+        .insert([{
+          user_id: user.id,
+          customer_name: user.full_name,
+          payment_method: paymentMethod,
+          description: description,
+          total_price: total,
+          status: 'pedido recebido'
+        }]);
+
+      if (!error) {
+        setIsSuccess(true);
+        onClearCart();
+      } else {
+        throw error;
+      }
+    } catch (error: any) {
+      console.error("Erro ao salvar pedido:", error);
+      alert("Erro ao finalizar pedido: " + error.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  if (isSuccess) {
+    return (
+      <div className="max-w-2xl mx-auto px-4 py-20 min-h-screen flex items-center justify-center">
+        <motion.div 
+          initial={{ opacity: 0, scale: 0.9 }}
+          animate={{ opacity: 1, scale: 1 }}
+          className="bg-white p-12 rounded-[3rem] shadow-2xl border border-brand-beige/20 text-center space-y-6"
+        >
+          <div className="w-20 h-20 bg-brand-mint/30 rounded-full flex items-center justify-center mx-auto text-brand-olive">
+            <Leaf size={40} />
+          </div>
+          <h2 className="text-4xl font-serif text-brand-olive">Agradecemos sua compra!</h2>
+          <p className="text-gray-600 leading-relaxed">
+            Seu pedido foi recebido com sucesso. <br />
+            Agora ele será separado com todo carinho e enviado para você.
+          </p>
+          <div className="pt-6">
+            <Link 
+              to="/produtos" 
+              className="inline-block bg-brand-olive text-white px-8 py-4 rounded-full font-bold shadow-lg hover:opacity-90 transition-all"
+            >
+              Voltar para a Loja
+            </Link>
+          </div>
+        </motion.div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="max-w-2xl mx-auto px-4 py-20 min-h-screen">
+      <div className="bg-white p-10 rounded-[2.5rem] shadow-2xl border border-brand-beige/20">
+        <h2 className="text-3xl font-serif text-brand-olive mb-8 text-center">Resumo do Pedido</h2>
+        
+        <div className="space-y-4 mb-8">
+          {cart.map(item => (
+            <div key={item.id} className="flex justify-between text-sm border-b border-brand-beige/10 pb-2">
+              <span className="text-gray-600">{item.cartQuantity}x {item.name}</span>
+              <span className="font-medium text-brand-olive">R$ {(item.price * item.cartQuantity).toFixed(2)}</span>
+            </div>
+          ))}
+          <div className="flex justify-between text-xl font-serif pt-4 text-brand-olive">
+            <span>Total</span>
+            <span>R$ {total.toFixed(2)}</span>
+          </div>
+        </div>
+
+        <div className="bg-brand-mint/20 p-6 rounded-2xl mb-8">
+          <h4 className="font-medium text-brand-olive mb-2 flex items-center gap-2">
+            <MapPin size={18} /> Endereço de Entrega
+          </h4>
+          <p className="text-sm text-gray-600 leading-relaxed">
+            {user?.full_name}<br />
+            {user?.address}, {user?.number}<br />
+            CEP: {user?.cep}
+          </p>
+        </div>
+
+        <div className="mb-8">
+          <h4 className="font-medium text-brand-olive mb-4">Forma de Pagamento</h4>
+          <div className="grid grid-cols-2 gap-4">
+            {["PIX", "Cartão"].map(method => (
+              <button
+                key={method}
+                onClick={() => setPaymentMethod(method)}
+                className={`py-3 rounded-xl border-2 transition-all font-medium ${
+                  paymentMethod === method 
+                    ? "border-brand-olive bg-brand-olive text-white" 
+                    : "border-brand-beige/30 text-gray-500 hover:border-brand-olive/50"
+                }`}
+              >
+                {method}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        <button 
+          onClick={handleFinalize}
+          disabled={loading}
+          className="w-full bg-brand-olive text-white font-bold py-5 rounded-full hover:opacity-90 transition-all shadow-xl flex items-center justify-center gap-3 text-lg disabled:opacity-50"
+        >
+          {loading ? "Processando..." : "Finalizar Pedido"}
+        </button>
+        
+        <p className="text-center text-sm text-gray-500 mt-6 leading-relaxed">
+          O pedido será separado e enviado para você. Para mais dúvidas, entre em contato com as redes sociais do Tenda Ervas.
+        </p>
+      </div>
+    </div>
+  );
+};
+
+const MyOrders = ({ user }: { user: any }) => {
+  const [orders, setOrders] = useState<any[]>([]);
+  const navigate = useNavigate();
+
+  useEffect(() => {
+    if (!user) {
+      navigate("/checkout");
+      return;
+    }
+    const fetchMyOrders = async () => {
+      const { data, error } = await supabase
+        .from('orders')
+        .select('*')
+        .eq('user_id', user.id)
+        .order('created_at', { ascending: false });
+      
+      if (!error) {
+        setOrders(data || []);
+      }
+    };
+    fetchMyOrders();
+  }, [user]);
+
+  const handleConfirmArrival = async (orderId: number) => {
+    const { error } = await supabase
+      .from('orders')
+      .update({ status: "pedido entregue" })
+      .eq('id', orderId);
+
+    if (!error) {
+      setOrders(orders.map(o => o.id === orderId ? { ...o, status: "pedido entregue" } : o));
+    }
+  };
+
+  return (
+    <div className="max-w-4xl mx-auto px-4 py-20 min-h-screen">
+      <h2 className="text-4xl font-serif text-brand-olive mb-12">Meus Pedidos</h2>
+      <div className="space-y-6">
+        {orders.map(order => (
+          <div key={order.id} className="bg-white p-8 rounded-3xl shadow-sm border border-brand-beige/20">
+            <div className="flex justify-between items-start mb-4">
+              <div>
+                <span className="text-xs text-gray-400 uppercase tracking-widest">Status</span>
+                <div className="font-serif text-xl text-brand-olive capitalize">{order.status}</div>
+              </div>
+              <div className="text-right">
+                <span className="text-xs text-gray-400 uppercase tracking-widest">Data</span>
+                <div className="text-sm">{new Date(order.created_at).toLocaleDateString()}</div>
+              </div>
+            </div>
+            <div className="border-t border-brand-beige/10 pt-4 mb-6">
+              <p className="text-sm text-gray-600">{order.description}</p>
+              <p className="text-sm font-bold text-brand-olive mt-2">Total: R$ {order.total_price.toFixed(2)}</p>
+            </div>
+            {order.status === "pedido enviado para entrega" && (
+              <button 
+                onClick={() => handleConfirmArrival(order.id)}
+                className="w-full bg-brand-mint text-brand-olive font-bold py-3 rounded-full hover:bg-brand-mint/80 transition-all"
+              >
+                Confirmar que chegou
+              </button>
+            )}
+            {order.status === "pedido entregue" && (
+              <div className="text-center text-brand-olive font-medium flex items-center justify-center gap-2">
+                <Check size={20} /> Pedido Entregue
+              </div>
+            )}
+          </div>
+        ))}
+        {orders.length === 0 && (
+          <div className="text-center py-20 bg-white rounded-3xl border border-dashed border-brand-beige/40">
+            <p className="text-gray-400">Você ainda não fez nenhum pedido.</p>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+};
+
+const Checkout = ({ onLoginSuccess }: { onLoginSuccess: (user: any) => void }) => {
+  const [isRegistering, setIsRegistering] = useState(true);
+  const [formData, setFormData] = useState({
+    email: "", password: "", full_name: "", cpf: "", address: "", cep: "", number: ""
+  });
+  const navigate = useNavigate();
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    try {
+      if (isRegistering) {
+        const { data, error } = await supabase
+          .from('users')
+          .insert([{
+            email: formData.email,
+            password: formData.password, // In a real app, use Supabase Auth!
+            full_name: formData.full_name,
+            cpf: formData.cpf,
+            address: formData.address,
+            cep: formData.cep,
+            number: formData.number
+          }])
+          .select()
+          .single();
+        
+        if (error) throw error;
+
+        localStorage.setItem("userToken", "spa-user-token");
+        localStorage.setItem("userData", JSON.stringify(data));
+        onLoginSuccess(data);
+        navigate("/carrinho");
+      } else {
+        const { data, error } = await supabase
+          .from('users')
+          .select('*')
+          .eq('email', formData.email)
+          .eq('password', formData.password)
+          .maybeSingle();
+        
+        if (error) throw error;
+        if (!data) throw new Error("Email ou senha incorretos");
+
+        localStorage.setItem("userToken", "spa-user-token");
+        localStorage.setItem("userData", JSON.stringify(data));
+        onLoginSuccess(data);
+        navigate("/carrinho");
+      }
+    } catch (err: any) {
+      alert(err.message || "Erro ao processar solicitação");
+    }
+  };
+
+  return (
+    <div className="max-w-md mx-auto px-4 py-20 min-h-screen">
+      <div className="bg-white p-8 rounded-3xl shadow-xl border border-brand-beige/20">
+        <h2 className="text-3xl font-serif text-brand-olive mb-8 text-center">
+          {isRegistering ? "Crie sua conta" : "Entre na sua conta"}
+        </h2>
+        <form onSubmit={handleSubmit} className="space-y-4">
+          {isRegistering && (
+            <>
+              <input 
+                placeholder="Nome Completo" 
+                value={formData.full_name}
+                onChange={e => setFormData({...formData, full_name: e.target.value})}
+                className="w-full px-4 py-3 rounded-xl border border-brand-beige/30"
+                required
+              />
+              <input 
+                placeholder="CPF" 
+                value={formData.cpf}
+                onChange={e => setFormData({...formData, cpf: e.target.value})}
+                className="w-full px-4 py-3 rounded-xl border border-brand-beige/30"
+                required
+              />
+              <textarea 
+                placeholder="Endereço de Entrega" 
+                value={formData.address}
+                onChange={e => setFormData({...formData, address: e.target.value})}
+                className="w-full px-4 py-3 rounded-xl border border-brand-beige/30"
+                required
+              />
+              <div className="grid grid-cols-2 gap-4">
+                <input 
+                  placeholder="CEP" 
+                  value={formData.cep}
+                  onChange={e => setFormData({...formData, cep: e.target.value})}
+                  className="w-full px-4 py-3 rounded-xl border border-brand-beige/30"
+                  required
+                />
+                <input 
+                  placeholder="Número" 
+                  value={formData.number}
+                  onChange={e => setFormData({...formData, number: e.target.value})}
+                  className="w-full px-4 py-3 rounded-xl border border-brand-beige/30"
+                  required
+                />
+              </div>
+            </>
+          )}
+          <input 
+            type="email" 
+            placeholder="Login (Seu melhor e-mail)" 
+            value={formData.email}
+            onChange={e => setFormData({...formData, email: e.target.value})}
+            className="w-full px-4 py-3 rounded-xl border border-brand-beige/30"
+            required
+          />
+          <input 
+            type="password" 
+            placeholder="Senha" 
+            value={formData.password}
+            onChange={e => setFormData({...formData, password: e.target.value})}
+            className="w-full px-4 py-3 rounded-xl border border-brand-beige/30"
+            required
+          />
+          <button className="w-full bg-brand-olive text-white py-4 rounded-full font-bold shadow-lg hover:shadow-xl transition-all">
+            {isRegistering ? "Cadastrar e Continuar" : "Entrar"}
+          </button>
+        </form>
+        <button 
+          onClick={() => setIsRegistering(!isRegistering)}
+          className="w-full mt-6 text-sm text-brand-olive font-medium hover:underline"
+        >
+          {isRegistering ? "Já tem conta? Entre aqui" : "Não tem conta? Cadastre-se"}
+        </button>
+      </div>
+    </div>
+  );
+};
+
+// --- Main App ---
+
+export default function App() {
+  const [cart, setCart] = useState<CartItem[]>([]);
+  const [isAdmin, setIsAdmin] = useState(!!localStorage.getItem("adminToken"));
+  const [user, setUser] = useState<any>(() => {
+    const saved = localStorage.getItem("userData");
+    return saved ? JSON.parse(saved) : null;
+  });
+
+  const addToCart = (product: Product, qty: number) => {
+    setCart(prev => {
+      const existing = prev.find(item => item.id === product.id);
+      if (existing) {
+        return prev.map(item => 
+          item.id === product.id ? { ...item, cartQuantity: item.cartQuantity + qty } : item
+        );
+      }
+      return [...prev, { ...product, cartQuantity: qty }];
+    });
+  };
+
+  const updateCartQuantity = (id: number, delta: number) => {
+    setCart(prev => prev.map(item => {
+      if (item.id === id) {
+        const newQty = Math.max(1, item.cartQuantity + delta);
+        return { ...item, cartQuantity: newQty };
+      }
+      return item;
+    }));
+  };
+
+  const removeFromCart = (id: number) => {
+    setCart(prev => prev.filter(item => item.id !== id));
+  };
+
+  return (
+    <Router>
+      <div className="flex flex-col min-h-screen">
+        <Navbar 
+          cartCount={cart.reduce((acc, item) => acc + item.cartQuantity, 0)} 
+          isAdmin={isAdmin}
+          user={user}
+        />
+        
+        <main className="flex-grow">
+          <Routes>
+            <Route path="/" element={<Home />} />
+            <Route path="/produtos" element={<Products onAddToCart={addToCart} isAdmin={isAdmin} />} />
+            <Route path="/carrinho" element={<Cart cart={cart} onUpdateQuantity={updateCartQuantity} onRemove={removeFromCart} user={user} onClearCart={() => setCart([])} />} />
+            <Route path="/checkout" element={<Checkout onLoginSuccess={setUser} />} />
+            <Route path="/meus-pedidos" element={<MyOrders user={user} />} />
+            <Route path="/pagamento" element={<PaymentPage cart={cart} user={user} onClearCart={() => setCart([])} />} />
+            <Route path="/admin" element={<Admin onLogin={() => setIsAdmin(true)} onLogout={() => setIsAdmin(false)} />} />
+          </Routes>
+        </main>
+
+        <Footer />
+      </div>
+    </Router>
+  );
+}
