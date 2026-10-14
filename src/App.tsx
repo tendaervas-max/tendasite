@@ -2,9 +2,10 @@ import React, { useState, useEffect } from "react";
 import { BrowserRouter as Router, Routes, Route, Link, useNavigate, useLocation } from "react-router-dom";
 import { motion, AnimatePresence } from "motion/react";
 import { ShoppingCart, User, LogOut, Plus, Trash2, Instagram, Phone, MapPin, Menu, X, ChevronRight, Leaf, Check, Database } from "lucide-react";
+import type { Session } from "@supabase/supabase-js";
 import { supabase } from "./lib/supabase";
 import { Product, CartItem } from "./types";
-import bcrypt from "bcryptjs";
+import { LOJA, linkWhatsApp, STATUS_PEDIDO, mensagemPedido } from "./loja";
 
 // --- Components ---
 
@@ -34,6 +35,7 @@ const Navbar = ({ cartCount, isAdmin, user }: { cartCount: number, isAdmin: bool
             <Link to="/produtos" className="text-sm font-medium hover:text-brand-olive transition-colors">Produtos</Link>
             {!user && <Link to="/checkout" className="text-sm font-medium hover:text-brand-olive transition-colors">Cadastro</Link>}
             {user && <Link to="/meus-pedidos" className="text-sm font-medium hover:text-brand-olive transition-colors">Meus Pedidos</Link>}
+            {user && <button onClick={() => supabase.auth.signOut()} className="text-sm font-medium hover:text-brand-olive transition-colors">Sair</button>}
             <Link to="/carrinho" className="relative p-2 text-gray-700 hover:text-brand-olive transition-colors">
               <ShoppingCart size={20} />
               {cartCount > 0 && (
@@ -42,7 +44,7 @@ const Navbar = ({ cartCount, isAdmin, user }: { cartCount: number, isAdmin: bool
                 </span>
               )}
             </Link>
-            <Link to="/admin" className="text-xs text-gray-400 hover:text-brand-olive transition-colors ml-2">
+            <Link to="/admin" className="text-sm font-medium hover:text-brand-olive transition-colors ml-2">
               Admin
             </Link>
             {isAdmin && (
@@ -82,6 +84,7 @@ const Navbar = ({ cartCount, isAdmin, user }: { cartCount: number, isAdmin: bool
               <Link to="/produtos" onClick={() => setIsOpen(false)} className="block text-lg font-medium">Produtos</Link>
               {!user && <Link to="/checkout" onClick={() => setIsOpen(false)} className="block text-lg font-medium">Cadastro</Link>}
               {user && <Link to="/meus-pedidos" onClick={() => setIsOpen(false)} className="block text-lg font-medium">Meus Pedidos</Link>}
+              {user && <button onClick={() => { setIsOpen(false); supabase.auth.signOut(); }} className="block text-lg font-medium">Sair</button>}
               {isAdmin && (
                 <Link to="/admin" onClick={() => setIsOpen(false)} className="block text-lg font-medium text-brand-olive">Admin</Link>
               )}
@@ -107,26 +110,37 @@ const Footer = () => (
           <h4 className="text-lg font-medium mb-4">Contato</h4>
           <ul className="space-y-3 text-sm text-brand-paper/70">
             <li className="flex items-center gap-2">
-              <Phone size={16} /> (11) 99865-3889
+              <Phone size={16} />
+              <a href={linkWhatsApp("Olá! Vim pelo site da Tenda Ervas.")} target="_blank" rel="noreferrer" className="hover:text-brand-paper">{LOJA.whatsappExibicao}</a>
             </li>
             <li className="flex items-center gap-2">
-              <Instagram size={16} /> @tendaervas
+              <Phone size={16} /> {LOJA.whatsappOutroExibicao}
             </li>
             <li className="flex items-center gap-2">
-              <MapPin size={16} /> São Paulo, SP
+              <Instagram size={16} /> @{LOJA.instagram}
+            </li>
+            <li className="flex items-center gap-2">
+              <MapPin size={16} /> {LOJA.cidade}
             </li>
           </ul>
         </div>
         <div>
           <h4 className="text-lg font-medium mb-4">Informações</h4>
-          <p className="text-xs text-brand-paper/50">
-            CNPJ: 63.097.835/0001-21
-          </p>
-          <Link to="/admin" className="mt-4 block text-xs text-brand-paper/30 hover:text-brand-paper transition-colors">
+          <div className="space-y-1 text-xs text-brand-paper/70">
+            {LOJA.razaoSocial && <p>{LOJA.razaoSocial}</p>}
+            <p>CNPJ: {LOJA.cnpj}</p>
+            {LOJA.endereco && <p>{LOJA.endereco}</p>}
+            <p>{LOJA.email}</p>
+          </div>
+          <div className="mt-4 space-y-1 text-sm">
+            <Link to="/privacidade" className="block text-brand-paper/80 hover:text-brand-paper transition-colors">Política de privacidade</Link>
+            <Link to="/trocas" className="block text-brand-paper/80 hover:text-brand-paper transition-colors">Trocas e devoluções</Link>
+          </div>
+          <Link to="/admin" className="mt-4 block text-xs text-brand-paper/70 hover:text-brand-paper transition-colors">
             Área do Administrador
           </Link>
           <p className="mt-4 text-xs text-brand-paper/50">
-            © 2024 Tenda Ervas. Todos os direitos reservados.
+            © {new Date().getFullYear()} {LOJA.nome}. Todos os direitos reservados.
           </p>
         </div>
       </div>
@@ -137,7 +151,7 @@ const Footer = () => (
 const Home = () => (
   <div className="space-y-20 pb-20">
     {/* Hero Section */}
-    <section className="relative h-screen flex items-center justify-center overflow-hidden">
+    <section className="relative h-screen flex items-start justify-center overflow-hidden">
       {/* Background Image */}
       <div className="absolute inset-0 z-0">
         <img 
@@ -151,18 +165,19 @@ const Home = () => (
         <div className="absolute inset-0 bg-black/30 backdrop-blur-[1px]"></div>
       </div>
       
-      <div className="relative z-10 text-center px-4 max-w-3xl mx-auto">
+      {/* O texto fica no alto para não cobrir o nome da loja no logo da imagem de fundo */}
+      <div className="relative z-10 text-center px-4 max-w-3xl mx-auto pt-[6vh] md:pt-[10vh]">
         <motion.div
           initial={{ opacity: 0, y: 30 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 1, ease: "easeOut" }}
           className="flex flex-col items-center"
         >
-          <h1 className="text-6xl md:text-8xl font-serif text-white mb-8 tracking-tight drop-shadow-2xl">
+          <h1 className="text-6xl md:text-8xl font-serif text-white mb-6 tracking-tight drop-shadow-2xl">
             Tenda Ervas
           </h1>
 
-          <p className="text-xl md:text-2xl text-white/90 mb-12 max-w-2xl mx-auto leading-relaxed font-light drop-shadow-lg">
+          <p className="text-xl md:text-2xl text-white/90 mb-8 max-w-2xl mx-auto leading-relaxed font-light drop-shadow-lg">
             Sabedoria ancestral e equilíbrio natural para o seu dia a dia.
           </p>
 
@@ -218,6 +233,7 @@ const Home = () => (
 
 const ProductCard = ({ product, onAddToCart }: { product: Product, onAddToCart: (p: Product, qty: number) => void }) => {
   const [qty, setQty] = useState(1);
+  const esgotado = product.quantity <= 0;
 
   return (
     <motion.div 
@@ -246,14 +262,15 @@ const ProductCard = ({ product, onAddToCart }: { product: Product, onAddToCart: 
             <div className="flex items-center border border-brand-beige/30 rounded-full px-2 py-0.5">
               <button onClick={() => setQty(Math.max(1, qty - 1))} className="px-2 text-brand-olive">-</button>
               <span className="mx-2 text-sm font-medium">{qty}</span>
-              <button onClick={() => setQty(qty + 1)} className="px-2 text-brand-olive">+</button>
+              <button onClick={() => setQty(Math.min(Math.max(1, product.quantity), qty + 1))} className="px-2 text-brand-olive">+</button>
             </div>
           </div>
-          <button 
+          <button
             onClick={() => onAddToCart(product, qty)}
-            className="w-full bg-brand-olive text-white py-2 rounded-full hover:bg-brand-olive/90 transition-colors shadow-md flex items-center justify-center gap-2 text-sm font-medium"
+            disabled={esgotado}
+            className="w-full bg-brand-olive text-white py-2 rounded-full hover:bg-brand-olive/90 transition-colors shadow-md flex items-center justify-center gap-2 text-sm font-medium disabled:opacity-50 disabled:cursor-not-allowed"
           >
-            <Plus size={16} /> Adicionar R$ {(product.price * qty).toFixed(2)}
+            {esgotado ? "Esgotado" : <><Plus size={16} /> Adicionar R$ {(product.price * qty).toFixed(2)}</>}
           </button>
         </div>
       </div>
@@ -264,6 +281,7 @@ const ProductCard = ({ product, onAddToCart }: { product: Product, onAddToCart: 
 const Products = ({ onAddToCart, isAdmin }: { onAddToCart: (p: Product, qty: number) => void, isAdmin: boolean }) => {
   const [products, setProducts] = useState<Product[]>([]);
   const [loading, setLoading] = useState(true);
+  const [erro, setErro] = useState("");
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -271,10 +289,12 @@ const Products = ({ onAddToCart, isAdmin }: { onAddToCart: (p: Product, qty: num
       const { data, error } = await supabase
         .from('products')
         .select('*')
-        .order('created_at', { ascending: false });
-      
+        .order('created_at', { ascending: false })
+        .order('name');
+
       if (error) {
         console.error("Error fetching products:", error);
+        setErro(error.message || "sem resposta");
       } else {
         setProducts(data || []);
       }
@@ -290,15 +310,17 @@ const Products = ({ onAddToCart, isAdmin }: { onAddToCart: (p: Product, qty: num
       <div className="text-center mb-16 space-y-4">
         <h2 className="text-5xl font-serif text-brand-olive">Nossa Coleção</h2>
         <p className="text-gray-500 max-w-xl mx-auto">Escolha os elementos que farão parte do seu próximo ritual.</p>
-        
-        <div className="pt-4">
-          <button 
-            onClick={() => navigate("/admin", { state: { tab: "add" } })}
-            className="inline-flex items-center gap-2 bg-brand-olive text-white px-8 py-3 rounded-full font-bold shadow-lg hover:shadow-xl transition-all transform hover:-translate-y-1"
-          >
-            <Plus size={20} /> + Novo Produto
-          </button>
-        </div>
+
+        {isAdmin && (
+          <div className="pt-4">
+            <button
+              onClick={() => navigate("/admin", { state: { tab: "add" } })}
+              className="inline-flex items-center gap-2 bg-brand-olive text-white px-8 py-3 rounded-full font-bold shadow-lg hover:shadow-xl transition-all transform hover:-translate-y-1"
+            >
+              <Plus size={20} /> + Novo Produto
+            </button>
+          </div>
+        )}
       </div>
       
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-8">
@@ -311,15 +333,24 @@ const Products = ({ onAddToCart, isAdmin }: { onAddToCart: (p: Product, qty: num
       
       {products.length === 0 && (
         <div className="text-center py-20 space-y-6">
-          <p className="text-gray-400">Nenhum produto cadastrado no momento.</p>
-          <div className="pt-4">
-            <button 
-              onClick={() => navigate("/admin", { state: { tab: "add" } })}
-              className="inline-flex items-center gap-2 bg-brand-olive text-white px-8 py-3 rounded-full font-bold shadow-lg hover:shadow-xl transition-all"
-            >
-              <Plus size={20} /> Cadastrar Primeiro Produto
-            </button>
-          </div>
+          <p className="text-gray-500">
+            {erro ? "Não foi possível carregar os produtos. Tente de novo em alguns instantes." : "Nenhum produto cadastrado no momento."}
+          </p>
+          {isAdmin && erro && (
+            <p className="max-w-xl mx-auto text-sm text-red-700 bg-red-50 border border-red-200 rounded-xl p-4">
+              Aviso para o admin: o banco não respondeu ({erro}). Confira se o projeto Supabase está ativo.
+            </p>
+          )}
+          {isAdmin && !erro && (
+            <div className="pt-4">
+              <button
+                onClick={() => navigate("/admin", { state: { tab: "add" } })}
+                className="inline-flex items-center gap-2 bg-brand-olive text-white px-8 py-3 rounded-full font-bold shadow-lg hover:shadow-xl transition-all"
+              >
+                <Plus size={20} /> Cadastrar Primeiro Produto
+              </button>
+            </div>
+          )}
         </div>
       )}
     </div>
@@ -336,20 +367,6 @@ const Cart = ({ cart, onUpdateQuantity, onRemove, user, onClearCart }: {
   const navigate = useNavigate();
   const total = cart.reduce((acc, item) => acc + item.price * item.cartQuantity, 0);
   
-  // Check for payment status in URL
-  useEffect(() => {
-    const params = new URLSearchParams(window.location.search);
-    const status = params.get("status");
-    if (status === "success") {
-      alert("Pagamento aprovado! Recebemos seu pedido e entraremos em contato em breve.");
-      onClearCart();
-      navigate("/carrinho", { replace: true });
-    } else if (status === "failure") {
-      alert("O pagamento não foi concluído. Por favor, tente novamente.");
-      navigate("/carrinho", { replace: true });
-    }
-  }, []);
-
   const handleGoToPayment = () => {
     if (!user) {
       navigate("/checkout");
@@ -402,7 +419,7 @@ const Cart = ({ cart, onUpdateQuantity, onRemove, user, onClearCart }: {
               <span>R$ {total.toFixed(2)}</span>
             </div>
             <p className="text-sm text-brand-paper/70 leading-relaxed">
-              O pedido será separado e enviado para você, para mais dúvidas, entre em contato com as redes sociais do Tenda Ervas.
+              Pagamento por PIX. Envio pelos Correios, com frete combinado pelo WhatsApp, ou retirada em {LOJA.localRetirada || LOJA.cidade}.
             </p>
             <button 
               onClick={handleGoToPayment}
@@ -417,9 +434,9 @@ const Cart = ({ cart, onUpdateQuantity, onRemove, user, onClearCart }: {
   );
 };
 
-const Admin = ({ onLogin, onLogout }: { onLogin: () => void, onLogout: () => void }) => {
+const Admin = ({ isAdmin }: { isAdmin: boolean }) => {
   const location = useLocation();
-  const [isLoggedIn, setIsLoggedIn] = useState(!!localStorage.getItem("adminToken"));
+  const isLoggedIn = isAdmin;
   const [activeTab, setActiveTab] = useState<"products" | "add" | "orders" | "supabase">("products");
 
   useEffect(() => {
@@ -432,6 +449,7 @@ const Admin = ({ onLogin, onLogout }: { onLogin: () => void, onLogout: () => voi
   const [password, setPassword] = useState("");
   const [products, setProducts] = useState<Product[]>([]);
   const [orders, setOrders] = useState<any[]>([]);
+  const [erroBanco, setErroBanco] = useState("");
   const [newProduct, setNewProduct] = useState({ name: "", description: "", price: "", quantity: "" });
   const [image, setImage] = useState<File | null>(null);
   const [supabaseStatus, setSupabaseStatus] = useState<{ [key: string]: string }>({
@@ -444,11 +462,13 @@ const Admin = ({ onLogin, onLogout }: { onLogin: () => void, onLogout: () => voi
   useEffect(() => {
     if (isLoggedIn) {
       const fetchData = async () => {
-        const { data: productsData } = await supabase.from('products').select('*');
+        const { data: productsData, error: erroProdutos } = await supabase.from('products').select('*');
         setProducts(productsData || []);
         
-        const { data: ordersData } = await supabase.from('orders').select('*').order('created_at', { ascending: false });
+        const { data: ordersData, error: erroPedidos } = await supabase.from('orders').select('*, users(email, phone, cpf, address, cep, number)').order('created_at', { ascending: false });
         setOrders(ordersData || []);
+        const erroCarga = erroProdutos || erroPedidos;
+        setErroBanco(erroCarga ? (erroCarga.message || "sem resposta") : "");
 
         testSupabase();
       };
@@ -482,24 +502,19 @@ const Admin = ({ onLogin, onLogout }: { onLogin: () => void, onLogout: () => voi
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
-      // For Netlify/SPA, we'll check the admin table directly
-      // In a real app, you'd use Supabase Auth, but we'll stick to the table check for now
-      const { data, error } = await supabase
-        .from('admin')
-        .select('*')
-        .eq('username', username)
-        .maybeSingle();
-      
-      if (error) throw error;
-      
-      // Note: In a pure SPA, bcrypt.compareSync might be slow or not work if not imported correctly
-      // But we have bcryptjs installed.
-      if (data && bcrypt.compareSync(password, data.password)) {
-        localStorage.setItem("adminToken", "spa-admin-token"); // Mock token for SPA
-        setIsLoggedIn(true);
-        onLogin();
-      } else {
+      // Login pelo Supabase Auth; quem é administrador é decidido pelo banco (tabela admin)
+      const { error } = await supabase.auth.signInWithPassword({ email: username, password });
+      if (error) {
         alert("Usuário ou senha incorretos");
+        return;
+      }
+
+      const { data: ehAdmin, error: erroAdmin } = await supabase.rpc('is_admin');
+      if (erroAdmin) throw erroAdmin;
+
+      if (!ehAdmin) {
+        await supabase.auth.signOut();
+        alert("Este usuário não tem acesso administrativo");
       }
     } catch (err: any) {
       alert(`Erro no login: ${err.message}`);
@@ -554,6 +569,7 @@ const Admin = ({ onLogin, onLogout }: { onLogin: () => void, onLogout: () => voi
   };
 
   const handleStatusChange = async (orderId: number, newStatus: string) => {
+    if (newStatus === "pedido cancelado" && !window.confirm("Cancelar o pedido devolve os itens ao estoque e não pode ser desfeito. Cancelar?")) return;
     const { error } = await supabase
       .from('orders')
       .update({ status: newStatus })
@@ -586,9 +602,9 @@ const Admin = ({ onLogin, onLogout }: { onLogin: () => void, onLogout: () => voi
           <h2 className="text-3xl font-serif text-brand-olive mb-8 text-center">Acesso Restrito</h2>
           <form onSubmit={handleLogin} className="space-y-6">
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">Usuário</label>
-              <input 
-                type="text" 
+              <label className="block text-sm font-medium text-gray-700 mb-2">E-mail</label>
+              <input
+                type="email"
                 value={username} 
                 onChange={e => setUsername(e.target.value)}
                 className="w-full px-4 py-3 rounded-xl border border-brand-beige/30 focus:ring-2 focus:ring-brand-olive outline-none"
@@ -614,6 +630,11 @@ const Admin = ({ onLogin, onLogout }: { onLogin: () => void, onLogout: () => voi
 
   return (
     <div className="max-w-7xl mx-auto px-4 py-20">
+      {erroBanco && (
+        <div className="mb-8 text-sm text-red-700 bg-red-50 border border-red-200 rounded-xl p-4">
+          O banco não respondeu ({erroBanco}). Os produtos e pedidos podem estar incompletos; confira se o projeto Supabase está ativo.
+        </div>
+      )}
       <div className="flex justify-between items-center mb-12">
         <div className="flex items-center gap-8">
           <h2 className="text-4xl font-serif text-brand-olive">Painel Administrativo</h2>
@@ -645,7 +666,7 @@ const Admin = ({ onLogin, onLogout }: { onLogin: () => void, onLogout: () => voi
           </div>
         </div>
         <button 
-          onClick={() => { localStorage.removeItem("adminToken"); setIsLoggedIn(false); onLogout(); }}
+          onClick={() => supabase.auth.signOut()}
           className="flex items-center gap-2 text-red-500 hover:text-red-700 font-medium"
         >
           <LogOut size={20} /> Sair
@@ -742,16 +763,31 @@ const Admin = ({ onLogin, onLogout }: { onLogin: () => void, onLogout: () => voi
           <div className="bg-white rounded-3xl shadow-sm border border-brand-beige/20 overflow-hidden">
             <div className="grid grid-cols-4 p-4 bg-brand-beige/5 border-b border-brand-beige/10 text-xs font-bold uppercase tracking-wider text-gray-500">
               <div>Cliente</div>
-              <div>Forma de Pagto</div>
+              <div>Entrega</div>
               <div className="col-span-2">Descrição do Pedido</div>
             </div>
             {orders.map(order => (
               <div key={order.id} className="grid grid-cols-4 p-6 border-b border-brand-beige/10 last:border-0 items-center">
-                <div className="font-medium text-brand-olive">{order.customer_name}</div>
                 <div>
-                  <span className={`px-3 py-1 rounded-full text-[10px] font-bold uppercase ${order.payment_method === "PIX" ? "bg-blue-100 text-blue-600" : "bg-purple-100 text-purple-600"}`}>
-                    {order.payment_method}
+                  <div className="font-medium text-brand-olive">{order.customer_name}</div>
+                  {order.users && (
+                    <div className="text-[11px] text-gray-500 mt-1 space-y-0.5">
+                      {order.users.phone && (
+                        <a href={`https://wa.me/55${order.users.phone.replace(/\D/g, "").replace(/^55(?=\d{10,11}$)/, "")}`} target="_blank" rel="noreferrer" className="block text-green-700 hover:underline">
+                          WhatsApp {order.users.phone}
+                        </a>
+                      )}
+                      <div>{order.users.email}</div>
+                      <div>{order.users.address}, {order.users.number} · CEP {order.users.cep}</div>
+                      {order.users.cpf && <div>CPF {order.users.cpf}</div>}
+                    </div>
+                  )}
+                </div>
+                <div>
+                  <span className={`px-3 py-1 rounded-full text-[10px] font-bold uppercase ${order.delivery_method === "Retirada" ? "bg-amber-100 text-amber-700" : "bg-blue-100 text-blue-600"}`}>
+                    {order.delivery_method}
                   </span>
+                  <div className="text-[10px] text-gray-500 mt-2">Pedido #{order.id} · {order.payment_method}</div>
                 </div>
                 <div className="col-span-2 flex justify-between items-center">
                   <div className="text-sm text-gray-600 flex-1">
@@ -761,13 +797,13 @@ const Admin = ({ onLogin, onLogout }: { onLogin: () => void, onLogout: () => voi
                   <div className="ml-4">
                     <select 
                       value={order.status}
+                      disabled={order.status === "pedido cancelado"}
                       onChange={(e) => handleStatusChange(order.id, e.target.value)}
-                      className="text-xs border border-brand-beige/30 rounded-lg px-2 py-1 bg-white outline-none focus:ring-1 focus:ring-brand-olive"
+                      className="text-xs border border-brand-beige/30 rounded-lg px-2 py-1 bg-white outline-none focus:ring-1 focus:ring-brand-olive disabled:opacity-60"
                     >
-                      <option value="pedido recebido">Recebido</option>
-                      <option value="pedido sendo separado">Separando</option>
-                      <option value="pedido enviado para entrega">Enviado</option>
-                      <option value="pedido entregue">Entregue</option>
+                      {Object.entries(STATUS_PEDIDO).map(([valor, nome]) => (
+                        <option key={valor} value={valor}>{nome}</option>
+                      ))}
                     </select>
                   </div>
                 </div>
@@ -822,10 +858,7 @@ const Admin = ({ onLogin, onLogout }: { onLogin: () => void, onLogout: () => voi
                   Este projeto foi convertido para uma <strong>SPA (Single Page Application)</strong>. Isso significa que ele funciona perfeitamente na Netlify ou Vercel!
                 </p>
                 <p className="text-xs text-green-700 mt-2 leading-relaxed">
-                  <strong>Importante:</strong> No seu painel do Supabase, você deve criar um <strong>Bucket de Storage</strong> chamado <code>product-images</code> com acesso público para que o upload de fotos funcione.
-                </p>
-                <p className="text-xs text-green-700 mt-2 leading-relaxed">
-                  Certifique-se também de ter as tabelas <code>admin</code>, <code>products</code>, <code>users</code> e <code>orders</code> criadas no seu banco de dados.
+                  <strong>Importante:</strong> As tabelas <code>admin</code>, <code>products</code>, <code>users</code> e <code>orders</code>, o bucket <code>product-images</code> e as regras de acesso são criados pelo arquivo <code>supabase/schema.sql</code>, rodado no SQL Editor do Supabase.
                 </p>
               </div>
             </div>
@@ -836,40 +869,87 @@ const Admin = ({ onLogin, onLogout }: { onLogin: () => void, onLogout: () => voi
   );
 };
 
+// Bloco com a chave PIX e o botão do WhatsApp, usado no fim da compra e em "Meus pedidos"
+const InstrucoesPagamento = ({ pedido }: { pedido: { id: number, description: string, total_price: number, delivery_method: string } }) => {
+  const [copiado, setCopiado] = useState(false);
+
+  // Método que copia a chave PIX para a área de transferência
+  const copiarChave = async () => {
+    try {
+      await navigator.clipboard.writeText(LOJA.chavePix);
+      setCopiado(true);
+    } catch {
+      alert(`Chave PIX: ${LOJA.chavePix}`);
+    }
+  };
+
+  return (
+    <div className="space-y-4 text-left">
+      <p className="text-gray-700 leading-relaxed">
+        {pedido.delivery_method === "Retirada"
+          ? <>Pague <strong>R$ {Number(pedido.total_price).toFixed(2)}</strong> pelo PIX e mande o comprovante pelo WhatsApp. Combinamos a retirada por lá.</>
+          : <>Mande o pedido pelo WhatsApp para calcularmos o frete dos Correios. Depois é só pagar pelo PIX o valor dos produtos (R$ {Number(pedido.total_price).toFixed(2)}) mais o frete.</>}
+      </p>
+      <div className="bg-brand-mint/20 p-5 rounded-2xl">
+        <div className="text-xs text-gray-600 uppercase tracking-widest mb-1">Chave PIX</div>
+        {LOJA.chavePix ? (
+          <div className="flex items-center justify-between gap-3">
+            <div>
+              <div className="font-mono text-brand-olive break-all">{LOJA.chavePix}</div>
+              {LOJA.favorecidoPix && <div className="text-xs text-gray-600 mt-1">{LOJA.favorecidoPix}</div>}
+            </div>
+            <button onClick={copiarChave} className="shrink-0 text-sm font-medium text-brand-olive border border-brand-olive rounded-full px-4 py-1.5 hover:bg-brand-olive hover:text-white transition-all">
+              {copiado ? "Copiada!" : "Copiar"}
+            </button>
+          </div>
+        ) : (
+          <div className="text-gray-700">Enviamos a chave pelo WhatsApp.</div>
+        )}
+      </div>
+      <a
+        href={linkWhatsApp(mensagemPedido(pedido))}
+        target="_blank"
+        rel="noreferrer"
+        className="w-full inline-flex items-center justify-center gap-2 bg-green-600 text-white font-bold py-4 rounded-full hover:bg-green-700 transition-all shadow-lg"
+      >
+        <Phone size={18} /> Enviar pedido pelo WhatsApp
+      </a>
+    </div>
+  );
+};
+
 const PaymentPage = ({ cart, user, onClearCart }: { cart: CartItem[], user: any, onClearCart: () => void }) => {
-  const [isSuccess, setIsSuccess] = useState(false);
-  const [paymentMethod, setPaymentMethod] = useState("PIX");
+  const [pedido, setPedido] = useState<{ id: number, description: string, total_price: number, delivery_method: string } | null>(null);
+  const [entrega, setEntrega] = useState<"Correios" | "Retirada">("Correios");
   const [loading, setLoading] = useState(false);
   const navigate = useNavigate();
   const total = cart.reduce((acc, item) => acc + item.price * item.cartQuantity, 0);
 
   useEffect(() => {
-    if (cart.length === 0 && !isSuccess) navigate("/produtos");
+    if (cart.length === 0 && !pedido) navigate("/produtos");
     if (!user) navigate("/checkout");
-  }, [cart, user, isSuccess]);
+  }, [cart, user, pedido]);
 
   const handleFinalize = async () => {
     setLoading(true);
-    const description = cart.map(item => `${item.cartQuantity}x ${item.name}`).join(", ");
-    
-    try {
-      const { error } = await supabase
-        .from('orders')
-        .insert([{
-          user_id: user.id,
-          customer_name: user.full_name,
-          payment_method: paymentMethod,
-          description: description,
-          total_price: total,
-          status: 'pedido recebido'
-        }]);
 
-      if (!error) {
-        setIsSuccess(true);
-        onClearCart();
-      } else {
-        throw error;
-      }
+    try {
+      // O banco confere o estoque, calcula o total pelos preços cadastrados e grava o pedido no nome do cliente logado
+      const { data, error } = await supabase.rpc('criar_pedido', {
+        p_itens: cart.map(item => ({ id: item.id, quantidade: item.cartQuantity })),
+        p_forma_pagamento: "PIX",
+        p_entrega: entrega
+      });
+
+      if (error) throw error;
+
+      setPedido({
+        id: data,
+        description: cart.map(item => `${item.cartQuantity}x ${item.name}`).join(", "),
+        total_price: total,
+        delivery_method: entrega
+      });
+      onClearCart();
     } catch (error: any) {
       console.error("Erro ao salvar pedido:", error);
       alert("Erro ao finalizar pedido: " + error.message);
@@ -878,28 +958,22 @@ const PaymentPage = ({ cart, user, onClearCart }: { cart: CartItem[], user: any,
     }
   };
 
-  if (isSuccess) {
+  if (pedido) {
     return (
       <div className="max-w-2xl mx-auto px-4 py-20 min-h-screen flex items-center justify-center">
         <motion.div 
           initial={{ opacity: 0, scale: 0.9 }}
           animate={{ opacity: 1, scale: 1 }}
-          className="bg-white p-12 rounded-[3rem] shadow-2xl border border-brand-beige/20 text-center space-y-6"
+          className="bg-white p-10 rounded-[3rem] shadow-2xl border border-brand-beige/20 text-center space-y-6 w-full"
         >
           <div className="w-20 h-20 bg-brand-mint/30 rounded-full flex items-center justify-center mx-auto text-brand-olive">
             <Leaf size={40} />
           </div>
-          <h2 className="text-4xl font-serif text-brand-olive">Agradecemos sua compra!</h2>
-          <p className="text-gray-600 leading-relaxed">
-            Seu pedido foi recebido com sucesso. <br />
-            Agora ele será separado com todo carinho e enviado para você.
-          </p>
-          <div className="pt-6">
-            <Link 
-              to="/produtos" 
-              className="inline-block bg-brand-olive text-white px-8 py-4 rounded-full font-bold shadow-lg hover:opacity-90 transition-all"
-            >
-              Voltar para a Loja
+          <h2 className="text-4xl font-serif text-brand-olive">Pedido #{pedido.id} recebido!</h2>
+          <InstrucoesPagamento pedido={pedido} />
+          <div className="pt-2">
+            <Link to="/meus-pedidos" className="text-brand-olive font-medium underline underline-offset-4">
+              Ver meus pedidos
             </Link>
           </div>
         </motion.div>
@@ -920,39 +994,58 @@ const PaymentPage = ({ cart, user, onClearCart }: { cart: CartItem[], user: any,
             </div>
           ))}
           <div className="flex justify-between text-xl font-serif pt-4 text-brand-olive">
-            <span>Total</span>
+            <span>Total dos produtos</span>
             <span>R$ {total.toFixed(2)}</span>
           </div>
         </div>
 
-        <div className="bg-brand-mint/20 p-6 rounded-2xl mb-8">
-          <h4 className="font-medium text-brand-olive mb-2 flex items-center gap-2">
-            <MapPin size={18} /> Endereço de Entrega
-          </h4>
-          <p className="text-sm text-gray-600 leading-relaxed">
-            {user?.full_name}<br />
-            {user?.address}, {user?.number}<br />
-            CEP: {user?.cep}
-          </p>
-        </div>
-
         <div className="mb-8">
-          <h4 className="font-medium text-brand-olive mb-4">Forma de Pagamento</h4>
+          <h4 className="font-medium text-brand-olive mb-4">Entrega</h4>
           <div className="grid grid-cols-2 gap-4">
-            {["PIX", "Cartão"].map(method => (
+            {(["Correios", "Retirada"] as const).map(opcao => (
               <button
-                key={method}
-                onClick={() => setPaymentMethod(method)}
+                key={opcao}
+                onClick={() => setEntrega(opcao)}
                 className={`py-3 rounded-xl border-2 transition-all font-medium ${
-                  paymentMethod === method 
+                  entrega === opcao 
                     ? "border-brand-olive bg-brand-olive text-white" 
                     : "border-brand-beige/30 text-gray-500 hover:border-brand-olive/50"
                 }`}
               >
-                {method}
+                {opcao === "Correios" ? "Correios" : "Retirar"}
               </button>
             ))}
           </div>
+        </div>
+
+        <div className="bg-brand-mint/20 p-6 rounded-2xl mb-8">
+          {entrega === "Correios" ? (
+            <>
+              <h4 className="font-medium text-brand-olive mb-2 flex items-center gap-2">
+                <MapPin size={18} /> Endereço de Entrega
+              </h4>
+              <p className="text-sm text-gray-600 leading-relaxed">
+                {user?.full_name}<br />
+                {user?.address}, {user?.number}<br />
+                CEP: {user?.cep}
+              </p>
+              <p className="text-sm text-gray-600 mt-3">O frete dos Correios é combinado pelo WhatsApp depois de finalizar.</p>
+            </>
+          ) : (
+            <>
+              <h4 className="font-medium text-brand-olive mb-2 flex items-center gap-2">
+                <MapPin size={18} /> Retirada
+              </h4>
+              <p className="text-sm text-gray-600 leading-relaxed">
+                {LOJA.localRetirada || LOJA.cidade}. Combinamos o dia e o horário pelo WhatsApp.
+              </p>
+            </>
+          )}
+        </div>
+
+        <div className="mb-8">
+          <h4 className="font-medium text-brand-olive mb-2">Pagamento</h4>
+          <p className="text-sm text-gray-600">PIX. Depois de finalizar, mostramos a chave e o botão para enviar o comprovante pelo WhatsApp.</p>
         </div>
 
         <button 
@@ -962,10 +1055,6 @@ const PaymentPage = ({ cart, user, onClearCart }: { cart: CartItem[], user: any,
         >
           {loading ? "Processando..." : "Finalizar Pedido"}
         </button>
-        
-        <p className="text-center text-sm text-gray-500 mt-6 leading-relaxed">
-          O pedido será separado e enviado para você. Para mais dúvidas, entre em contato com as redes sociais do Tenda Ervas.
-        </p>
       </div>
     </div>
   );
@@ -1014,7 +1103,8 @@ const MyOrders = ({ user }: { user: any }) => {
             <div className="flex justify-between items-start mb-4">
               <div>
                 <span className="text-xs text-gray-400 uppercase tracking-widest">Status</span>
-                <div className="font-serif text-xl text-brand-olive capitalize">{order.status}</div>
+                <div className="font-serif text-xl text-brand-olive">{STATUS_PEDIDO[order.status] || order.status}</div>
+                <div className="text-sm text-gray-600 mt-1">Pedido #{order.id} · {order.delivery_method === "Retirada" ? "Retirada" : "Correios"}</div>
               </div>
               <div className="text-right">
                 <span className="text-xs text-gray-400 uppercase tracking-widest">Data</span>
@@ -1025,6 +1115,9 @@ const MyOrders = ({ user }: { user: any }) => {
               <p className="text-sm text-gray-600">{order.description}</p>
               <p className="text-sm font-bold text-brand-olive mt-2">Total: R$ {order.total_price.toFixed(2)}</p>
             </div>
+            {order.status === "aguardando pagamento" && (
+              <InstrucoesPagamento pedido={order} />
+            )}
             {order.status === "pedido enviado para entrega" && (
               <button 
                 onClick={() => handleConfirmArrival(order.id)}
@@ -1050,56 +1143,84 @@ const MyOrders = ({ user }: { user: any }) => {
   );
 };
 
-const Checkout = ({ onLoginSuccess }: { onLoginSuccess: (user: any) => void }) => {
+// Método que traduz as mensagens de erro do Supabase Auth, mantendo o original em inglês embaixo
+const traduzirErroAuth = (error: any) => {
+  const codigo = error?.code || "";
+  const mensagem = error?.message || "";
+  const minimo = mensagem.match(/at least (\d+)/);
+  let traducao = "";
+  if (codigo === "user_already_exists" || mensagem.includes("already registered")) traducao = "Este e-mail já tem cadastro. Entre com ele ou use \"Esqueci minha senha\".";
+  else if (codigo === "weak_password" || minimo) traducao = minimo ? `A senha precisa ter pelo menos ${minimo[1]} caracteres.` : "Senha fraca: escolha uma senha mais difícil de adivinhar.";
+  else if (codigo === "email_not_confirmed") traducao = "Confirme seu e-mail pelo link que enviamos antes de entrar.";
+  else if (codigo === "invalid_credentials") traducao = "E-mail ou senha incorretos.";
+  else if (codigo === "email_address_invalid" || mensagem.includes("invalid format")) traducao = "E-mail inválido.";
+  else if (codigo.includes("rate_limit") || mensagem.includes("rate limit")) traducao = "Muitas tentativas seguidas. Espere alguns minutos e tente de novo.";
+  else if (codigo === "same_password") traducao = "A senha nova precisa ser diferente da atual.";
+  if (!traducao) return mensagem || "Erro ao processar solicitação";
+  return mensagem ? `${traducao}\n\n(${mensagem})` : traducao;
+};
+
+const Checkout = ({ user }: { user: any }) => {
   const [isRegistering, setIsRegistering] = useState(true);
   const [formData, setFormData] = useState({
-    email: "", password: "", full_name: "", cpf: "", address: "", cep: "", number: ""
+    email: "", password: "", full_name: "", cpf: "", address: "", cep: "", number: "", phone: ""
   });
   const navigate = useNavigate();
+
+  // Depois do login o App carrega o cadastro; com ele carregado, segue para o carrinho
+  useEffect(() => {
+    if (user) navigate("/carrinho");
+  }, [user]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
       if (isRegistering) {
-        const { data, error } = await supabase
-          .from('users')
-          .insert([{
-            email: formData.email,
-            password: formData.password, // In a real app, use Supabase Auth!
-            full_name: formData.full_name,
-            cpf: formData.cpf,
-            address: formData.address,
-            cep: formData.cep,
-            number: formData.number
-          }])
-          .select()
-          .single();
-        
+        // A senha fica só no Supabase Auth; os dados de entrega vão para a tabela users pelo banco
+        const { data, error } = await supabase.auth.signUp({
+          email: formData.email,
+          password: formData.password,
+          options: {
+            data: {
+              full_name: formData.full_name,
+              cpf: formData.cpf,
+              address: formData.address,
+              cep: formData.cep,
+              number: formData.number,
+              phone: formData.phone
+            }
+          }
+        });
+
         if (error) throw error;
 
-        localStorage.setItem("userToken", "spa-user-token");
-        localStorage.setItem("userData", JSON.stringify(data));
-        onLoginSuccess(data);
-        navigate("/carrinho");
+        if (!data.session) {
+          alert("Cadastro feito! Confirme seu e-mail pelo link que enviamos e depois entre na sua conta.");
+          setIsRegistering(false);
+        }
       } else {
-        const { data, error } = await supabase
-          .from('users')
-          .select('*')
-          .eq('email', formData.email)
-          .eq('password', formData.password)
-          .maybeSingle();
-        
-        if (error) throw error;
-        if (!data) throw new Error("Email ou senha incorretos");
+        const { error } = await supabase.auth.signInWithPassword({
+          email: formData.email,
+          password: formData.password
+        });
 
-        localStorage.setItem("userToken", "spa-user-token");
-        localStorage.setItem("userData", JSON.stringify(data));
-        onLoginSuccess(data);
-        navigate("/carrinho");
+        if (error) throw error;
       }
     } catch (err: any) {
-      alert(err.message || "Erro ao processar solicitação");
+      alert(traduzirErroAuth(err));
     }
+  };
+
+  // Método que envia o link para o cliente criar uma senha nova
+  const esqueciSenha = async () => {
+    if (!formData.email) {
+      alert("Digite seu e-mail no campo acima e clique de novo em \"Esqueci minha senha\".");
+      return;
+    }
+    const { error } = await supabase.auth.resetPasswordForEmail(formData.email, {
+      redirectTo: `${window.location.origin}/nova-senha`
+    });
+    alert(error ? traduzirErroAuth(error) : `Se houver uma conta com ${formData.email}, enviamos um link para criar uma senha nova.`);
   };
 
   return (
@@ -1140,14 +1261,22 @@ const Checkout = ({ onLoginSuccess }: { onLoginSuccess: (user: any) => void }) =
                   className="w-full px-4 py-3 rounded-xl border border-brand-beige/30"
                   required
                 />
-                <input 
-                  placeholder="Número" 
+                <input
+                  placeholder="Número"
                   value={formData.number}
                   onChange={e => setFormData({...formData, number: e.target.value})}
                   className="w-full px-4 py-3 rounded-xl border border-brand-beige/30"
                   required
                 />
               </div>
+              <input
+                type="tel"
+                placeholder="WhatsApp com DDD"
+                value={formData.phone}
+                onChange={e => setFormData({...formData, phone: e.target.value})}
+                className="w-full px-4 py-3 rounded-xl border border-brand-beige/30"
+                required
+              />
             </>
           )}
           <input 
@@ -1170,7 +1299,15 @@ const Checkout = ({ onLoginSuccess }: { onLoginSuccess: (user: any) => void }) =
             {isRegistering ? "Cadastrar e Continuar" : "Entrar"}
           </button>
         </form>
-        <button 
+        {!isRegistering && (
+          <button
+            onClick={esqueciSenha}
+            className="w-full mt-4 text-sm text-gray-500 hover:underline"
+          >
+            Esqueci minha senha
+          </button>
+        )}
+        <button
           onClick={() => setIsRegistering(!isRegistering)}
           className="w-full mt-6 text-sm text-brand-olive font-medium hover:underline"
         >
@@ -1181,15 +1318,140 @@ const Checkout = ({ onLoginSuccess }: { onLoginSuccess: (user: any) => void }) =
   );
 };
 
+const NovaSenha = ({ user }: { user: any }) => {
+  const [senha, setSenha] = useState("");
+  const [confirmacao, setConfirmacao] = useState("");
+  const navigate = useNavigate();
+
+  // Método que grava a senha nova do cliente que veio pelo link do e-mail
+  const salvar = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (senha !== confirmacao) {
+      alert("As duas senhas não são iguais.");
+      return;
+    }
+    const { error } = await supabase.auth.updateUser({ password: senha });
+    if (error) {
+      alert(traduzirErroAuth(error));
+      return;
+    }
+    alert("Senha alterada!");
+    navigate("/produtos");
+  };
+
+  return (
+    <div className="max-w-md mx-auto px-4 py-20 min-h-screen">
+      <div className="bg-white p-8 rounded-3xl shadow-xl border border-brand-beige/20">
+        <h2 className="text-3xl font-serif text-brand-olive mb-8 text-center">Criar senha nova</h2>
+        {!user ? (
+          <p className="text-gray-600 text-center">
+            O link expirou ou já foi usado. Peça outro em Entrar &gt; "Esqueci minha senha".
+          </p>
+        ) : (
+          <form onSubmit={salvar} className="space-y-4">
+            <input
+              type="password"
+              placeholder="Senha nova"
+              value={senha}
+              onChange={e => setSenha(e.target.value)}
+              className="w-full px-4 py-3 rounded-xl border border-brand-beige/30"
+              required
+            />
+            <input
+              type="password"
+              placeholder="Repita a senha nova"
+              value={confirmacao}
+              onChange={e => setConfirmacao(e.target.value)}
+              className="w-full px-4 py-3 rounded-xl border border-brand-beige/30"
+              required
+            />
+            <button className="w-full bg-brand-olive text-white py-4 rounded-full font-bold shadow-lg hover:shadow-xl transition-all">
+              Salvar senha
+            </button>
+          </form>
+        )}
+      </div>
+    </div>
+  );
+};
+
+// Página de texto simples usada pelas políticas da loja
+const PaginaTexto = ({ titulo, children }: { titulo: string, children: React.ReactNode }) => (
+  <div className="max-w-3xl mx-auto px-4 py-20 min-h-screen">
+    <div className="bg-white p-8 md:p-12 rounded-3xl shadow-sm border border-brand-beige/20 space-y-5 text-gray-700 leading-relaxed">
+      <h2 className="text-4xl font-serif text-brand-olive mb-4">{titulo}</h2>
+      {children}
+    </div>
+  </div>
+);
+
+const Privacidade = () => (
+  <PaginaTexto titulo="Política de privacidade">
+    <p>Esta política explica como a {LOJA.nome} usa os seus dados pessoais, conforme a Lei Geral de Proteção de Dados (Lei 13.709/2018).</p>
+    <h3 className="text-2xl font-serif text-brand-olive pt-2">Quais dados guardamos</h3>
+    <p>No cadastro: nome, CPF, e-mail, WhatsApp, endereço e CEP. Em cada compra: os produtos, o valor, a forma de entrega e o andamento do pedido. A senha fica criptografada e nem a loja tem acesso a ela.</p>
+    <h3 className="text-2xl font-serif text-brand-olive pt-2">Para que usamos</h3>
+    <p>Para separar e entregar os pedidos, falar com você sobre a compra, emitir documentos fiscais e cumprir obrigações legais. Não vendemos nem usamos seus dados para propaganda de terceiros.</p>
+    <h3 className="text-2xl font-serif text-brand-olive pt-2">Com quem compartilhamos</h3>
+    <p>Só com quem é necessário para a compra acontecer: os Correios ou a transportadora (nome e endereço de entrega) e os serviços que hospedam o site e o banco de dados (Netlify e Supabase).</p>
+    <h3 className="text-2xl font-serif text-brand-olive pt-2">Seus direitos</h3>
+    <p>Você pode pedir a qualquer momento para ver, corrigir ou apagar seus dados, ou tirar dúvidas sobre o uso deles. Alguns dados de compras precisam ser guardados pelo prazo que a lei fiscal exige.</p>
+    <h3 className="text-2xl font-serif text-brand-olive pt-2">Contato</h3>
+    <p>
+      E-mail <a href={`mailto:${LOJA.email}`} className="text-brand-olive underline">{LOJA.email}</a> ou WhatsApp{" "}
+      <a href={linkWhatsApp("Olá! Tenho uma dúvida sobre meus dados.")} target="_blank" rel="noreferrer" className="text-brand-olive underline">{LOJA.whatsappExibicao}</a>.
+    </p>
+  </PaginaTexto>
+);
+
+const Trocas = () => (
+  <PaginaTexto titulo="Trocas e devoluções">
+    <h3 className="text-2xl font-serif text-brand-olive">Arrependimento em até 7 dias</h3>
+    <p>Em compras feitas pelo site, você pode desistir em até 7 dias corridos a partir do recebimento, sem precisar explicar o motivo (art. 49 do Código de Defesa do Consumidor). Devolvemos o valor pago, incluindo o frete.</p>
+    <h3 className="text-2xl font-serif text-brand-olive pt-2">Produto com defeito ou errado</h3>
+    <p>Se o produto chegar danificado, vencido ou diferente do pedido, avise em até 30 dias do recebimento. Trocamos o produto ou devolvemos o valor, como você preferir.</p>
+    <h3 className="text-2xl font-serif text-brand-olive pt-2">Como pedir</h3>
+    <p>
+      Chame no WhatsApp{" "}
+      <a href={linkWhatsApp("Olá! Quero pedir troca ou devolução do pedido #")} target="_blank" rel="noreferrer" className="text-brand-olive underline">{LOJA.whatsappExibicao}</a>{" "}
+      ou mande e-mail para <a href={`mailto:${LOJA.email}`} className="text-brand-olive underline">{LOJA.email}</a> com o número do pedido e fotos, se houver defeito. Combinamos a devolução e o reembolso é feito por PIX.
+    </p>
+  </PaginaTexto>
+);
+
 // --- Main App ---
 
 export default function App() {
   const [cart, setCart] = useState<CartItem[]>([]);
-  const [isAdmin, setIsAdmin] = useState(!!localStorage.getItem("adminToken"));
-  const [user, setUser] = useState<any>(() => {
-    const saved = localStorage.getItem("userData");
-    return saved ? JSON.parse(saved) : null;
-  });
+  const [isAdmin, setIsAdmin] = useState(false);
+  const [user, setUser] = useState<any>(null);
+  const [sessaoCarregada, setSessaoCarregada] = useState(false);
+
+  useEffect(() => {
+    // Remove o login da versão antiga, que guardava o cadastro do cliente (com a senha) no navegador
+    ["userData", "userToken", "adminToken"].forEach(chave => localStorage.removeItem(chave));
+
+    // Método que carrega o cadastro e o perfil de administrador do usuário logado
+    const carregarSessao = async (session: Session | null) => {
+      if (!session) {
+        setUser(null);
+        setIsAdmin(false);
+      } else {
+        const { data: cadastro } = await supabase.from('users').select('*').eq('id', session.user.id).maybeSingle();
+        const { data: ehAdmin } = await supabase.rpc('is_admin');
+        setUser(cadastro ?? { id: session.user.id, email: session.user.email });
+        setIsAdmin(!!ehAdmin);
+      }
+      setSessaoCarregada(true);
+    };
+
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_evento, session) => {
+      // O Supabase pede para não chamar o client dentro deste callback; o setTimeout tira a chamada dele
+      setTimeout(() => carregarSessao(session), 0);
+    });
+
+    return () => subscription.unsubscribe();
+  }, []);
 
   const addToCart = (product: Product, qty: number) => {
     setCart(prev => {
@@ -1227,15 +1489,22 @@ export default function App() {
         />
         
         <main className="flex-grow">
-          <Routes>
-            <Route path="/" element={<Home />} />
-            <Route path="/produtos" element={<Products onAddToCart={addToCart} isAdmin={isAdmin} />} />
-            <Route path="/carrinho" element={<Cart cart={cart} onUpdateQuantity={updateCartQuantity} onRemove={removeFromCart} user={user} onClearCart={() => setCart([])} />} />
-            <Route path="/checkout" element={<Checkout onLoginSuccess={setUser} />} />
-            <Route path="/meus-pedidos" element={<MyOrders user={user} />} />
-            <Route path="/pagamento" element={<PaymentPage cart={cart} user={user} onClearCart={() => setCart([])} />} />
-            <Route path="/admin" element={<Admin onLogin={() => setIsAdmin(true)} onLogout={() => setIsAdmin(false)} />} />
-          </Routes>
+          {!sessaoCarregada ? (
+            <div className="min-h-screen flex items-center justify-center">Carregando...</div>
+          ) : (
+            <Routes>
+              <Route path="/" element={<Home />} />
+              <Route path="/produtos" element={<Products onAddToCart={addToCart} isAdmin={isAdmin} />} />
+              <Route path="/carrinho" element={<Cart cart={cart} onUpdateQuantity={updateCartQuantity} onRemove={removeFromCart} user={user} onClearCart={() => setCart([])} />} />
+              <Route path="/checkout" element={<Checkout user={user} />} />
+              <Route path="/nova-senha" element={<NovaSenha user={user} />} />
+              <Route path="/privacidade" element={<Privacidade />} />
+              <Route path="/trocas" element={<Trocas />} />
+              <Route path="/meus-pedidos" element={<MyOrders user={user} />} />
+              <Route path="/pagamento" element={<PaymentPage cart={cart} user={user} onClearCart={() => setCart([])} />} />
+              <Route path="/admin" element={<Admin isAdmin={isAdmin} />} />
+            </Routes>
+          )}
         </main>
 
         <Footer />

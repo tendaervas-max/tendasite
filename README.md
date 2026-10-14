@@ -15,6 +15,12 @@ View your app in AI Studio: https://ai.studio/apps/43632240-6692-412b-9d38-f853e
 
 1. Install dependencies:
    `npm install`
-2. Set the `GEMINI_API_KEY` in [.env.local](.env.local) to your Gemini API key
-3. Run the app:
+2. Crie um projeto no Supabase e rode `supabase/schema.sql` no SQL Editor (tabelas, regras de acesso e bucket de fotos)
+3. Copie `.env.example` para `.env.local` e preencha `VITE_SUPABASE_URL` e `VITE_SUPABASE_ANON_KEY` (na Netlify, cadastre as mesmas variáveis em Site configuration > Environment variables)
+4. Crie o administrador em Authentication > Users e libere com o `insert into public.admin` que está no começo do `schema.sql`
+5. Run the app:
    `npm run dev`
+
+## Documentação
+
+Análise, segurança, configuração do Supabase e melhorias: [DOCUMENTACAO.md](DOCUMENTACAO.md).
