@@ -13,6 +13,9 @@ export interface Product {
   category: string;
   options: OpcaoProduto[];
   adult: boolean;
+  preco_promocional?: number | null;
+  promocao_ate?: string | null;
+  precoOriginal?: number;
 }
 
 export interface CartItem extends Product {

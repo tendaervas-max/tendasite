@@ -36,13 +36,16 @@ O código está pronto e os dois projetos Supabase foram retomados. Em 14/10 a l
 - [x] Loja: cadastro pelo CEP, confirmação e olho da senha, Minha conta (dados e senha), Manter conectado, aviso de produto adicionado, preços no formato R$ 0,00 e botões de WhatsApp para combinar a entrega
 - [x] Loja: cliente edita ou cancela o pedido enquanto ele aguarda o pagamento (editar refaz o pedido com os valores recalculados e cancela o anterior), pedido cancelado ou entregue tem o botão Fazer pedido igual (mesmos produtos e quantidades, com preço e estoque de hoje) e os kits avisam que as cores dos itens são aleatórias, com link do WhatsApp para escolher (`supabase/atualizacao-2026-10-14-editar-cancelar.sql`, já rodado)
 - [x] Loja: CPF conferido pelos dígitos verificadores no site e no banco; logins antigos ganharam cadastro em `users` e a tabela `admin` mostra nome e e-mail, com um segundo admin liberado (`supabase/atualizacao-2026-10-14-admin-cpf.sql`, já rodado)
+- [x] Loja e gestão: aba Usuários no Admin (lista os administradores, torna ou retira admin, cadastra login) e a gestão no mesmo banco e login da loja; o dono (tendaervas) libera quem entra na gestão e quem tem acesso vê o link Gestão no menu (`supabase/atualizacao-2026-10-14-usuarios.sql`, `supabase/atualizacao-2026-10-14-gestao.sql` e o `schema.sql` do Tenda-Ervas, já rodados no Site Tenda)
+- [x] Gestão ligada à loja: o estoque é a tabela de produtos do site (Cadastrar produto com as categorias da loja e categoria nova), os pedidos do site entram no quadro de pedidos e, ao mudar de coluna, mudam o status para o cliente, e os clientes do site aparecem no painel; tela Kits e Promoções cria kit (os itens saem do estoque), monta mais unidades e aplica promoção por preço ou desconto, em produto avulso ou kit, que o site mostra e cobra (`supabase/atualizacao-2026-10-14-gestao-integrada.sql` e `supabase/atualizacao-2026-10-14-kits-promocoes.sql`, já rodados)
+- [ ] Publicar a Edge Function criar-usuario no Supabase da loja (Edge Functions > Deploy a new function, verify JWT ligado); sem ela, o Cadastrar usuário da aba Usuários dá erro
 - [ ] Ajustar o estoque real de cada produto (todos entraram com 10) no Table Editor do Supabase, tabela products, coluna quantity
 - [ ] Gmail: ligar a verificação em duas etapas da conta da loja, criar uma senha de app e colar no Supabase em Authentication > Emails > SMTP Settings (smtp.gmail.com, porta 465) e no secret `GMAIL_SENHA_APP` da função
 - [x] Netlify: site publicado em tendaervas.netlify.app, com o secret `SITE_URL` da função e, no Supabase, o Site URL e as Redirect URLs configurados (com `/nova-senha`)
 - [ ] Revisar os textos de privacidade e de trocas e preencher razão social e endereço em `src/loja.ts`
 - [ ] Testar loja e gestão rodando local com `npm run dev`
 - [x] Pull request de `ajustes-nathalia` para a `main` mesclado nos dois repositórios em 14/10/2026; a loja está no ar em tendaervas.netlify.app com a versão nova
-- [ ] Gestão: no projeto sistematenda da Netlify (sistematenda.netlify.app, publica a `main` do Tenda-Ervas), cadastrar `VITE_SUPABASE_URL` e `VITE_SUPABASE_ANON_KEY` em Environment variables e publicar de novo; sem elas a gestão abre em MODO LOCAL, sem login, e o que se cadastra fica só no navegador. No Supabase da gestão, colocar o endereço em Authentication > URL Configuration > Site URL
+- [ ] Gestão: no projeto sistematenda da Netlify (sistematenda.netlify.app, publica a `main` do Tenda-Ervas), cadastrar `VITE_SUPABASE_URL` e `VITE_SUPABASE_ANON_KEY` em Environment variables, com os mesmos valores do tendaervas (projeto da loja), e publicar de novo; sem elas a gestão abre em MODO LOCAL, sem login, e o que se cadastra fica só no navegador
 - [x] Apagar o esquema `backup` da loja com `drop schema backup cascade;`: apagado em 14/10/2026; só guardava os 2 logins antigos de admin
 - [ ] Decidir o autor do git: o `~/.gitconfig` global está como `tendaervas-max`, e isso vale para todos os repositórios da máquina
 
@@ -125,7 +128,7 @@ As senhas passaram a ficar só no Supabase Auth, que as guarda criptografadas (b
 
 ## Configuração do Supabase
 
-São dois projetos Supabase separados, um para a loja e outro para a gestão, porque os dois têm uma tabela `orders`. Criar os projetos exige entrar na conta Supabase da Tenda Ervas, então essa parte fica com você. Os arquivos `.env.local` já têm o endereço de cada projeto e a chave publishable.
+Desde 14/10/2026 a gestão usa o mesmo projeto e o mesmo login da loja (Site Tenda), com as tabelas gestao\_estoque, gestao\_vendas e gestao\_pedidos, e o projeto Tenda Ervas ficou sem uso. Quem entra na gestão é escolhido pelo dono da loja no Admin do site, aba Usuários. Antes eram dois projetos separados, porque os dois têm uma tabela `orders`. Criar os projetos exige entrar na conta Supabase da Tenda Ervas, então essa parte fica com você. Os arquivos `.env.local` já têm o endereço de cada projeto e a chave publishable.
 
 Os projetos antigos não foram apagados: estavam pausados na organização `tendaervas-max's Org` (plano Free) e foram retomados em 14/10/2026. Site Tenda (`hbkywvztwhdccznwuuex`) é a loja, Tenda Ervas (`msbofqngdoqvuxfpodjd`) é a gestão, e tenda (`parmnfeapncnvhnespwz`) não é usado por nenhum dos dois. Nenhum dos três tinha arquivos no Storage.
 

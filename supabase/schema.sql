@@ -4,7 +4,8 @@
 -- As senhas ficam só no Supabase Auth (criptografadas com bcrypt pelo próprio Supabase);
 -- nenhuma tabela do sistema guarda senha.
 --
--- Para tornar um usuário administrador, crie o usuário em Authentication > Users > Add user
+-- Depois do primeiro administrador, os outros logins são criados e liberados pela aba Usuários do painel
+-- (Edge Function criar-usuario). Para o primeiro, crie o usuário em Authentication > Users > Add user
 -- e depois rode:
 --   insert into public.admin (user_id) select id from auth.users where email = 'email-do-admin@exemplo.com';
 
@@ -13,6 +14,7 @@ create table if not exists public.admin (
   user_id uuid primary key references auth.users (id) on delete cascade,
   email text,
   nome text,
+  dono boolean not null default false,
   created_at timestamptz not null default now()
 );
 
@@ -30,6 +32,33 @@ as $$
 $$;
 
 grant execute on function public.is_admin() to anon, authenticated;
+
+create policy "administrador vê os administradores"
+  on public.admin for select
+  using (public.is_admin());
+
+create policy "administrador libera administrador"
+  on public.admin for insert
+  with check (public.is_admin());
+
+-- Ninguém retira o próprio acesso nem o do dono, para a loja nunca ficar sem administrador
+create policy "administrador retira administrador"
+  on public.admin for delete
+  using (public.is_admin() and user_id <> auth.uid() and not dono);
+
+-- Função que diz se o usuário logado é o dono da loja
+create or replace function public.eh_dono()
+returns boolean
+language sql
+stable
+security definer
+set search_path = public
+as $$
+  select exists (select 1 from public.admin where user_id = auth.uid() and dono);
+$$;
+
+revoke execute on function public.eh_dono() from public, anon;
+grant execute on function public.eh_dono() to authenticated;
 
 -- Cadastro do cliente (dados de entrega), ligado ao usuário do Supabase Auth
 create table if not exists public.users (
@@ -151,6 +180,49 @@ create trigger ao_liberar_admin
   before insert or update of user_id on public.admin
   for each row execute function public.preencher_admin();
 
+-- Quem acessa a gestão (sistematenda.netlify.app), escolhido pelo dono no painel Admin da loja
+create table if not exists public.equipe (
+  user_id uuid primary key references auth.users (id) on delete cascade,
+  email text,
+  nome text,
+  created_at timestamptz not null default now()
+);
+
+alter table public.equipe enable row level security;
+revoke all on public.equipe from anon;
+
+create policy "administrador vê a equipe da gestão"
+  on public.equipe for select
+  using (public.is_admin() or user_id = auth.uid());
+
+create policy "dono libera a gestão"
+  on public.equipe for insert
+  with check (public.eh_dono());
+
+create policy "dono retira a gestão"
+  on public.equipe for delete
+  using (public.eh_dono());
+
+-- O e-mail e o nome de quem entra na equipe vêm do login e do cadastro, como na tabela admin
+drop trigger if exists ao_liberar_gestao on public.equipe;
+create trigger ao_liberar_gestao
+  before insert or update of user_id on public.equipe
+  for each row execute function public.preencher_admin();
+
+-- Função que diz se o usuário logado pode entrar na gestão
+create or replace function public.eh_da_equipe()
+returns boolean
+language sql
+stable
+security definer
+set search_path = public
+as $$
+  select exists (select 1 from public.equipe where user_id = auth.uid());
+$$;
+
+revoke execute on function public.eh_da_equipe() from public, anon;
+grant execute on function public.eh_da_equipe() to authenticated;
+
 -- Função que cria o cadastro do cliente quando ele se registra
 create or replace function public.criar_cadastro_cliente()
 returns trigger
@@ -191,6 +263,11 @@ create table if not exists public.products (
   category text not null default 'Ervas',
   options jsonb not null default '[]',
   adult boolean not null default false,
+  estoque_minimo integer not null default 5 check (estoque_minimo >= 0),
+  atualizado_em timestamptz not null default now(),
+  preco_promocional numeric(10, 2) check (preco_promocional >= 0),
+  promocao_ate date,
+  kit_itens jsonb not null default '[]',
   created_at timestamptz not null default now()
 );
 
@@ -212,6 +289,36 @@ create policy "administrador altera produtos"
 create policy "administrador exclui produtos"
   on public.products for delete
   using (public.is_admin());
+
+-- Função que marca a data da última alteração do produto
+create or replace function public.marcar_atualizacao_produto()
+returns trigger
+language plpgsql
+as $$
+begin
+  new.atualizado_em := now();
+  return new;
+end;
+$$;
+
+drop trigger if exists ao_alterar_produto on public.products;
+create trigger ao_alterar_produto
+  before update on public.products
+  for each row execute function public.marcar_atualizacao_produto();
+
+-- A equipe da gestão cadastra, altera e exclui produtos
+create policy "equipe cadastra produtos"
+  on public.products for insert
+  with check (public.eh_da_equipe());
+
+create policy "equipe altera produtos"
+  on public.products for update
+  using (public.eh_da_equipe())
+  with check (public.eh_da_equipe());
+
+create policy "equipe exclui produtos"
+  on public.products for delete
+  using (public.eh_da_equipe());
 
 -- Pedidos: cliente vê os próprios, administrador vê todos
 create table if not exists public.orders (
@@ -246,9 +353,37 @@ create policy "cliente confirma a entrega"
   using (user_id = auth.uid() and status = 'pedido enviado para entrega')
   with check (user_id = auth.uid() and status = 'pedido entregue');
 
+-- A equipe da gestão vê os clientes e os pedidos da loja e muda o status do pedido (o cliente recebe o aviso por e-mail)
+create policy "equipe vê os clientes"
+  on public.users for select
+  using (public.eh_da_equipe());
+
+create policy "equipe vê os pedidos"
+  on public.orders for select
+  using (public.eh_da_equipe());
+
+create policy "equipe altera o status do pedido"
+  on public.orders for update
+  using (public.eh_da_equipe())
+  with check (public.eh_da_equipe());
+
 -- Pedido só entra pela função criar_pedido e só o status pode ser alterado
 revoke insert, update, delete on public.orders from anon, authenticated;
 grant update (status) on public.orders to authenticated;
+
+-- Função que diz o preço que vale hoje: o promocional enquanto a promoção está no prazo (data de São Paulo), senão o normal
+create or replace function public.preco_atual(p_produto public.products)
+returns numeric
+language sql
+stable
+as $$
+  select case
+    when p_produto.preco_promocional is not null
+     and (p_produto.promocao_ate is null or p_produto.promocao_ate >= (now() at time zone 'America/Sao_Paulo')::date)
+    then p_produto.preco_promocional
+    else p_produto.price
+  end;
+$$;
 
 -- Função que grava o pedido calculando o total pelos preços do banco e baixa o estoque
 create or replace function public.criar_pedido(p_itens jsonb, p_forma_pagamento text, p_entrega text)
@@ -263,6 +398,7 @@ declare
   v_item jsonb;
   v_quantidade integer;
   v_total numeric(10, 2) := 0;
+  v_preco numeric(10, 2);
   v_descricao text[] := '{}';
   v_itens jsonb := '[]';
   v_opcao text;
@@ -314,9 +450,10 @@ begin
 
     update public.products set quantity = quantity - v_quantidade where id = v_produto.id;
 
-    v_total := v_total + v_produto.price * v_quantidade;
+    v_preco := public.preco_atual(v_produto);
+    v_total := v_total + v_preco * v_quantidade;
     v_descricao := v_descricao || (v_quantidade || 'x ' || v_produto.name || coalesce(' (' || v_opcao || ')', ''));
-    v_itens := v_itens || jsonb_build_object('id', v_produto.id, 'nome', v_produto.name, 'opcao', v_opcao, 'quantidade', v_quantidade, 'preco', v_produto.price);
+    v_itens := v_itens || jsonb_build_object('id', v_produto.id, 'nome', v_produto.name, 'opcao', v_opcao, 'quantidade', v_quantidade, 'preco', v_preco);
   end loop;
 
   insert into public.orders (user_id, customer_name, payment_method, delivery_method, description, items, total_price)
@@ -329,6 +466,128 @@ $$;
 
 revoke execute on function public.criar_pedido(jsonb, text, text) from public, anon;
 grant execute on function public.criar_pedido(jsonb, text, text) to authenticated;
+
+-- Função que cria o kit: grava o produto na categoria Kits e tira do estoque os itens dos kits montados
+create or replace function public.criar_kit(p_nome text, p_descricao text, p_preco numeric, p_quantidade integer, p_estoque_minimo integer, p_itens jsonb)
+returns bigint
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_item jsonb;
+  v_produto public.products;
+  v_quantidade integer;
+  v_descricao text[] := '{}';
+  v_itens jsonb := '[]';
+  v_id bigint;
+begin
+  if not public.eh_da_equipe() then
+    raise exception 'Só a equipe da gestão cria kit';
+  end if;
+
+  if coalesce(trim(p_nome), '') = '' then
+    raise exception 'Informe o nome do kit';
+  end if;
+
+  if p_preco is null or p_preco < 0 then
+    raise exception 'Preço inválido';
+  end if;
+
+  if p_quantidade is null or p_quantidade < 0 then
+    raise exception 'Quantidade de kits inválida';
+  end if;
+
+  if p_itens is null or jsonb_typeof(p_itens) <> 'array' or jsonb_array_length(p_itens) = 0 then
+    raise exception 'Escolha os produtos do kit';
+  end if;
+
+  for v_item in select * from jsonb_array_elements(p_itens) loop
+    v_quantidade := (v_item ->> 'quantidade')::integer;
+    if v_quantidade is null or v_quantidade < 1 then
+      raise exception 'Quantidade inválida';
+    end if;
+
+    select * into v_produto from public.products where id = (v_item ->> 'id')::bigint for update;
+    if not found then
+      raise exception 'Produto não encontrado';
+    end if;
+
+    if v_produto.quantity < v_quantidade * p_quantidade then
+      raise exception 'Estoque insuficiente de % para montar % kit(s): restam %', v_produto.name, p_quantidade, v_produto.quantity;
+    end if;
+
+    update public.products set quantity = quantity - v_quantidade * p_quantidade where id = v_produto.id;
+
+    v_descricao := v_descricao || (v_quantidade || 'x ' || v_produto.name);
+    v_itens := v_itens || jsonb_build_object('id', v_produto.id, 'nome', v_produto.name, 'quantidade', v_quantidade);
+  end loop;
+
+  insert into public.products (name, description, category, price, quantity, estoque_minimo, kit_itens)
+  values (
+    trim(p_nome),
+    coalesce(nullif(trim(p_descricao), ''), 'Inclui ' || array_to_string(v_descricao, ', ') || '.'),
+    'Kits',
+    p_preco,
+    p_quantidade,
+    coalesce(p_estoque_minimo, 5),
+    v_itens
+  )
+  returning id into v_id;
+
+  return v_id;
+end;
+$$;
+
+revoke execute on function public.criar_kit(text, text, numeric, integer, integer, jsonb) from public, anon;
+grant execute on function public.criar_kit(text, text, numeric, integer, integer, jsonb) to authenticated;
+
+-- Função que monta mais unidades de um kit: tira os itens do estoque e soma no estoque do kit
+create or replace function public.montar_kit(p_kit bigint, p_quantidade integer)
+returns void
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_kit public.products;
+  v_item jsonb;
+  v_produto public.products;
+  v_quantidade integer;
+begin
+  if not public.eh_da_equipe() then
+    raise exception 'Só a equipe da gestão monta kit';
+  end if;
+
+  if p_quantidade is null or p_quantidade < 1 then
+    raise exception 'Quantidade de kits inválida';
+  end if;
+
+  select * into v_kit from public.products where id = p_kit for update;
+  if not found or jsonb_array_length(v_kit.kit_itens) = 0 then
+    raise exception 'Este produto não é um kit montado pela gestão';
+  end if;
+
+  for v_item in select * from jsonb_array_elements(v_kit.kit_itens) loop
+    v_quantidade := (v_item ->> 'quantidade')::integer;
+    select * into v_produto from public.products where id = (v_item ->> 'id')::bigint for update;
+    if not found then
+      raise exception 'O produto % do kit não existe mais', v_item ->> 'nome';
+    end if;
+
+    if v_produto.quantity < v_quantidade * p_quantidade then
+      raise exception 'Estoque insuficiente de % para montar % kit(s): restam %', v_produto.name, p_quantidade, v_produto.quantity;
+    end if;
+
+    update public.products set quantity = quantity - v_quantidade * p_quantidade where id = v_produto.id;
+  end loop;
+
+  update public.products set quantity = quantity + p_quantidade where id = p_kit;
+end;
+$$;
+
+revoke execute on function public.montar_kit(bigint, integer) from public, anon;
+grant execute on function public.montar_kit(bigint, integer) to authenticated;
 
 -- Função que cancela o pedido do cliente logado enquanto ele aguarda o pagamento (o gatilho devolve o estoque)
 create or replace function public.cancelar_pedido(p_pedido bigint)
