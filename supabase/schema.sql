@@ -223,11 +223,11 @@ begin
       raise exception 'Produto não encontrado';
     end if;
 
-    -- Produto com opções (cor, aroma) exige uma opção que exista no cadastro
+    -- Produto com opções (cor, aroma) exige uma opção que exista no cadastro ou Aleatório (a loja escolhe)
     v_opcao := nullif(trim(v_item ->> 'opcao'), '');
     if jsonb_array_length(v_produto.options) = 0 then
       v_opcao := null;
-    elsif v_opcao is null or not exists (select 1 from jsonb_array_elements(v_produto.options) o where o ->> 'nome' = v_opcao) then
+    elsif v_opcao is null or (v_opcao <> 'Aleatório' and not exists (select 1 from jsonb_array_elements(v_produto.options) o where o ->> 'nome' = v_opcao)) then
       raise exception 'Escolha uma opção válida para %', v_produto.name;
     end if;
 

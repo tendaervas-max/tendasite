@@ -324,7 +324,8 @@ const ProductCard = ({ product, onAddToCart, onAbrir }: { product: Product, onAd
 
 // Janela do produto: foto grande, descrição, escolha da opção (a foto muda quando a opção tem foto própria) e quantidade
 const JanelaProduto = ({ product, onFechar, onAddToCart }: { product: Product, onFechar: () => void, onAddToCart: (p: Product, qty: number, opcao?: string) => void }) => {
-  const opcoes = product.options || [];
+  // Com duas opções ou mais, o cliente também pode deixar a loja escolher (Aleatório)
+  const opcoes = (product.options || []).length >= 2 ? [...product.options, { nome: "Aleatório" }] : (product.options || []);
   const [opcao, setOpcao] = useState<string | undefined>(opcoes.length === 1 ? opcoes[0].nome : undefined);
   const [qty, setQty] = useState(1);
   const esgotado = product.quantity <= 0;
