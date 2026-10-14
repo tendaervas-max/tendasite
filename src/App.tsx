@@ -43,6 +43,7 @@ const Navbar = ({ cartCount, isAdmin, user }: { cartCount: number, isAdmin: bool
             <Link to="/produtos" className="text-sm font-medium hover:text-brand-olive transition-colors">Produtos</Link>
             {!user && <Link to="/checkout" className="text-sm font-medium hover:text-brand-olive transition-colors">Cadastro</Link>}
             {user && <Link to="/meus-pedidos" className="text-sm font-medium hover:text-brand-olive transition-colors">Meus Pedidos</Link>}
+            {user && <Link to="/minha-conta" className="text-sm font-medium hover:text-brand-olive transition-colors">Minha conta</Link>}
             {user && <button onClick={sair} className="text-sm font-medium hover:text-brand-olive transition-colors">Sair</button>}
             <Link to="/carrinho" className="relative p-2 text-gray-700 hover:text-brand-olive transition-colors">
               <ShoppingCart size={20} />
@@ -91,6 +92,7 @@ const Navbar = ({ cartCount, isAdmin, user }: { cartCount: number, isAdmin: bool
               {!user && <Link to="/checkout" onClick={() => setIsOpen(false)} className="block text-lg font-medium">Cadastro</Link>}
               {!user && <Link to="/checkout" state={{ entrar: true }} onClick={() => setIsOpen(false)} className="block text-lg font-medium">Login</Link>}
               {user && <Link to="/meus-pedidos" onClick={() => setIsOpen(false)} className="block text-lg font-medium">Meus Pedidos</Link>}
+              {user && <Link to="/minha-conta" onClick={() => setIsOpen(false)} className="block text-lg font-medium">Minha conta</Link>}
               {user && <button onClick={sair} className="block text-lg font-medium">Sair</button>}
               {isAdmin && (
                 <Link to="/admin" onClick={() => setIsOpen(false)} className="block text-lg font-medium text-brand-olive">Admin</Link>
@@ -1193,6 +1195,11 @@ const montarEndereco = (d: DadosCliente) =>
 const CamposCliente = ({ dados, setDados }: { dados: DadosCliente, setDados: React.Dispatch<React.SetStateAction<DadosCliente>> }) => {
   const [cepStatus, setCepStatus] = useState<"" | "buscando" | "achou" | "erro">(dados.cidade ? "achou" : "");
 
+  // Com o CEP já preenchido (tela Minha conta), busca a rua e o bairro ao abrir
+  useEffect(() => {
+    if (!dados.cidade && dados.cep.replace(/\D/g, "").length === 8) buscarCep(dados.cep);
+  }, []);
+
   // Método que preenche rua, bairro e cidade a partir do CEP
   const buscarCep = async (valor: string) => {
     setDados(d => ({ ...d, cep: valor }));
@@ -1535,6 +1542,90 @@ const Trocas = () => (
   </PaginaTexto>
 );
 
+const MinhaConta = ({ user, onCadastroAtualizado }: { user: any, onCadastroAtualizado: (dados: any) => void }) => {
+  const navigate = useNavigate();
+  const [dados, setDados] = useState<DadosCliente>({ ...dadosClienteVazios, full_name: user?.full_name || "", cpf: user?.cpf || "", cep: user?.cep || "", number: user?.number || "", phone: user?.phone || "" });
+  const [senha, setSenha] = useState({ nova: "", confirmacao: "" });
+  const [salvando, setSalvando] = useState(false);
+
+  useEffect(() => {
+    if (!user) navigate("/checkout", { state: { entrar: true, voltarPara: "/minha-conta" } });
+  }, [user]);
+
+  // Método que grava os dados de cadastro e entrega
+  const salvarDados = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!dados.cidade) {
+      alert("Digite um CEP válido para preencher o endereço de entrega.");
+      return;
+    }
+    setSalvando(true);
+    const novos = { full_name: dados.full_name, cpf: dados.cpf, address: montarEndereco(dados), cep: dados.cep, number: dados.number, phone: dados.phone };
+    const { error } = await supabase.from('users').update(novos).eq('id', user.id);
+    setSalvando(false);
+    if (error) {
+      alert("Não foi possível salvar: " + error.message);
+      return;
+    }
+    onCadastroAtualizado(novos);
+    alert("Dados atualizados!");
+  };
+
+  // Método que troca a senha de quem está logado
+  const trocarSenha = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (senha.nova !== senha.confirmacao) {
+      alert("As duas senhas não são iguais.");
+      return;
+    }
+    const { error } = await supabase.auth.updateUser({ password: senha.nova });
+    if (error) {
+      alert(traduzirErroAuth(error));
+      return;
+    }
+    setSenha({ nova: "", confirmacao: "" });
+    alert("Senha alterada!");
+  };
+
+  if (!user) return null;
+
+  const cartao = "bg-white p-8 rounded-3xl shadow-sm border border-brand-beige/20";
+  const campo = "w-full px-4 py-3 rounded-xl border border-brand-beige/30";
+
+  return (
+    <div className="max-w-2xl mx-auto px-4 py-20 min-h-screen space-y-8">
+      <h2 className="text-4xl font-serif text-brand-olive">Minha conta</h2>
+
+      <form onSubmit={salvarDados} className={`${cartao} space-y-4`}>
+        <h3 className="text-2xl font-serif text-brand-olive">Meus dados</h3>
+        {user.address && <p className="text-sm text-gray-600">Endereço atual: {user.address} · CEP {user.cep}</p>}
+        <CamposCliente dados={dados} setDados={setDados} />
+        <button disabled={salvando} className="w-full bg-brand-olive text-white py-4 rounded-full font-bold shadow-lg hover:shadow-xl transition-all disabled:opacity-50">
+          {salvando ? "Salvando..." : "Salvar dados"}
+        </button>
+      </form>
+
+      <form onSubmit={trocarSenha} className={`${cartao} space-y-4`}>
+        <h3 className="text-2xl font-serif text-brand-olive">Acesso</h3>
+        <p className="text-sm text-gray-600">E-mail de login: {user.email}</p>
+        <input type="password" name="nova-senha" autoComplete="new-password" placeholder="Senha nova" value={senha.nova} onChange={e => setSenha({ ...senha, nova: e.target.value })} className={campo} required />
+        <input type="password" name="confirmacao-senha" autoComplete="new-password" placeholder="Confirme a senha nova" value={senha.confirmacao} onChange={e => setSenha({ ...senha, confirmacao: e.target.value })} className={campo} required />
+        <button className="w-full border-2 border-brand-olive text-brand-olive py-3 rounded-full font-bold hover:bg-brand-olive hover:text-white transition-all">
+          Trocar senha
+        </button>
+      </form>
+
+      <div className={`${cartao} space-y-3`}>
+        <h3 className="text-2xl font-serif text-brand-olive">Pagamento</h3>
+        <p className="text-sm text-gray-600 leading-relaxed">
+          Os pagamentos são feitos por PIX, direto do seu banco: não é preciso cadastrar cartão nem conta aqui.
+          Se precisar de reembolso, combinamos a sua chave PIX pelo WhatsApp {LOJA.whatsappExibicao}.
+        </p>
+      </div>
+    </div>
+  );
+};
+
 // --- Main App ---
 
 export default function App() {
@@ -1633,6 +1724,7 @@ export default function App() {
               <Route path="/privacidade" element={<Privacidade />} />
               <Route path="/trocas" element={<Trocas />} />
               <Route path="/meus-pedidos" element={<MyOrders user={user} />} />
+              <Route path="/minha-conta" element={<MinhaConta user={user} onCadastroAtualizado={dados => setUser((u: any) => ({ ...u, ...dados }))} />} />
               <Route path="/pagamento" element={<PaymentPage cart={cart} user={user} onClearCart={() => setCart([])} />} />
               <Route path="/admin" element={<Admin isAdmin={isAdmin} />} />
             </Routes>
