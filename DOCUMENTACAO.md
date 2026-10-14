@@ -22,7 +22,7 @@ O código está pronto e os dois projetos Supabase foram retomados. Em 14/10 a l
 - [x] Ajustes de segurança com commit na branch `ajustes-nathalia` dos dois repositórios
 - [x] Site Tenda (loja) e Tenda Ervas (gestão) retomados no Supabase; o projeto tenda continua pausado
 - [x] Conferido o que cada banco tinha (consulta na seção Consultas úteis); RLS ligado em todas as tabelas da loja
-- [ ] Publicar a branch `ajustes-nathalia` nos dois repositórios pelo GitHub Desktop (o terminal não tem login do GitHub)
+- [x] Publicar a branch `ajustes-nathalia` nos dois repositórios pelo GitHub Desktop (o terminal não tem login do GitHub)
 - [x] Loja: no SQL Editor do Site Tenda, rodar `supabase/migracao-banco-antigo.sql` e depois `supabase/schema.sql`
 - [x] Loja: liberar o admin com o `insert into public.admin` (em 14/10/2026 foi liberado o usuário que já existia no Auth; ele nunca entrou, então talvez precise de Send password recovery)
 - [x] Loja: `.env.local` preenchido com o endereço e a chave publishable do Site Tenda; o site rodando local já conecta no banco novo
@@ -40,7 +40,8 @@ O código está pronto e os dois projetos Supabase foram retomados. Em 14/10 a l
 - [x] Netlify: site publicado em tendaervas.netlify.app, com o secret `SITE_URL` da função e, no Supabase, o Site URL e as Redirect URLs configurados (com `/nova-senha`)
 - [ ] Revisar os textos de privacidade e de trocas e preencher razão social e endereço em `src/loja.ts`
 - [ ] Testar loja e gestão rodando local com `npm run dev`
-- [ ] Abrir pull request de `ajustes-nathalia` para a `main` e, depois do merge, cadastrar as variáveis na Netlify e publicar
+- [x] Pull request de `ajustes-nathalia` para a `main` mesclado nos dois repositórios em 14/10/2026; a loja está no ar em tendaervas.netlify.app com a versão nova
+- [ ] Gestão: no projeto sistematenda da Netlify (sistematenda.netlify.app, publica a `main` do Tenda-Ervas), cadastrar `VITE_SUPABASE_URL` e `VITE_SUPABASE_ANON_KEY` em Environment variables e publicar de novo; sem elas a gestão abre em MODO LOCAL, sem login, e o que se cadastra fica só no navegador. No Supabase da gestão, colocar o endereço em Authentication > URL Configuration > Site URL
 - [x] Apagar o esquema `backup` da loja com `drop schema backup cascade;`: apagado em 14/10/2026; só guardava os 2 logins antigos de admin
 - [ ] Decidir o autor do git: o `~/.gitconfig` global está como `tendaervas-max`, e isso vale para todos os repositórios da máquina
 
