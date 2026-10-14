@@ -4,7 +4,7 @@ Atualizado em 14/10/2026. Versão editável: [Tenda Ervas — documentação té
 
 ## Visão geral
 
-A conta do GitHub `tendaervas-max` tem dois sistemas, os dois gerados no Google AI Studio e usando o Supabase como banco. Os dois projetos Supabase foram retomados em 14/10/2026: a loja já está ligada ao banco novo e a gestão ainda falta configurar.
+A conta do GitHub `tendaervas-max` tem dois sistemas, os dois gerados no Google AI Studio e usando o Supabase como banco. Os dois projetos Supabase foram retomados em 14/10/2026: os dois já estão ligados ao banco novo, com as regras de acesso.
 
 | Sistema | Para que serve | Repositório | Pasta na máquina | Tecnologia | Publicação | Porta local |
 | --- | --- | --- | --- | --- | --- | --- |
@@ -17,28 +17,28 @@ Os dois sistemas não conversam entre si: um pedido feito na loja não aparece n
 
 ## Situação em 14/10/2026 e próximos passos
 
-O código está pronto e os dois projetos Supabase foram retomados. Em 14/10 a loja ficou ligada ao banco novo. Falta configurar a gestão, publicar a branch e testar com o banco de verdade. Para continuar com o Claude numa conversa nova, abra a pasta do projeto e peça para ele ler o `DOCUMENTACAO.md`.
+O código está pronto e os dois projetos Supabase foram retomados. Em 14/10 a loja e a gestão ficaram ligadas ao banco novo, com admin e equipe liberados. Falta publicar a branch e testar com o banco de verdade. Para continuar com o Claude numa conversa nova, abra a pasta do projeto e peça para ele ler o `DOCUMENTACAO.md`.
 
 - [x] Ajustes de segurança com commit na branch `ajustes-nathalia` dos dois repositórios
 - [x] Site Tenda (loja) e Tenda Ervas (gestão) retomados no Supabase; o projeto tenda continua pausado
 - [x] Conferido o que cada banco tinha (consulta na seção Consultas úteis); RLS ligado em todas as tabelas da loja
 - [ ] Publicar a branch `ajustes-nathalia` nos dois repositórios pelo GitHub Desktop (o terminal não tem login do GitHub)
 - [x] Loja: no SQL Editor do Site Tenda, rodar `supabase/migracao-banco-antigo.sql` e depois `supabase/schema.sql`
-- [x] Loja: criar o admin em Authentication > Users e rodar o `insert into public.admin`
+- [x] Loja: liberar o admin com o `insert into public.admin` (em 14/10/2026 foi liberado o usuário que já existia no Auth; ele nunca entrou, então talvez precise de Send password recovery)
 - [x] Loja: `.env.local` preenchido com o endereço e a chave publishable do Site Tenda; o site rodando local já conecta no banco novo
-- [ ] Gestão: no SQL Editor do Tenda Ervas, rodar `supabase/schema.sql`
-- [ ] Gestão: ver quem é o único usuário em Authentication > Users, liberar com o `insert into public.equipe` e desligar "Allow new users to sign up"
-- [x] Gestão: preencher `VITE_SUPABASE_URL` e `VITE_SUPABASE_ANON_KEY` no `.env.local` com o endereço e a chave publishable do Tenda Ervas; o banco ainda está sem tabelas
+- [x] Gestão: no SQL Editor do Tenda Ervas, rodar `supabase/schema.sql`
+- [x] Gestão: liberar com o `insert into public.equipe` o usuário que já existia no Auth e desligar "Allow new users to sign up" (feito em 14/10/2026; ele nunca entrou, então talvez precise de Send password recovery)
+- [x] Gestão: preencher `VITE_SUPABASE_URL` e `VITE_SUPABASE_ANON_KEY` no `.env.local` com o endereço e a chave publishable do Tenda Ervas
 - [ ] Testar loja e gestão rodando local com `npm run dev`
 - [ ] Abrir pull request de `ajustes-nathalia` para a `main` e, depois do merge, cadastrar as variáveis na Netlify e publicar
-- [ ] Apagar o esquema `backup` da loja depois de conferir que nada falta, porque ele guarda as senhas antigas sem criptografia
+- [ ] Apagar o esquema `backup` da loja com `drop schema backup cascade;`: conferido em 14/10/2026, ele só guarda os 2 logins antigos de admin, sem nada a recuperar
 - [ ] Decidir o autor do git: o `~/.gitconfig` global está como `tendaervas-max`, e isso vale para todos os repositórios da máquina
 
 Se a versão antiga da loja estiver no ar na Netlify, ela para de funcionar com as regras novas do banco. Isso se resolve publicando a nova versão.
 
 ## O que a análise encontrou
 
-O problema mais grave era o banco sem nenhuma regra de acesso. Qualquer pessoa com a chave pública do site, que vai junto para todo navegador, lia CPF e endereço dos clientes e alterava produtos e pedidos. Só falta configurar o banco da gestão, que já foi retomado.
+O problema mais grave era o banco sem nenhuma regra de acesso. Qualquer pessoa com a chave pública do site, que vai junto para todo navegador, lia CPF e endereço dos clientes e alterava produtos e pedidos. Todos os itens já foram corrigidos.
 
 | Problema | Sistema | O que permitia | Situação |
 | --- | --- | --- | --- |
@@ -53,7 +53,7 @@ O problema mais grave era o banco sem nenhuma regra de acesso. Qualquer pessoa c
 | Sem `.gitignore` | Loja | `node_modules` e `.env.local` irem para o GitHub | Corrigido |
 | `index.html` sem a linha que carrega o app | Gestão | Página abria em branco | Corrigido |
 | Chave do Supabase lida por `process.env`, que não chega ao navegador | Gestão | Sistema sempre em modo local, sem salvar nada | Corrigido |
-| Projetos Supabase `hbkywvztwhdccznwuuex` (loja) e `msbofqngdoqvuxfpodjd` (gestão) estavam pausados (o endereço deles não respondia) | Loja e gestão | Nenhum dado aparece nem é salvo | Loja resolvida em 14/10/2026; na gestão falta rodar o schema.sql (seção Configuração do Supabase) |
+| Projetos Supabase `hbkywvztwhdccznwuuex` (loja) e `msbofqngdoqvuxfpodjd` (gestão) estavam pausados (o endereço deles não respondia) | Loja e gestão | Nenhum dado aparece nem é salvo | Corrigido em 14/10/2026: projetos retomados e configurados |
 
 ## O que foi feito na branch `ajustes-nathalia`
 
@@ -84,7 +84,7 @@ As senhas passaram a ficar só no Supabase Auth, que as guarda criptografadas (b
 - Os dois `schema.sql` rodaram sem erro num Postgres 16 local que imita o Supabase (esquemas `auth` e `storage`, papéis `anon` e `authenticated`).
 - Regras conferidas por perfil: visitante, cliente, outro cliente, admin, pessoa da equipe e pessoa de fora. Exemplo: pedido de 2x Arruda gravou R$ 25,00 pelo preço do banco, e alterar o total na mão foi negado.
 - TypeScript sem erros nos dois projetos; telas de login e cadastro abertas no navegador com um endereço de Supabase fictício.
-- Em 14/10/2026 a loja rodando local conectou no banco novo do Site Tenda (tabelas, função is\_admin e bucket de fotos respondem). Ainda não testado com ele: cadastro com confirmação de e-mail, login do admin e envio de foto.
+- Em 14/10/2026, com os dois sistemas ligados aos bancos novos, um visitante só conseguiu ver os produtos: gravar, ler pedidos e clientes, criar pedido e enviar foto foram recusados. Ainda não testado com login: cadastro com confirmação de e-mail, login do admin e envio de foto.
 
 ## Configuração do Supabase
 
@@ -142,11 +142,11 @@ O autor dos commits vem do `~/.gitconfig` global da máquina, que hoje está com
 
 ## Melhorias a serem feitas
 
-Antes de publicar: terminar de configurar os bancos no Supabase, tirar as dependências com falha de segurança e corrigir o erro 404 da Netlify. O resto melhora o uso, sem risco de segurança.
+Antes de publicar: tirar as dependências com falha de segurança e corrigir o erro 404 da Netlify. O resto melhora o uso, sem risco de segurança.
 
 | Prioridade | Status | Sistema | Melhoria | Por quê |
 | --- | --- | --- | --- | --- |
-| Alta | Fazendo | Loja e gestão | Configurar os bancos retomados: loja feita em 14/10/2026; na gestão falta rodar o `schema.sql` (os dois `.env.local` já estão preenchidos) | Sem isso nada é salvo |
+| Alta | Feito | Loja e gestão | Configurar os bancos retomados, rodar os scripts e preencher os `.env.local` (feito em 14/10/2026) | Sem isso nada é salvo |
 | Alta | A fazer | Loja | Remover pacotes sem uso (`express`, `better-sqlite3`, `multer`, `jsonwebtoken`, `bcryptjs`, `mercadopago`, `dotenv`, `@google/genai`) e atualizar `vite` e `react-router-dom` | O `npm audit` aponta 22 vulnerabilidades (2 críticas, 12 altas); as críticas vêm de pacotes sem uso |
 | Alta | A fazer | Loja | Criar `public/_redirects` com `/* /index.html 200` | Abrir `/produtos` ou `/admin` direto por link dá 404 na Netlify |
 | Alta | A fazer | Loja | Baixar o estoque ao finalizar o pedido e recusar compra acima do estoque | Hoje a quantidade em estoque nunca muda |
@@ -171,3 +171,44 @@ Antes de publicar: terminar de configurar os bancos no Supabase, tirar as depend
 | Baixa | A fazer | Gestão | Arrumar o campo de busca da tela Estoque em janela estreita | Numa janela de 800 px ele fica espremido ao lado dos filtros de peso |
 | Baixa | A fazer | Loja | Política de privacidade (LGPD) | A loja guarda CPF e endereço dos clientes |
 | Baixa | A fazer | Loja e gestão | Levar os pedidos da loja para a gestão | Hoje os dois sistemas não se falam |
+
+## Consultas úteis
+
+Consultas de conferência para o SQL Editor de cada projeto. Elas só leem, não alteram nada.
+
+**Loja (Site Tenda):** RLS por tabela, regras, admins, usuários, esquema `backup` e bucket de fotos.
+
+```sql
+select 'tabela ' || c.relname as item, case when c.relrowsecurity then 'RLS ligado' else 'RLS DESLIGADO' end as valor
+from pg_class c join pg_namespace n on n.oid = c.relnamespace
+where n.nspname = 'public' and c.relkind = 'r'
+union all
+select 'regras em ' || tablename, count(*)::text from pg_policies where schemaname in ('public', 'storage') group by tablename
+union all
+select 'admin: ' || u.email, coalesce(to_char(u.email_confirmed_at, 'DD/MM/YYYY'), 'e-mail não confirmado')
+from public.admin a join auth.users u on u.id = a.user_id
+union all
+select 'usuários no Auth', count(*)::text from auth.users
+union all
+select 'esquema backup', case when exists (select 1 from pg_namespace where nspname = 'backup') then 'ainda existe' else 'apagado' end
+union all
+select 'bucket ' || id, case when public then 'público' else 'privado' end || ', limite ' || coalesce((file_size_limit / 1024 / 1024)::text || ' MB', 'nenhum')
+from storage.buckets;
+```
+
+**Gestão (Tenda Ervas):** RLS por tabela, regras e quem está ou não na equipe.
+
+```sql
+select 'tabela ' || c.relname as item, case when c.relrowsecurity then 'RLS ligado' else 'RLS DESLIGADO' end as valor
+from pg_class c join pg_namespace n on n.oid = c.relnamespace
+where n.nspname = 'public' and c.relkind = 'r'
+union all
+select 'regras em ' || tablename, count(*)::text from pg_policies where schemaname = 'public' group by tablename
+union all
+select 'na equipe: ' || u.email, 'liberado' from public.equipe e join auth.users u on u.id = e.user_id
+union all
+select 'fora da equipe: ' || u.email, 'sem acesso' from auth.users u
+where not exists (select 1 from public.equipe e where e.user_id = u.id);
+```
+
+Resultado esperado em 14/10/2026: RLS ligado em todas as tabelas; na loja 4 regras em `products`, 3 em `orders`, 2 em `users` e 3 nas fotos (`objects`); na gestão 1 regra em `inventory`, `sales` e `orders`.
