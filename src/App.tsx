@@ -1192,7 +1192,7 @@ const montarEndereco = (d: DadosCliente) =>
   [d.rua, d.number, d.complemento].filter(Boolean).join(", ") + ` - ${[d.bairro, `${d.cidade}/${d.uf}`].filter(Boolean).join(", ")}`;
 
 // Campos de nome, CPF, endereço pelo CEP (ViaCEP) e WhatsApp, usados no cadastro e ao completar o cadastro
-const CamposCliente = ({ dados, setDados }: { dados: DadosCliente, setDados: React.Dispatch<React.SetStateAction<DadosCliente>> }) => {
+const CamposCliente = ({ dados, setDados, travarNomeCpf = false }: { dados: DadosCliente, setDados: React.Dispatch<React.SetStateAction<DadosCliente>>, travarNomeCpf?: boolean }) => {
   const [cepStatus, setCepStatus] = useState<"" | "buscando" | "achou" | "erro">(dados.cidade ? "achou" : "");
 
   // Com o CEP já preenchido (tela Minha conta), busca a rua e o bairro ao abrir
@@ -1227,8 +1227,18 @@ const CamposCliente = ({ dados, setDados }: { dados: DadosCliente, setDados: Rea
 
   return (
     <>
-      <input placeholder="Nome Completo" value={dados.full_name} onChange={e => setDados({ ...dados, full_name: e.target.value })} className={campo} required />
-      <input placeholder="CPF" inputMode="numeric" value={dados.cpf} onChange={e => setDados({ ...dados, cpf: e.target.value })} className={campo} required />
+      {travarNomeCpf ? (
+        <div className="text-sm text-gray-700 bg-gray-50 rounded-xl px-4 py-3 space-y-1">
+          <div>{dados.full_name}</div>
+          <div>CPF {dados.cpf}</div>
+          <div className="text-xs text-gray-500">Nome e CPF não podem ser alterados depois do cadastro.</div>
+        </div>
+      ) : (
+        <>
+          <input placeholder="Nome Completo" value={dados.full_name} onChange={e => setDados({ ...dados, full_name: e.target.value })} className={campo} required />
+          <input placeholder="CPF" inputMode="numeric" value={dados.cpf} onChange={e => setDados({ ...dados, cpf: e.target.value })} className={campo} required />
+        </>
+      )}
       <div>
         <input placeholder="CEP" inputMode="numeric" maxLength={9} value={dados.cep} onChange={e => buscarCep(e.target.value)} className={campo} required />
         {cepStatus === "buscando" && <p className="text-xs text-gray-500 mt-1 px-1">Buscando o endereço...</p>}
@@ -1545,7 +1555,7 @@ const Trocas = () => (
 const MinhaConta = ({ user, onCadastroAtualizado }: { user: any, onCadastroAtualizado: (dados: any) => void }) => {
   const navigate = useNavigate();
   const [dados, setDados] = useState<DadosCliente>({ ...dadosClienteVazios, full_name: user?.full_name || "", cpf: user?.cpf || "", cep: user?.cep || "", number: user?.number || "", phone: user?.phone || "" });
-  const [senha, setSenha] = useState({ nova: "", confirmacao: "" });
+  const [senha, setSenha] = useState({ atual: "", nova: "", confirmacao: "" });
   const [salvando, setSalvando] = useState(false);
 
   useEffect(() => {
@@ -1560,7 +1570,8 @@ const MinhaConta = ({ user, onCadastroAtualizado }: { user: any, onCadastroAtual
       return;
     }
     setSalvando(true);
-    const novos = { full_name: dados.full_name, cpf: dados.cpf, address: montarEndereco(dados), cep: dados.cep, number: dados.number, phone: dados.phone };
+    const novos: any = { address: montarEndereco(dados), cep: dados.cep, number: dados.number, phone: dados.phone };
+    if (!user.cpf) Object.assign(novos, { full_name: dados.full_name, cpf: dados.cpf });
     const { error } = await supabase.from('users').update(novos).eq('id', user.id);
     setSalvando(false);
     if (error) {
@@ -1571,11 +1582,16 @@ const MinhaConta = ({ user, onCadastroAtualizado }: { user: any, onCadastroAtual
     alert("Dados atualizados!");
   };
 
-  // Método que troca a senha de quem está logado
+  // Método que troca a senha de quem está logado, conferindo antes a senha atual
   const trocarSenha = async (e: React.FormEvent) => {
     e.preventDefault();
     if (senha.nova !== senha.confirmacao) {
-      alert("As duas senhas não são iguais.");
+      alert("As duas senhas novas não são iguais.");
+      return;
+    }
+    const { error: erroAtual } = await supabase.auth.signInWithPassword({ email: user.email, password: senha.atual });
+    if (erroAtual) {
+      alert("A senha atual está incorreta.");
       return;
     }
     const { error } = await supabase.auth.updateUser({ password: senha.nova });
@@ -1583,7 +1599,7 @@ const MinhaConta = ({ user, onCadastroAtualizado }: { user: any, onCadastroAtual
       alert(traduzirErroAuth(error));
       return;
     }
-    setSenha({ nova: "", confirmacao: "" });
+    setSenha({ atual: "", nova: "", confirmacao: "" });
     alert("Senha alterada!");
   };
 
@@ -1599,7 +1615,7 @@ const MinhaConta = ({ user, onCadastroAtualizado }: { user: any, onCadastroAtual
       <form onSubmit={salvarDados} className={`${cartao} space-y-4`}>
         <h3 className="text-2xl font-serif text-brand-olive">Meus dados</h3>
         {user.address && <p className="text-sm text-gray-600">Endereço atual: {user.address} · CEP {user.cep}</p>}
-        <CamposCliente dados={dados} setDados={setDados} />
+        <CamposCliente dados={dados} setDados={setDados} travarNomeCpf={!!user.cpf} />
         <button disabled={salvando} className="w-full bg-brand-olive text-white py-4 rounded-full font-bold shadow-lg hover:shadow-xl transition-all disabled:opacity-50">
           {salvando ? "Salvando..." : "Salvar dados"}
         </button>
@@ -1608,11 +1624,13 @@ const MinhaConta = ({ user, onCadastroAtualizado }: { user: any, onCadastroAtual
       <form onSubmit={trocarSenha} className={`${cartao} space-y-4`}>
         <h3 className="text-2xl font-serif text-brand-olive">Acesso</h3>
         <p className="text-sm text-gray-600">E-mail de login: {user.email}</p>
+        <input type="password" name="senha-atual" autoComplete="current-password" placeholder="Senha atual" value={senha.atual} onChange={e => setSenha({ ...senha, atual: e.target.value })} className={campo} required />
         <input type="password" name="nova-senha" autoComplete="new-password" placeholder="Senha nova" value={senha.nova} onChange={e => setSenha({ ...senha, nova: e.target.value })} className={campo} required />
         <input type="password" name="confirmacao-senha" autoComplete="new-password" placeholder="Confirme a senha nova" value={senha.confirmacao} onChange={e => setSenha({ ...senha, confirmacao: e.target.value })} className={campo} required />
         <button className="w-full border-2 border-brand-olive text-brand-olive py-3 rounded-full font-bold hover:bg-brand-olive hover:text-white transition-all">
           Trocar senha
         </button>
+        <p className="text-xs text-gray-500">Se você entra com o Google e ainda não tem senha, use "Esqueci minha senha" na tela de login para criar uma.</p>
       </form>
 
       <div className={`${cartao} space-y-3`}>
