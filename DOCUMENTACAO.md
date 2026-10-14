@@ -42,6 +42,31 @@ O código está pronto e os dois projetos Supabase foram retomados. Em 14/10 a l
 
 Se a versão antiga da loja estiver no ar na Netlify, ela para de funcionar com as regras novas do banco. Isso se resolve publicando a nova versão.
 
+## Login com Google e pagamento online: o que falta
+
+O botão "Continuar com Google" e a tela de completar cadastro já estão no site; falta ativar o Google no Supabase. O pagamento hoje é por PIX com comprovante no WhatsApp; cobrar no próprio site depende de uma conta no Mercado Pago.
+
+**Login com Google** (hoje o botão responde "provider is not enabled", porque o passo 4 ainda não foi feito)
+
+1. Em [console.cloud.google.com](https://console.cloud.google.com), entre com `tendaervas@gmail.com` e crie o projeto "Tenda Ervas".
+2. Em APIs e serviços > Tela de consentimento OAuth, escolha "Externo", nome do app "Tenda Ervas", e-mail de suporte `tendaervas@gmail.com` e domínio autorizado `supabase.co`; depois publique o app (status "Em produção") para qualquer conta Google conseguir entrar.
+3. Em Credenciais > Criar credenciais > ID do cliente OAuth > Aplicativo da Web, cadastre a origem `https://tendaervas.netlify.app` e o URI de redirecionamento `https://hbkywvztwhdccznwuuex.supabase.co/auth/v1/callback`.
+4. Copie o Client ID e o Client Secret e cole no Supabase do Site Tenda em Authentication > Sign In / Providers > Google (ative e salve). O Client Secret é senha: não mande em conversa nem coloque no código.
+5. Teste: "Continuar com Google" volta para o site e pede CPF, CEP e WhatsApp antes da primeira compra.
+
+**Pagamento pelo site** (PIX automático e cartão, com o pedido confirmado sozinho)
+
+| Passo | Quem | O que é |
+| --- | --- | --- |
+| Conta Mercado Pago da loja (CNPJ) | Você | Criar a conta e uma aplicação em [mercadopago.com.br/developers](https://www.mercadopago.com.br/developers) e copiar as credenciais de produção (Public Key e Access Token) |
+| Guardar o Access Token | Você | Colar como secret `MP_ACCESS_TOKEN` nas Edge Functions do Supabase; ele é senha e nunca vai para o site |
+| Função que cria a cobrança | Claude | Edge Function que gera o pagamento com o total calculado pelo banco e manda o cliente para o checkout do Mercado Pago |
+| Função que recebe a confirmação | Claude | Edge Function chamada pelo Mercado Pago (webhook) que marca o pedido como "pagamento confirmado", o que dispara o e-mail para o cliente |
+| URL de notificação | Você | Colar no painel do Mercado Pago o endereço da função de confirmação |
+| Taxas | Você | O Mercado Pago cobra por venda; os valores de PIX e cartão estão na sua conta |
+
+Enquanto isso, o PIX com comprovante pelo WhatsApp continua funcionando. Nos itens 18+ (fumo), a idade vai ser conferida pela data de nascimento do cadastro, porque o CPF e o cartão não informam a idade; a Lei 9.294/1996 (art. 3º-A) também proíbe vender produtos de tabaco por via postal, então vale confirmar com o contador se esses itens podem ir pelos Correios.
+
 ## O que a análise encontrou
 
 O problema mais grave era o banco sem nenhuma regra de acesso. Qualquer pessoa com a chave pública do site, que vai junto para todo navegador, lia CPF e endereço dos clientes e alterava produtos e pedidos. Todos os itens já foram corrigidos.
