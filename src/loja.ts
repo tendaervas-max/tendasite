@@ -1,0 +1,37 @@
+// Dados da loja usados no rodapé, nas páginas de políticas e no pagamento
+export const LOJA = {
+  nome: "Tenda Ervas",
+  razaoSocial: "",
+  cnpj: "63.097.835/0001-21",
+  endereco: "",
+  cidade: "São Paulo, SP",
+  email: "tendaervas@gmail.com",
+  whatsapp: "5511998653889",
+  whatsappExibicao: "(11) 99865-3889",
+  instagram: "tendaervas",
+  chavePix: "",
+  favorecidoPix: "",
+  localRetirada: ""
+};
+
+// Método que monta o link do WhatsApp da loja com uma mensagem pronta
+export const linkWhatsApp = (mensagem: string) =>
+  `https://wa.me/${LOJA.whatsapp}?text=${encodeURIComponent(mensagem)}`;
+
+// Nomes dos status do pedido como aparecem para o cliente e no painel
+export const STATUS_PEDIDO: { [status: string]: string } = {
+  "aguardando pagamento": "Aguardando pagamento",
+  "pagamento confirmado": "Pagamento confirmado",
+  "pedido sendo separado": "Separando",
+  "pronto para retirada": "Pronto para retirada",
+  "pedido enviado para entrega": "Enviado",
+  "pedido entregue": "Entregue",
+  "pedido cancelado": "Cancelado"
+};
+
+// Método que monta a mensagem do WhatsApp com o resumo do pedido
+export const mensagemPedido = (pedido: { id: number, description: string, total_price: number, delivery_method: string }) =>
+  `Olá! Fiz o pedido #${pedido.id} no site: ${pedido.description}. Total dos produtos: R$ ${Number(pedido.total_price).toFixed(2)}. ` +
+  (pedido.delivery_method === "Retirada"
+    ? "Vou retirar. Segue o comprovante do PIX."
+    : "Envio pelos Correios: pode me passar o valor do frete?");
