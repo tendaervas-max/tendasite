@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from "react";
 import { BrowserRouter as Router, Routes, Route, Link, useNavigate, useLocation, useSearchParams } from "react-router-dom";
 import { motion, AnimatePresence } from "motion/react";
-import { ShoppingCart, User, LogOut, Plus, Trash2, Instagram, Phone, MapPin, Menu, X, ChevronRight, Leaf, Check, Database, Eye, EyeOff } from "lucide-react";
+import { ShoppingCart, User, LogOut, Plus, Pencil, Trash2, Instagram, Phone, MapPin, Menu, X, ChevronRight, Leaf, Check, Database, Eye, EyeOff } from "lucide-react";
 import type { Session } from "@supabase/supabase-js";
 import { supabase, definirManterConectado } from "./lib/supabase";
 import { Product, CartItem } from "./types";
@@ -654,6 +654,7 @@ const Admin = ({ isAdmin, ehDono }: { isAdmin: boolean, ehDono: boolean }) => {
   const [newProduct, setNewProduct] = useState({ name: "", description: "", price: "", quantity: "", category: "Ervas", opcoes: "", adult: false });
   const [image, setImage] = useState<File | null>(null);
   const [categoriaNova, setCategoriaNova] = useState(false);
+  const [editando, setEditando] = useState<Product | null>(null);
   const [tabelaAberta, setTabelaAberta] = useState("");
   const [registros, setRegistros] = useState<any[]>([]);
   const [carregandoRegistros, setCarregandoRegistros] = useState(false);
@@ -833,6 +834,32 @@ const Admin = ({ isAdmin, ehDono }: { isAdmin: boolean, ehDono: boolean }) => {
     }
   };
 
+  // Método que abre o formulário vazio para cadastrar um produto novo
+  const novoProduto = () => {
+    setEditando(null);
+    setNewProduct({ name: "", description: "", price: "", quantity: "", category: "Ervas", opcoes: "", adult: false });
+    setCategoriaNova(false);
+    setImage(null);
+    setActiveTab("add");
+  };
+
+  // Método que abre o formulário com os dados do produto para alterar
+  const editarProduto = (p: Product) => {
+    setEditando(p);
+    setNewProduct({
+      name: p.name,
+      description: p.description || "",
+      price: String(p.price),
+      quantity: String(p.quantity),
+      category: p.category,
+      opcoes: (p.options || []).map(o => o.nome).join(", "),
+      adult: p.adult
+    });
+    setCategoriaNova(false);
+    setImage(null);
+    setActiveTab("add");
+  };
+
   const handleAddProduct = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
@@ -856,30 +883,33 @@ const Admin = ({ isAdmin, ehDono }: { isAdmin: boolean, ehDono: boolean }) => {
         imageUrl = publicUrl;
       }
 
-      const { data, error } = await supabase
-        .from('products')
-        .insert([{
-          name: newProduct.name,
-          description: newProduct.description,
-          price: parseFloat(newProduct.price),
-          quantity: parseInt(newProduct.quantity),
-          image_url: imageUrl,
-          category: categoriasCadastro.find(c => c.toLowerCase() === newProduct.category.trim().toLowerCase()) ?? newProduct.category.trim(),
-          options: newProduct.opcoes.split(",").map(o => o.trim()).filter(Boolean).map(nome => ({ nome })),
-          adult: newProduct.adult
-        }])
-        .select()
-        .single();
+      const dados = {
+        name: newProduct.name,
+        description: newProduct.description,
+        price: parseFloat(newProduct.price),
+        quantity: parseInt(newProduct.quantity),
+        // Na alteração sem foto nova, fica a foto que o produto já tinha
+        image_url: imageUrl || editando?.image_url || "",
+        category: categoriasCadastro.find(c => c.toLowerCase() === newProduct.category.trim().toLowerCase()) ?? newProduct.category.trim(),
+        // Opção que já existia mantém a foto dela
+        options: newProduct.opcoes.split(",").map(o => o.trim()).filter(Boolean).map(nome => editando?.options?.find(o => o.nome === nome) ?? { nome }),
+        adult: newProduct.adult
+      };
+
+      const { data, error } = editando
+        ? await supabase.from('products').update(dados).eq('id', editando.id).select().single()
+        : await supabase.from('products').insert([dados]).select().single();
 
       if (error) throw error;
 
-      setProducts([...products, data]);
+      setProducts(editando ? products.map(p => p.id === editando.id ? data : p) : [...products, data]);
       setNewProduct({ name: "", description: "", price: "", quantity: "", category: "Ervas", opcoes: "", adult: false });
       setCategoriaNova(false);
       setImage(null);
-      alert("Produto cadastrado com sucesso!");
+      setEditando(null);
+      alert(editando ? "Produto alterado com sucesso!" : "Produto cadastrado com sucesso!");
     } catch (err: any) {
-      alert("Erro ao cadastrar produto: " + err.message);
+      alert((editando ? "Erro ao alterar produto: " : "Erro ao cadastrar produto: ") + err.message);
     }
   };
 
@@ -898,6 +928,8 @@ const Admin = ({ isAdmin, ehDono }: { isAdmin: boolean, ehDono: boolean }) => {
   };
 
   const handleDelete = async (id: number) => {
+    const produto = products.find(p => p.id === id);
+    if (!window.confirm(`Excluir ${produto?.name ?? "o produto"}? Ele sai do site e não dá para desfazer.`)) return;
     const { error } = await supabase
       .from('products')
       .delete()
@@ -959,7 +991,7 @@ const Admin = ({ isAdmin, ehDono }: { isAdmin: boolean, ehDono: boolean }) => {
               Lista de Produtos
             </button>
             <button 
-              onClick={() => setActiveTab("add")}
+              onClick={novoProduto}
               className={`px-6 py-2 rounded-lg text-sm font-medium transition-all flex items-center gap-2 ${activeTab === "add" ? "bg-brand-olive text-white shadow-md" : "text-gray-500 hover:text-brand-olive"}`}
             >
               <Plus size={14} /> Cadastrar Novo
@@ -995,7 +1027,7 @@ const Admin = ({ isAdmin, ehDono }: { isAdmin: boolean, ehDono: boolean }) => {
       {activeTab === "add" ? (
         <div className="max-w-2xl mx-auto">
           <div className="bg-white p-8 rounded-3xl shadow-sm border border-brand-beige/20">
-            <h3 className="text-2xl font-serif text-brand-olive mb-6">Cadastrar Novo Produto</h3>
+            <h3 className="text-2xl font-serif text-brand-olive mb-6">{editando ? "Alterar Produto" : "Cadastrar Novo Produto"}</h3>
             <form onSubmit={(e) => { handleAddProduct(e); setActiveTab("products"); }} className="space-y-4">
               <input 
                 placeholder="Nome do produto" 
@@ -1065,7 +1097,10 @@ const Admin = ({ isAdmin, ehDono }: { isAdmin: boolean, ehDono: boolean }) => {
                 Só para maiores de 18 anos (fumo)
               </label>
               <div className="space-y-2">
-                <label className="text-xs text-gray-400 uppercase tracking-widest">Foto do Produto</label>
+                <label className="text-xs text-gray-400 uppercase tracking-widest">{editando?.image_url ? "Trocar a Foto (opcional)" : "Foto do Produto"}</label>
+                {editando?.image_url && !image && (
+                  <img src={editando.image_url} alt={editando.name} className="w-20 h-20 object-cover rounded-lg" referrerPolicy="no-referrer" />
+                )}
                 <input 
                   type="file" 
                   onChange={e => setImage(e.target.files?.[0] || null)}
@@ -1073,8 +1108,13 @@ const Admin = ({ isAdmin, ehDono }: { isAdmin: boolean, ehDono: boolean }) => {
                 />
               </div>
               <button className="w-full bg-brand-olive text-white py-3 rounded-full font-bold shadow-md hover:shadow-lg transition-all">
-                Cadastrar Produto
+                {editando ? "Salvar Alterações" : "Cadastrar Produto"}
               </button>
+              {editando && (
+                <button type="button" onClick={() => { setEditando(null); setActiveTab("products"); }} className="w-full py-3 rounded-full font-medium text-gray-500 border border-brand-beige/30 hover:bg-gray-50">
+                  Cancelar
+                </button>
+              )}
             </form>
           </div>
         </div>
@@ -1083,7 +1123,7 @@ const Admin = ({ isAdmin, ehDono }: { isAdmin: boolean, ehDono: boolean }) => {
           <div className="flex justify-between items-center">
             <h3 className="text-2xl font-serif text-brand-olive">Produtos Cadastrados</h3>
             <button 
-              onClick={() => setActiveTab("add")}
+              onClick={novoProduto}
               className="flex items-center gap-2 bg-brand-olive text-white px-4 py-2 rounded-full text-sm font-medium"
             >
               <Plus size={16} /> Novo Produto
@@ -1102,7 +1142,10 @@ const Admin = ({ isAdmin, ehDono }: { isAdmin: boolean, ehDono: boolean }) => {
                   <h4 className="font-medium text-brand-olive">{p.name}</h4>
                   <p className="text-xs text-gray-400">{p.category} • {reais(p.price)} • Est: {p.quantity}{(p.options || []).length > 0 ? ` • ${p.options.length} opções` : ""}{p.adult ? " • 18+" : ""}</p>
                 </div>
-                <button onClick={() => handleDelete(p.id)} className="text-red-400 hover:text-red-600">
+                <button onClick={() => editarProduto(p)} title="Alterar produto" className="text-gray-400 hover:text-brand-olive">
+                  <Pencil size={20} />
+                </button>
+                <button onClick={() => handleDelete(p.id)} title="Excluir produto" className="text-red-400 hover:text-red-600">
                   <Trash2 size={20} />
                 </button>
               </div>
