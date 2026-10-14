@@ -32,8 +32,11 @@ O código está pronto e os dois projetos Supabase foram retomados. Em 14/10 a l
 - [x] Loja: compra com PIX e WhatsApp, entrega pelos Correios ou retirada em Guarulhos, baixa de estoque, WhatsApp no cadastro, "Esqueci minha senha" e páginas de privacidade e de trocas
 - [x] Loja: banco atualizado com `supabase/atualizacao-2026-10-14.sql` e as 9 ervas do catálogo do Canva cadastradas com foto (`supabase/produtos-catalogo.sql`)
 - [x] Loja: serviço de e-mails `avisos-pedido` publicado no Supabase, com o gatilho de `supabase/avisos-email.sql`, e os e-mails de confirmação e de senha nova em português
+- [x] Loja: catálogo completo do Canva (95 produtos em 12 categorias) com abas de categoria, escolha de cor, aroma ou sabor e itens 18+ conferidos pela data de nascimento (`supabase/atualizacao-2026-10-14-categorias.sql` e `supabase/produtos-catalogo-completo.sql`)
+- [x] Loja: cadastro pelo CEP, confirmação e olho da senha, Minha conta (dados e senha), Manter conectado, aviso de produto adicionado, preços no formato R$ 0,00 e botões de WhatsApp para combinar a entrega
+- [ ] Ajustar o estoque real de cada produto (todos entraram com 10) no Table Editor do Supabase, tabela products, coluna quantity
 - [ ] Gmail: ligar a verificação em duas etapas da conta da loja, criar uma senha de app e colar no Supabase em Authentication > Emails > SMTP Settings (smtp.gmail.com, porta 465) e no secret `GMAIL_SENHA_APP` da função
-- [ ] Netlify: com o endereço do site, cadastrar o secret `SITE_URL` da função e, no Supabase, o Site URL e as Redirect URLs (com `/nova-senha`)
+- [x] Netlify: site publicado em tendaervas.netlify.app, com o secret `SITE_URL` da função e, no Supabase, o Site URL e as Redirect URLs configurados (com `/nova-senha`)
 - [ ] Revisar os textos de privacidade e de trocas e preencher razão social e endereço em `src/loja.ts`
 - [ ] Testar loja e gestão rodando local com `npm run dev`
 - [ ] Abrir pull request de `ajustes-nathalia` para a `main` e, depois do merge, cadastrar as variáveis na Netlify e publicar
@@ -183,7 +186,7 @@ Os itens de segurança e os que impediam a venda foram feitos em 14/10/2026. O r
 | Alta | Feito | Loja | Baixar o estoque ao finalizar o pedido e recusar compra acima do estoque | Hoje a quantidade em estoque nunca muda |
 | Alta | A fazer | Loja e gestão | Testar com o Supabase real: cadastro com confirmação de e-mail, login do admin, envio de foto, login da equipe | Só foi testado num banco local que imita o Supabase |
 | Média | Feito | Loja | Opção "Esqueci minha senha" | Hoje o cliente não consegue recuperar a senha sozinho |
-| Média | A fazer | Loja | Tela para o cliente alterar endereço e dados | O banco já permite; falta a tela |
+| Média | Feito | Loja | Tela para o cliente alterar endereço e dados | O banco já permite; falta a tela |
 | Média | A fazer | Loja | Editar produto no admin (preço, estoque, foto) | Hoje só cadastra e exclui |
 | Média | A fazer | Loja | Guardar o carrinho no navegador | O carrinho some ao recarregar a página |
 | Média | Feito | Loja | Esconder o botão "+ Novo Produto" de visitantes | Aparece para todo mundo e leva ao login do admin |
