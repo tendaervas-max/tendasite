@@ -32,8 +32,12 @@ O código está pronto e os dois projetos Supabase foram retomados. Em 14/10 a l
 - [x] Loja: compra com PIX e WhatsApp, entrega pelos Correios ou retirada em Guarulhos, baixa de estoque, WhatsApp no cadastro, "Esqueci minha senha" e páginas de privacidade e de trocas
 - [x] Loja: banco atualizado com `supabase/atualizacao-2026-10-14.sql` e as 9 ervas do catálogo do Canva cadastradas com foto (`supabase/produtos-catalogo.sql`)
 - [x] Loja: serviço de e-mails `avisos-pedido` publicado no Supabase, com o gatilho de `supabase/avisos-email.sql`, e os e-mails de confirmação e de senha nova em português
+- [x] Loja: catálogo completo do Canva (95 produtos em 12 categorias) com abas de categoria, escolha de cor, aroma ou sabor e itens 18+ conferidos pela data de nascimento (`supabase/atualizacao-2026-10-14-categorias.sql` e `supabase/produtos-catalogo-completo.sql`)
+- [x] Loja: cadastro pelo CEP, confirmação e olho da senha, Minha conta (dados e senha), Manter conectado, aviso de produto adicionado, preços no formato R$ 0,00 e botões de WhatsApp para combinar a entrega
+- [x] Loja: cliente edita ou cancela o pedido enquanto ele aguarda o pagamento (editar refaz o pedido com os valores recalculados e cancela o anterior), pedido cancelado ou entregue tem o botão Fazer pedido igual (mesmos produtos e quantidades, com preço e estoque de hoje) e os kits avisam que as cores dos itens são aleatórias, com link do WhatsApp para escolher (`supabase/atualizacao-2026-10-14-editar-cancelar.sql`, já rodado)
+- [ ] Ajustar o estoque real de cada produto (todos entraram com 10) no Table Editor do Supabase, tabela products, coluna quantity
 - [ ] Gmail: ligar a verificação em duas etapas da conta da loja, criar uma senha de app e colar no Supabase em Authentication > Emails > SMTP Settings (smtp.gmail.com, porta 465) e no secret `GMAIL_SENHA_APP` da função
-- [ ] Netlify: com o endereço do site, cadastrar o secret `SITE_URL` da função e, no Supabase, o Site URL e as Redirect URLs (com `/nova-senha`)
+- [x] Netlify: site publicado em tendaervas.netlify.app, com o secret `SITE_URL` da função e, no Supabase, o Site URL e as Redirect URLs configurados (com `/nova-senha`)
 - [ ] Revisar os textos de privacidade e de trocas e preencher razão social e endereço em `src/loja.ts`
 - [ ] Testar loja e gestão rodando local com `npm run dev`
 - [ ] Abrir pull request de `ajustes-nathalia` para a `main` e, depois do merge, cadastrar as variáveis na Netlify e publicar
@@ -41,6 +45,31 @@ O código está pronto e os dois projetos Supabase foram retomados. Em 14/10 a l
 - [ ] Decidir o autor do git: o `~/.gitconfig` global está como `tendaervas-max`, e isso vale para todos os repositórios da máquina
 
 Se a versão antiga da loja estiver no ar na Netlify, ela para de funcionar com as regras novas do banco. Isso se resolve publicando a nova versão.
+
+## Login com Google e pagamento online: o que falta
+
+O botão "Continuar com Google" e a tela de completar cadastro já estão no site; falta ativar o Google no Supabase. O pagamento hoje é por PIX com comprovante no WhatsApp; cobrar no próprio site depende de uma conta no Mercado Pago.
+
+**Login com Google** (hoje o botão responde "provider is not enabled", porque o passo 4 ainda não foi feito)
+
+1. Em [console.cloud.google.com](https://console.cloud.google.com), entre com `tendaervas@gmail.com` e crie o projeto "Tenda Ervas".
+2. Em APIs e serviços > Tela de consentimento OAuth, escolha "Externo", nome do app "Tenda Ervas", e-mail de suporte `tendaervas@gmail.com` e domínio autorizado `supabase.co`; depois publique o app (status "Em produção") para qualquer conta Google conseguir entrar.
+3. Em Credenciais > Criar credenciais > ID do cliente OAuth > Aplicativo da Web, cadastre a origem `https://tendaervas.netlify.app` e o URI de redirecionamento `https://hbkywvztwhdccznwuuex.supabase.co/auth/v1/callback`.
+4. Copie o Client ID e o Client Secret e cole no Supabase do Site Tenda em Authentication > Sign In / Providers > Google (ative e salve). O Client Secret é senha: não mande em conversa nem coloque no código.
+5. Teste: "Continuar com Google" volta para o site e pede CPF, CEP e WhatsApp antes da primeira compra.
+
+**Pagamento pelo site** (PIX automático e cartão, com o pedido confirmado sozinho)
+
+| Passo | Quem | O que é |
+| --- | --- | --- |
+| Conta Mercado Pago da loja (CNPJ) | Você | Criar a conta e uma aplicação em [mercadopago.com.br/developers](https://www.mercadopago.com.br/developers) e copiar as credenciais de produção (Public Key e Access Token) |
+| Guardar o Access Token | Você | Colar como secret `MP_ACCESS_TOKEN` nas Edge Functions do Supabase; ele é senha e nunca vai para o site |
+| Função que cria a cobrança | Claude | Edge Function que gera o pagamento com o total calculado pelo banco e manda o cliente para o checkout do Mercado Pago |
+| Função que recebe a confirmação | Claude | Edge Function chamada pelo Mercado Pago (webhook) que marca o pedido como "pagamento confirmado", o que dispara o e-mail para o cliente |
+| URL de notificação | Você | Colar no painel do Mercado Pago o endereço da função de confirmação |
+| Taxas | Você | O Mercado Pago cobra por venda; os valores de PIX e cartão estão na sua conta |
+
+Enquanto isso, o PIX com comprovante pelo WhatsApp continua funcionando. Nos itens 18+ (fumo), a idade vai ser conferida pela data de nascimento do cadastro, porque o CPF e o cartão não informam a idade; a Lei 9.294/1996 (art. 3º-A) também proíbe vender produtos de tabaco por via postal, então vale confirmar com o contador se esses itens podem ir pelos Correios.
 
 ## O que a análise encontrou
 
@@ -104,7 +133,7 @@ O banco da gestão estava sem tabelas, então leva só o `schema.sql`. O da loja
 | --- | --- | --- |
 | Tabelas | `products`, `orders`, `users` (cadastro, sem senha), `admin` | `inventory`, `sales`, `orders`, `equipe` |
 | Quem acessa | Produtos: todos veem, só admin altera. Pedidos e cadastro: o dono e o admin | Só quem está em `equipe` |
-| Funções | `is_admin`, `criar_pedido`, gatilho `ao_criar_usuario` | `eh_da_equipe` |
+| Funções | `is_admin`, `criar_pedido`, `cancelar_pedido`, `refazer_pedido`, gatilho `ao_criar_usuario` | `eh_da_equipe` |
 | Fotos | Bucket público `product-images` (PNG, JPEG ou WebP, até 5 MB), envio só pelo admin | — |
 
 **Projeto da loja**
@@ -158,7 +187,7 @@ Os itens de segurança e os que impediam a venda foram feitos em 14/10/2026. O r
 | Alta | Feito | Loja | Baixar o estoque ao finalizar o pedido e recusar compra acima do estoque | Hoje a quantidade em estoque nunca muda |
 | Alta | A fazer | Loja e gestão | Testar com o Supabase real: cadastro com confirmação de e-mail, login do admin, envio de foto, login da equipe | Só foi testado num banco local que imita o Supabase |
 | Média | Feito | Loja | Opção "Esqueci minha senha" | Hoje o cliente não consegue recuperar a senha sozinho |
-| Média | A fazer | Loja | Tela para o cliente alterar endereço e dados | O banco já permite; falta a tela |
+| Média | Feito | Loja | Tela para o cliente alterar endereço e dados | O banco já permite; falta a tela |
 | Média | A fazer | Loja | Editar produto no admin (preço, estoque, foto) | Hoje só cadastra e exclui |
 | Média | A fazer | Loja | Guardar o carrinho no navegador | O carrinho some ao recarregar a página |
 | Média | Feito | Loja | Esconder o botão "+ Novo Produto" de visitantes | Aparece para todo mundo e leva ao login do admin |

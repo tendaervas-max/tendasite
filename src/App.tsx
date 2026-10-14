@@ -1,16 +1,24 @@
 import React, { useState, useEffect } from "react";
-import { BrowserRouter as Router, Routes, Route, Link, useNavigate, useLocation } from "react-router-dom";
+import { BrowserRouter as Router, Routes, Route, Link, useNavigate, useLocation, useSearchParams } from "react-router-dom";
 import { motion, AnimatePresence } from "motion/react";
-import { ShoppingCart, User, LogOut, Plus, Trash2, Instagram, Phone, MapPin, Menu, X, ChevronRight, Leaf, Check, Database } from "lucide-react";
+import { ShoppingCart, User, LogOut, Plus, Trash2, Instagram, Phone, MapPin, Menu, X, ChevronRight, Leaf, Check, Database, Eye, EyeOff } from "lucide-react";
 import type { Session } from "@supabase/supabase-js";
-import { supabase } from "./lib/supabase";
+import { supabase, definirManterConectado } from "./lib/supabase";
 import { Product, CartItem } from "./types";
-import { LOJA, linkWhatsApp, STATUS_PEDIDO, mensagemPedido } from "./loja";
+import { LOJA, linkWhatsApp, STATUS_PEDIDO, mensagemPedido, mensagemEntrega, reais, CATEGORIAS, maiorDeIdade, chaveCarrinho } from "./loja";
 
 // --- Components ---
 
 const Navbar = ({ cartCount, isAdmin, user }: { cartCount: number, isAdmin: boolean, user: any }) => {
   const [isOpen, setIsOpen] = useState(false);
+  const navigate = useNavigate();
+
+  // Método que sai da conta e volta para o início
+  const sair = async () => {
+    setIsOpen(false);
+    await supabase.auth.signOut();
+    navigate("/");
+  };
   
   return (
     <nav className="sticky top-0 z-50 bg-brand-paper/80 backdrop-blur-md border-b border-brand-beige/20">
@@ -35,7 +43,8 @@ const Navbar = ({ cartCount, isAdmin, user }: { cartCount: number, isAdmin: bool
             <Link to="/produtos" className="text-sm font-medium hover:text-brand-olive transition-colors">Produtos</Link>
             {!user && <Link to="/checkout" className="text-sm font-medium hover:text-brand-olive transition-colors">Cadastro</Link>}
             {user && <Link to="/meus-pedidos" className="text-sm font-medium hover:text-brand-olive transition-colors">Meus Pedidos</Link>}
-            {user && <button onClick={() => supabase.auth.signOut()} className="text-sm font-medium hover:text-brand-olive transition-colors">Sair</button>}
+            {user && <Link to="/minha-conta" className="text-sm font-medium hover:text-brand-olive transition-colors">Minha conta</Link>}
+            {user && <button onClick={sair} className="text-sm font-medium hover:text-brand-olive transition-colors">Sair</button>}
             <Link to="/carrinho" className="relative p-2 text-gray-700 hover:text-brand-olive transition-colors">
               <ShoppingCart size={20} />
               {cartCount > 0 && (
@@ -44,12 +53,10 @@ const Navbar = ({ cartCount, isAdmin, user }: { cartCount: number, isAdmin: bool
                 </span>
               )}
             </Link>
-            <Link to="/admin" className="text-sm font-medium hover:text-brand-olive transition-colors ml-2">
-              Admin
-            </Link>
+            {!user && <Link to="/checkout" state={{ entrar: true }} className="text-sm font-medium hover:text-brand-olive transition-colors">Login</Link>}
             {isAdmin && (
-              <Link to="/admin" className="p-2 text-brand-olive hover:opacity-80 transition-colors">
-                <User size={20} />
+              <Link to="/admin" className="flex items-center gap-1 text-sm font-medium text-brand-olive hover:opacity-80 transition-colors">
+                <User size={18} /> Admin
               </Link>
             )}
           </div>
@@ -83,8 +90,10 @@ const Navbar = ({ cartCount, isAdmin, user }: { cartCount: number, isAdmin: bool
               <Link to="/" onClick={() => setIsOpen(false)} className="block text-lg font-medium">Início</Link>
               <Link to="/produtos" onClick={() => setIsOpen(false)} className="block text-lg font-medium">Produtos</Link>
               {!user && <Link to="/checkout" onClick={() => setIsOpen(false)} className="block text-lg font-medium">Cadastro</Link>}
+              {!user && <Link to="/checkout" state={{ entrar: true }} onClick={() => setIsOpen(false)} className="block text-lg font-medium">Login</Link>}
               {user && <Link to="/meus-pedidos" onClick={() => setIsOpen(false)} className="block text-lg font-medium">Meus Pedidos</Link>}
-              {user && <button onClick={() => { setIsOpen(false); supabase.auth.signOut(); }} className="block text-lg font-medium">Sair</button>}
+              {user && <Link to="/minha-conta" onClick={() => setIsOpen(false)} className="block text-lg font-medium">Minha conta</Link>}
+              {user && <button onClick={sair} className="block text-lg font-medium">Sair</button>}
               {isAdmin && (
                 <Link to="/admin" onClick={() => setIsOpen(false)} className="block text-lg font-medium text-brand-olive">Admin</Link>
               )}
@@ -99,7 +108,7 @@ const Navbar = ({ cartCount, isAdmin, user }: { cartCount: number, isAdmin: bool
 const Footer = () => (
   <footer className="bg-brand-olive text-brand-paper py-12">
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-12">
+      <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-10">
         <div>
           <h3 className="text-2xl font-serif mb-4">Tenda Ervas</h3>
           <p className="text-brand-paper/70 text-sm leading-relaxed">
@@ -126,23 +135,25 @@ const Footer = () => (
         </div>
         <div>
           <h4 className="text-lg font-medium mb-4">Informações</h4>
-          <div className="space-y-1 text-xs text-brand-paper/70">
-            {LOJA.razaoSocial && <p>{LOJA.razaoSocial}</p>}
-            <p>CNPJ: {LOJA.cnpj}</p>
-            {LOJA.endereco && <p>{LOJA.endereco}</p>}
-            <p>{LOJA.email}</p>
-          </div>
-          <div className="mt-4 space-y-1 text-sm">
-            <Link to="/privacidade" className="block text-brand-paper/80 hover:text-brand-paper transition-colors">Política de privacidade</Link>
-            <Link to="/trocas" className="block text-brand-paper/80 hover:text-brand-paper transition-colors">Trocas e devoluções</Link>
-          </div>
-          <Link to="/admin" className="mt-4 block text-xs text-brand-paper/70 hover:text-brand-paper transition-colors">
-            Área do Administrador
-          </Link>
-          <p className="mt-4 text-xs text-brand-paper/50">
-            © {new Date().getFullYear()} {LOJA.nome}. Todos os direitos reservados.
-          </p>
+          <ul className="space-y-3 text-sm text-brand-paper/70">
+            {LOJA.razaoSocial && <li>{LOJA.razaoSocial}</li>}
+            <li>CNPJ {LOJA.cnpj}</li>
+            {LOJA.endereco && <li>{LOJA.endereco}</li>}
+            <li>
+              <a href={`mailto:${LOJA.email}`} className="hover:text-brand-paper transition-colors">{LOJA.email}</a>
+            </li>
+          </ul>
         </div>
+        <div>
+          <h4 className="text-lg font-medium mb-4">Ajuda</h4>
+          <ul className="space-y-3 text-sm text-brand-paper/70">
+            <li><Link to="/privacidade" className="hover:text-brand-paper transition-colors">Política de privacidade</Link></li>
+            <li><Link to="/trocas" className="hover:text-brand-paper transition-colors">Trocas e devoluções</Link></li>
+          </ul>
+        </div>
+      </div>
+      <div className="mt-10 pt-6 border-t border-brand-paper/20 text-center text-xs text-brand-paper/60">
+        © {new Date().getFullYear()} {LOJA.nome}. Todos os direitos reservados.
       </div>
     </div>
   </footer>
@@ -231,18 +242,31 @@ const Home = () => (
   </div>
 );
 
-const ProductCard = ({ product, onAddToCart }: { product: Product, onAddToCart: (p: Product, qty: number) => void }) => {
+// Método que diz o que o cliente escolhe no produto: aroma, sabor ou cor
+const tipoOpcao = (product: Product) =>
+  ["Incensos", "Defumadores"].includes(product.category) ? "aroma" : product.category === "Fumo" ? "sabor" : "cor";
+
+const ProductCard = ({ product, onAddToCart, onAbrir }: { product: Product, onAddToCart: (p: Product, qty: number, opcao?: string) => void, onAbrir: (p: Product) => void }) => {
   const [qty, setQty] = useState(1);
+  const [adicionado, setAdicionado] = useState(false);
   const esgotado = product.quantity <= 0;
+  const temOpcoes = (product.options || []).length > 0;
+
+  // Método que adiciona ao carrinho e mostra "Adicionado" no botão por um instante
+  const adicionar = () => {
+    onAddToCart(product, qty);
+    setAdicionado(true);
+    setTimeout(() => setAdicionado(false), 1500);
+  };
 
   return (
     <motion.div 
       layout
       initial={{ opacity: 0, scale: 0.9 }}
       animate={{ opacity: 1, scale: 1 }}
-      className="group bg-white rounded-2xl overflow-hidden shadow-sm hover:shadow-xl transition-all border border-brand-beige/10"
+      className="group h-full flex flex-col bg-white rounded-2xl overflow-hidden shadow-sm hover:shadow-xl transition-all border border-brand-beige/10"
     >
-      <div className="aspect-square overflow-hidden relative">
+      <button type="button" onClick={() => onAbrir(product)} className="block w-full aspect-square overflow-hidden relative shrink-0">
         <img 
           src={product.image_url || `https://picsum.photos/seed/${product.id}/600/600`} 
           className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500"
@@ -250,15 +274,116 @@ const ProductCard = ({ product, onAddToCart }: { product: Product, onAddToCart: 
           referrerPolicy="no-referrer"
         />
         <div className="absolute top-4 right-4 bg-white/90 backdrop-blur-sm px-3 py-1 rounded-full text-xs font-bold text-brand-olive shadow-sm">
-          R$ {product.price.toFixed(2)}
+          {reais(product.price)}
+        </div>
+        {product.adult && (
+          <div className="absolute top-4 left-4 bg-red-600 text-white px-2.5 py-1 rounded-full text-xs font-bold shadow-sm">18+</div>
+        )}
+      </button>
+      <div className="p-6 flex flex-col flex-1 gap-3">
+        <button type="button" onClick={() => onAbrir(product)} className="text-left">
+          <h3 className="text-xl font-serif text-brand-olive hover:underline line-clamp-2 min-h-[3.5rem]">{product.name}</h3>
+        </button>
+        <p className="text-sm text-gray-500 line-clamp-2 leading-relaxed min-h-[2.875rem]">{product.description}</p>
+        <div className="flex flex-col gap-4 pt-2 mt-auto">
+          {temOpcoes ? (
+            <>
+              <span className="text-xs text-gray-400 uppercase tracking-widest">{product.options.length} opções · Estoque: {product.quantity}</span>
+              <button 
+                onClick={() => onAbrir(product)}
+                disabled={esgotado}
+                className="w-full bg-brand-olive text-white py-2 rounded-full hover:bg-brand-olive/90 transition-colors shadow-md flex items-center justify-center gap-2 text-sm font-medium disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {esgotado ? "Esgotado" : `Escolher ${tipoOpcao(product)}`}
+              </button>
+            </>
+          ) : (
+            <>
+              <div className="flex items-center justify-between">
+                <span className="text-xs text-gray-400 uppercase tracking-widest">Estoque: {product.quantity}</span>
+                <div className="flex items-center border border-brand-beige/30 rounded-full px-2 py-0.5">
+                  <button onClick={() => setQty(Math.max(1, qty - 1))} className="px-2 text-brand-olive">-</button>
+                  <span className="mx-2 text-sm font-medium">{qty}</span>
+                  <button onClick={() => setQty(Math.min(Math.max(1, product.quantity), qty + 1))} className="px-2 text-brand-olive">+</button>
+                </div>
+              </div>
+              <button 
+                onClick={adicionar}
+                disabled={esgotado}
+                className="w-full bg-brand-olive text-white py-2 rounded-full hover:bg-brand-olive/90 transition-colors shadow-md flex items-center justify-center gap-2 text-sm font-medium disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {esgotado ? "Esgotado" : adicionado ? <><Check size={16} /> Adicionado</> : <><Plus size={16} /> Adicionar {reais(product.price * qty)}</>}
+              </button>
+            </>
+          )}
         </div>
       </div>
-      <div className="p-6 space-y-3">
-        <h3 className="text-xl font-serif text-brand-olive">{product.name}</h3>
-        <p className="text-sm text-gray-500 line-clamp-2 leading-relaxed">{product.description}</p>
-        <div className="flex flex-col gap-4 pt-4">
+    </motion.div>
+  );
+};
+
+// Janela do produto: foto grande, descrição, escolha da opção (a foto muda quando a opção tem foto própria) e quantidade
+const JanelaProduto = ({ product, onFechar, onAddToCart }: { product: Product, onFechar: () => void, onAddToCart: (p: Product, qty: number, opcao?: string) => void }) => {
+  // Com duas opções ou mais, o cliente também pode deixar a loja escolher (Aleatório)
+  const opcoes = (product.options || []).length >= 2 ? [...product.options, { nome: "Aleatório" }] : (product.options || []);
+  const [opcao, setOpcao] = useState<string | undefined>(opcoes.length === 1 ? opcoes[0].nome : undefined);
+  const [qty, setQty] = useState(1);
+  const esgotado = product.quantity <= 0;
+  const foto = opcoes.find(o => o.nome === opcao)?.imagem || product.image_url || `https://picsum.photos/seed/${product.id}/600/600`;
+  const falta = opcoes.length > 0 && !opcao;
+
+  // Método que adiciona a opção escolhida ao carrinho e fecha a janela
+  const adicionar = () => {
+    onAddToCart(product, qty, opcao);
+    onFechar();
+  };
+
+  return (
+    <div className="fixed inset-0 z-[60] bg-black/50 flex items-end sm:items-center justify-center p-0 sm:p-4" onClick={onFechar}>
+      <motion.div
+        initial={{ opacity: 0, y: 40 }}
+        animate={{ opacity: 1, y: 0 }}
+        onClick={e => e.stopPropagation()}
+        className="bg-white w-full sm:max-w-3xl max-h-[92vh] overflow-y-auto rounded-t-3xl sm:rounded-3xl shadow-2xl grid grid-cols-1 sm:grid-cols-2"
+      >
+        <div className="relative bg-white">
+          <img src={foto} alt={opcao ? `${product.name} - ${opcao}` : product.name} className="w-full aspect-square object-cover" referrerPolicy="no-referrer" />
+          {product.adult && <div className="absolute top-4 left-4 bg-red-600 text-white px-2.5 py-1 rounded-full text-xs font-bold">18+</div>}
+        </div>
+        <div className="p-6 sm:p-8 space-y-5 relative">
+          <button onClick={onFechar} aria-label="Fechar" className="absolute top-4 right-4 p-1 text-gray-500 hover:text-brand-olive"><X size={22} /></button>
+          <div>
+            <div className="text-xs text-gray-500 uppercase tracking-widest">{product.category}</div>
+            <h3 className="text-3xl font-serif text-brand-olive pr-8">{product.name}</h3>
+            <div className="text-xl font-bold text-brand-olive mt-1">{reais(product.price)}</div>
+          </div>
+          {product.description && <p className="text-sm text-gray-600 leading-relaxed">{product.description}</p>}
+          {product.adult && <p className="text-xs text-red-700 bg-red-50 rounded-xl p-3">Venda só para maiores de 18 anos. Conferimos pela data de nascimento do cadastro.</p>}
+          {product.category === "Kits" && (
+            <p className="text-xs text-gray-700 bg-brand-mint/20 rounded-xl p-3">
+              As cores dos itens do kit são aleatórias. Para escolher a cor de cada item,{" "}
+              <a href={linkWhatsApp(`Olá! Quero o ${product.name} e gostaria de escolher a cor dos itens.`)} target="_blank" rel="noreferrer" className="font-bold text-green-700 underline">chame no WhatsApp</a>.
+            </p>
+          )}
+          {opcoes.length > 0 && (
+            <div>
+              <div className="text-sm font-medium text-brand-olive mb-2">Escolha {tipoOpcao(product) === "cor" ? "a cor" : `o ${tipoOpcao(product)}`}</div>
+              <div className="flex flex-wrap gap-2">
+                {opcoes.map(o => (
+                  <button
+                    key={o.nome}
+                    type="button"
+                    onClick={() => setOpcao(o.nome)}
+                    className={`px-3 py-1.5 rounded-full text-sm border transition-all ${opcao === o.nome ? "bg-brand-olive text-white border-brand-olive" : "border-brand-beige/50 text-gray-700 hover:border-brand-olive"}`}
+                  >
+                    {o.nome}
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
           <div className="flex items-center justify-between">
-            <span className="text-xs text-gray-400 uppercase tracking-widest">Estoque: {product.quantity}</span>
+            <span className="text-xs text-gray-500 uppercase tracking-widest">Estoque: {product.quantity}</span>
             <div className="flex items-center border border-brand-beige/30 rounded-full px-2 py-0.5">
               <button onClick={() => setQty(Math.max(1, qty - 1))} className="px-2 text-brand-olive">-</button>
               <span className="mx-2 text-sm font-medium">{qty}</span>
@@ -266,22 +391,25 @@ const ProductCard = ({ product, onAddToCart }: { product: Product, onAddToCart: 
             </div>
           </div>
           <button
-            onClick={() => onAddToCart(product, qty)}
-            disabled={esgotado}
-            className="w-full bg-brand-olive text-white py-2 rounded-full hover:bg-brand-olive/90 transition-colors shadow-md flex items-center justify-center gap-2 text-sm font-medium disabled:opacity-50 disabled:cursor-not-allowed"
+            onClick={adicionar}
+            disabled={esgotado || falta}
+            className="w-full bg-brand-olive text-white py-3 rounded-full font-bold shadow-md flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
           >
-            {esgotado ? "Esgotado" : <><Plus size={16} /> Adicionar R$ {(product.price * qty).toFixed(2)}</>}
+            {esgotado ? "Esgotado" : falta ? `Escolha ${tipoOpcao(product) === "cor" ? "a cor" : `o ${tipoOpcao(product)}`}` : <><Plus size={16} /> Adicionar {reais(product.price * qty)}</>}
           </button>
         </div>
-      </div>
-    </motion.div>
+      </motion.div>
+    </div>
   );
 };
 
-const Products = ({ onAddToCart, isAdmin }: { onAddToCart: (p: Product, qty: number) => void, isAdmin: boolean }) => {
+const Products = ({ onAddToCart, isAdmin }: { onAddToCart: (p: Product, qty: number, opcao?: string) => void, isAdmin: boolean }) => {
   const [products, setProducts] = useState<Product[]>([]);
   const [loading, setLoading] = useState(true);
   const [erro, setErro] = useState("");
+  const [aberto, setAberto] = useState<Product | null>(null);
+  const [busca, setBusca] = useSearchParams();
+  const categoria = busca.get("categoria") || "";
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -289,9 +417,8 @@ const Products = ({ onAddToCart, isAdmin }: { onAddToCart: (p: Product, qty: num
       const { data, error } = await supabase
         .from('products')
         .select('*')
-        .order('created_at', { ascending: false })
         .order('name');
-
+      
       if (error) {
         console.error("Error fetching products:", error);
         setErro(error.message || "sem resposta");
@@ -305,15 +432,19 @@ const Products = ({ onAddToCart, isAdmin }: { onAddToCart: (p: Product, qty: num
 
   if (loading) return <div className="min-h-screen flex items-center justify-center">Carregando...</div>;
 
+  const categorias = CATEGORIAS.filter(c => products.some(p => p.category === c))
+    .concat(Array.from(new Set<string>(products.map(p => p.category))).filter(c => c && !CATEGORIAS.includes(c)));
+  const visiveis = categoria ? products.filter(p => p.category === categoria) : products;
+
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-20">
-      <div className="text-center mb-16 space-y-4">
+      <div className="text-center mb-10 space-y-4">
         <h2 className="text-5xl font-serif text-brand-olive">Nossa Coleção</h2>
         <p className="text-gray-500 max-w-xl mx-auto">Escolha os elementos que farão parte do seu próximo ritual.</p>
-
+        
         {isAdmin && (
           <div className="pt-4">
-            <button
+            <button 
               onClick={() => navigate("/admin", { state: { tab: "add" } })}
               className="inline-flex items-center gap-2 bg-brand-olive text-white px-8 py-3 rounded-full font-bold shadow-lg hover:shadow-xl transition-all transform hover:-translate-y-1"
             >
@@ -322,16 +453,30 @@ const Products = ({ onAddToCart, isAdmin }: { onAddToCart: (p: Product, qty: num
           </div>
         )}
       </div>
+
+      {categorias.length > 1 && (
+        <div className="flex gap-2 overflow-x-auto pb-4 mb-8 -mx-4 px-4 sm:flex-wrap sm:justify-center">
+          {["", ...categorias].map(c => (
+            <button
+              key={c || "todos"}
+              onClick={() => setBusca(c ? { categoria: c } : {})}
+              className={`shrink-0 px-4 py-2 rounded-full text-sm font-medium border transition-all ${categoria === c ? "bg-brand-olive text-white border-brand-olive" : "bg-white/70 border-brand-beige/40 text-gray-700 hover:border-brand-olive"}`}
+            >
+              {c || "Todos"}
+            </button>
+          ))}
+        </div>
+      )}
       
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-8">
-        {products.map(product => (
-          <div key={product.id}>
-            <ProductCard product={product} onAddToCart={onAddToCart} />
+        {visiveis.map(product => (
+          <div key={product.id} className="h-full">
+            <ProductCard product={product} onAddToCart={onAddToCart} onAbrir={setAberto} />
           </div>
         ))}
       </div>
       
-      {products.length === 0 && (
+      {visiveis.length === 0 && (
         <div className="text-center py-20 space-y-6">
           <p className="text-gray-500">
             {erro ? "Não foi possível carregar os produtos. Tente de novo em alguns instantes." : "Nenhum produto cadastrado no momento."}
@@ -341,35 +486,37 @@ const Products = ({ onAddToCart, isAdmin }: { onAddToCart: (p: Product, qty: num
               Aviso para o admin: o banco não respondeu ({erro}). Confira se o projeto Supabase está ativo.
             </p>
           )}
-          {isAdmin && !erro && (
-            <div className="pt-4">
-              <button
-                onClick={() => navigate("/admin", { state: { tab: "add" } })}
-                className="inline-flex items-center gap-2 bg-brand-olive text-white px-8 py-3 rounded-full font-bold shadow-lg hover:shadow-xl transition-all"
-              >
-                <Plus size={20} /> Cadastrar Primeiro Produto
-              </button>
-            </div>
-          )}
         </div>
       )}
+
+      {aberto && <JanelaProduto product={aberto} onFechar={() => setAberto(null)} onAddToCart={onAddToCart} />}
     </div>
   );
 };
 
-const Cart = ({ cart, onUpdateQuantity, onRemove, user, onClearCart }: { 
+// Pedido que o cliente está editando: o estoque que ele segura conta como disponível até o pedido ser refeito
+type EdicaoPedido = { id: number, entrega: "Correios" | "Retirada", reservado: { [produto: number]: number } };
+
+const Cart = ({ cart, onUpdateQuantity, onRemove, user, edicao, onDesistirEdicao }: { 
   cart: CartItem[], 
-  onUpdateQuantity: (id: number, delta: number) => void,
-  onRemove: (id: number) => void,
+  onUpdateQuantity: (chave: string, delta: number) => void,
+  onRemove: (chave: string) => void,
   user: any,
-  onClearCart: () => void
+  edicao: EdicaoPedido | null,
+  onDesistirEdicao: () => void
 }) => {
   const navigate = useNavigate();
   const total = cart.reduce((acc, item) => acc + item.price * item.cartQuantity, 0);
   
+  // Método que desiste da edição: o pedido continua como estava
+  const desistirEdicao = () => {
+    onDesistirEdicao();
+    navigate("/meus-pedidos");
+  };
+
   const handleGoToPayment = () => {
     if (!user) {
-      navigate("/checkout");
+      navigate("/checkout", { state: { entrar: true, voltarPara: "/carrinho" } });
       return;
     }
     navigate("/pagamento");
@@ -378,6 +525,19 @@ const Cart = ({ cart, onUpdateQuantity, onRemove, user, onClearCart }: {
   return (
     <div className="max-w-4xl mx-auto px-4 py-20 min-h-screen">
       <h2 className="text-4xl font-serif text-brand-olive mb-12">Seu Carrinho</h2>
+
+      {edicao && (
+        <div className="mb-8 bg-brand-mint/20 border border-brand-mint rounded-2xl p-5 text-sm text-gray-700 space-y-3">
+          <p>
+            Editando o pedido <strong>#{edicao.id}</strong>. Mude as quantidades, tire ou inclua produtos. Ao finalizar, o pedido #{edicao.id} é cancelado
+            e um pedido novo é feito com os valores recalculados.
+          </p>
+          <div className="flex flex-wrap gap-x-6 gap-y-2">
+            <Link to="/produtos" className="text-brand-olive font-medium underline underline-offset-4">Incluir produtos</Link>
+            <button onClick={desistirEdicao} className="text-brand-olive font-medium underline underline-offset-4">Desistir da edição</button>
+          </div>
+        </div>
+      )}
       
       {cart.length === 0 ? (
         <div className="text-center py-20 bg-white rounded-3xl border border-dashed border-brand-beige/40">
@@ -388,7 +548,7 @@ const Cart = ({ cart, onUpdateQuantity, onRemove, user, onClearCart }: {
         <div className="space-y-8">
           <div className="bg-white rounded-3xl shadow-sm overflow-hidden border border-brand-beige/10">
             {cart.map(item => (
-              <div key={item.id} className="flex items-center gap-6 p-6 border-b border-brand-beige/10 last:border-0">
+              <div key={chaveCarrinho(item.id, item.opcao)} className="flex items-center gap-6 p-6 border-b border-brand-beige/10 last:border-0">
                 <img 
                   src={item.image_url || `https://picsum.photos/seed/${item.id}/200/200`} 
                   className="w-20 h-20 object-cover rounded-xl"
@@ -397,15 +557,22 @@ const Cart = ({ cart, onUpdateQuantity, onRemove, user, onClearCart }: {
                 />
                 <div className="flex-1">
                   <h3 className="font-serif text-lg text-brand-olive">{item.name}</h3>
-                  <p className="text-sm text-gray-400">R$ {item.price.toFixed(2)}</p>
+                  {item.opcao && <p className="text-sm text-gray-600">{item.opcao}</p>}
+                  {item.category === "Kits" && (
+                    <p className="text-xs text-gray-500">
+                      Cores dos itens aleatórias.{" "}
+                      <a href={linkWhatsApp(`Olá! Quero o ${item.name} e gostaria de escolher a cor dos itens.`)} target="_blank" rel="noreferrer" className="text-green-700 underline">Escolher pelo WhatsApp</a>
+                    </p>
+                  )}
+                  <p className="text-sm text-gray-400">{reais(item.price)}</p>
                 </div>
                 <div className="flex items-center gap-4">
                   <div className="flex items-center border border-brand-beige/30 rounded-full px-3 py-1">
-                    <button onClick={() => onUpdateQuantity(item.id, -1)} className="text-brand-olive hover:opacity-50">-</button>
+                    <button onClick={() => onUpdateQuantity(chaveCarrinho(item.id, item.opcao), -1)} className="text-brand-olive hover:opacity-50">-</button>
                     <span className="mx-4 text-sm font-medium">{item.cartQuantity}</span>
-                    <button onClick={() => onUpdateQuantity(item.id, 1)} className="text-brand-olive hover:opacity-50">+</button>
+                    <button onClick={() => onUpdateQuantity(chaveCarrinho(item.id, item.opcao), 1)} className="text-brand-olive hover:opacity-50">+</button>
                   </div>
-                  <button onClick={() => onRemove(item.id)} className="text-red-400 hover:text-red-600 transition-colors">
+                  <button onClick={() => onRemove(chaveCarrinho(item.id, item.opcao))} className="text-red-400 hover:text-red-600 transition-colors">
                     <Trash2 size={20} />
                   </button>
                 </div>
@@ -416,7 +583,7 @@ const Cart = ({ cart, onUpdateQuantity, onRemove, user, onClearCart }: {
           <div className="bg-brand-olive text-white p-8 rounded-3xl shadow-xl space-y-6">
             <div className="flex justify-between items-center text-xl font-serif">
               <span>Total do Pedido</span>
-              <span>R$ {total.toFixed(2)}</span>
+              <span>{reais(total)}</span>
             </div>
             <p className="text-sm text-brand-paper/70 leading-relaxed">
               Pagamento por PIX. Envio pelos Correios, com frete combinado pelo WhatsApp, ou retirada em {LOJA.localRetirada || LOJA.cidade}.
@@ -436,6 +603,7 @@ const Cart = ({ cart, onUpdateQuantity, onRemove, user, onClearCart }: {
 
 const Admin = ({ isAdmin }: { isAdmin: boolean }) => {
   const location = useLocation();
+  const navigate = useNavigate();
   const isLoggedIn = isAdmin;
   const [activeTab, setActiveTab] = useState<"products" | "add" | "orders" | "supabase">("products");
 
@@ -450,7 +618,7 @@ const Admin = ({ isAdmin }: { isAdmin: boolean }) => {
   const [products, setProducts] = useState<Product[]>([]);
   const [orders, setOrders] = useState<any[]>([]);
   const [erroBanco, setErroBanco] = useState("");
-  const [newProduct, setNewProduct] = useState({ name: "", description: "", price: "", quantity: "" });
+  const [newProduct, setNewProduct] = useState({ name: "", description: "", price: "", quantity: "", category: "Ervas", opcoes: "", adult: false });
   const [image, setImage] = useState<File | null>(null);
   const [supabaseStatus, setSupabaseStatus] = useState<{ [key: string]: string }>({
     products: "Checking...",
@@ -552,7 +720,10 @@ const Admin = ({ isAdmin }: { isAdmin: boolean }) => {
           description: newProduct.description,
           price: parseFloat(newProduct.price),
           quantity: parseInt(newProduct.quantity),
-          image_url: imageUrl
+          image_url: imageUrl,
+          category: newProduct.category,
+          options: newProduct.opcoes.split(",").map(o => o.trim()).filter(Boolean).map(nome => ({ nome })),
+          adult: newProduct.adult
         }])
         .select()
         .single();
@@ -560,7 +731,7 @@ const Admin = ({ isAdmin }: { isAdmin: boolean }) => {
       if (error) throw error;
 
       setProducts([...products, data]);
-      setNewProduct({ name: "", description: "", price: "", quantity: "" });
+      setNewProduct({ name: "", description: "", price: "", quantity: "", category: "Ervas", opcoes: "", adult: false });
       setImage(null);
       alert("Produto cadastrado com sucesso!");
     } catch (err: any) {
@@ -612,9 +783,7 @@ const Admin = ({ isAdmin }: { isAdmin: boolean }) => {
             </div>
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-2">Senha</label>
-              <input 
-                type="password" 
-                value={password} 
+              <CampoSenha value={password} 
                 onChange={e => setPassword(e.target.value)}
                 className="w-full px-4 py-3 rounded-xl border border-brand-beige/30 focus:ring-2 focus:ring-brand-olive outline-none"
               />
@@ -666,7 +835,7 @@ const Admin = ({ isAdmin }: { isAdmin: boolean }) => {
           </div>
         </div>
         <button 
-          onClick={() => supabase.auth.signOut()}
+          onClick={async () => { await supabase.auth.signOut(); navigate("/"); }}
           className="flex items-center gap-2 text-red-500 hover:text-red-700 font-medium"
         >
           <LogOut size={20} /> Sair
@@ -709,6 +878,23 @@ const Admin = ({ isAdmin }: { isAdmin: boolean }) => {
                   required
                 />
               </div>
+              <select
+                value={newProduct.category}
+                onChange={e => setNewProduct({...newProduct, category: e.target.value})}
+                className="w-full px-4 py-2 rounded-lg border border-brand-beige/30 bg-white"
+              >
+                {CATEGORIAS.map(c => <option key={c} value={c}>{c}</option>)}
+              </select>
+              <input 
+                placeholder="Opções separadas por vírgula (ex.: Azul, Rosa, Verde) — deixe vazio se não tiver" 
+                value={newProduct.opcoes} 
+                onChange={e => setNewProduct({...newProduct, opcoes: e.target.value})}
+                className="w-full px-4 py-2 rounded-lg border border-brand-beige/30"
+              />
+              <label className="flex items-center gap-2 text-sm text-gray-600">
+                <input type="checkbox" checked={newProduct.adult} onChange={e => setNewProduct({...newProduct, adult: e.target.checked})} className="accent-brand-olive" />
+                Só para maiores de 18 anos (fumo)
+              </label>
               <div className="space-y-2">
                 <label className="text-xs text-gray-400 uppercase tracking-widest">Foto do Produto</label>
                 <input 
@@ -745,7 +931,7 @@ const Admin = ({ isAdmin }: { isAdmin: boolean }) => {
                 />
                 <div className="flex-1">
                   <h4 className="font-medium text-brand-olive">{p.name}</h4>
-                  <p className="text-xs text-gray-400">R$ {p.price.toFixed(2)} • Est: {p.quantity}</p>
+                  <p className="text-xs text-gray-400">{p.category} • {reais(p.price)} • Est: {p.quantity}{(p.options || []).length > 0 ? ` • ${p.options.length} opções` : ""}{p.adult ? " • 18+" : ""}</p>
                 </div>
                 <button onClick={() => handleDelete(p.id)} className="text-red-400 hover:text-red-600">
                   <Trash2 size={20} />
@@ -778,7 +964,7 @@ const Admin = ({ isAdmin }: { isAdmin: boolean }) => {
                         </a>
                       )}
                       <div>{order.users.email}</div>
-                      <div>{order.users.address}, {order.users.number} · CEP {order.users.cep}</div>
+                      <div>{order.users.address} · CEP {order.users.cep}</div>
                       {order.users.cpf && <div>CPF {order.users.cpf}</div>}
                     </div>
                   )}
@@ -787,12 +973,12 @@ const Admin = ({ isAdmin }: { isAdmin: boolean }) => {
                   <span className={`px-3 py-1 rounded-full text-[10px] font-bold uppercase ${order.delivery_method === "Retirada" ? "bg-amber-100 text-amber-700" : "bg-blue-100 text-blue-600"}`}>
                     {order.delivery_method}
                   </span>
-                  <div className="text-[10px] text-gray-500 mt-2">Pedido #{order.id} · {order.payment_method}</div>
+                  <div className="text-[10px] text-gray-500 mt-2">Pedido #{order.id} · {order.payment_method}{order.pedido_anterior ? ` · substitui o #${order.pedido_anterior}` : ""}</div>
                 </div>
                 <div className="col-span-2 flex justify-between items-center">
                   <div className="text-sm text-gray-600 flex-1">
                     {order.description}
-                    <div className="text-[10px] text-gray-400 mt-1">Total: R$ {order.total_price.toFixed(2)} • {new Date(order.created_at).toLocaleString()}</div>
+                    <div className="text-[10px] text-gray-400 mt-1">Total: {reais(order.total_price)} • {new Date(order.created_at).toLocaleString()}</div>
                   </div>
                   <div className="ml-4">
                     <select 
@@ -887,8 +1073,8 @@ const InstrucoesPagamento = ({ pedido }: { pedido: { id: number, description: st
     <div className="space-y-4 text-left">
       <p className="text-gray-700 leading-relaxed">
         {pedido.delivery_method === "Retirada"
-          ? <>Pague <strong>R$ {Number(pedido.total_price).toFixed(2)}</strong> pelo PIX e mande o comprovante pelo WhatsApp. Combinamos a retirada por lá.</>
-          : <>Mande o pedido pelo WhatsApp para calcularmos o frete dos Correios. Depois é só pagar pelo PIX o valor dos produtos (R$ {Number(pedido.total_price).toFixed(2)}) mais o frete.</>}
+          ? <>Pague <strong>{reais(Number(pedido.total_price))}</strong> pelo PIX e mande o comprovante pelo WhatsApp. Combinamos a retirada por lá.</>
+          : <>Mande o pedido pelo WhatsApp para calcularmos o frete dos Correios. Depois é só pagar pelo PIX o valor dos produtos ({reais(Number(pedido.total_price))}) mais o frete.</>}
       </p>
       <div className="bg-brand-mint/20 p-5 rounded-2xl">
         <div className="text-xs text-gray-600 uppercase tracking-widest mb-1">Chave PIX</div>
@@ -914,42 +1100,60 @@ const InstrucoesPagamento = ({ pedido }: { pedido: { id: number, description: st
       >
         <Phone size={18} /> Enviar pedido pelo WhatsApp
       </a>
+      <BotaoCombinarEntrega pedido={pedido} />
     </div>
   );
 };
 
-const PaymentPage = ({ cart, user, onClearCart }: { cart: CartItem[], user: any, onClearCart: () => void }) => {
-  const [pedido, setPedido] = useState<{ id: number, description: string, total_price: number, delivery_method: string } | null>(null);
-  const [entrega, setEntrega] = useState<"Correios" | "Retirada">("Correios");
+// Botão que abre o WhatsApp da loja com a mensagem para combinar a entrega ou a retirada
+const BotaoCombinarEntrega = ({ pedido }: { pedido: { id: number, delivery_method: string } }) => (
+  <a
+    href={linkWhatsApp(mensagemEntrega(pedido))}
+    target="_blank"
+    rel="noreferrer"
+    className="w-full inline-flex items-center justify-center gap-2 border-2 border-green-600 text-green-700 font-bold py-3 rounded-full hover:bg-green-50 transition-all"
+  >
+    <Phone size={18} /> Combinar a {pedido.delivery_method === "Retirada" ? "retirada" : "entrega"} pelo WhatsApp
+  </a>
+);
+
+const PaymentPage = ({ cart, user, edicao, onPedidoFeito }: { cart: CartItem[], user: any, edicao: EdicaoPedido | null, onPedidoFeito: () => void }) => {
+  const [pedido, setPedido] = useState<{ id: number, description: string, total_price: number, delivery_method: string, anterior?: number } | null>(null);
+  const [entrega, setEntrega] = useState<"Correios" | "Retirada">(edicao?.entrega || "Correios");
   const [loading, setLoading] = useState(false);
   const navigate = useNavigate();
   const total = cart.reduce((acc, item) => acc + item.price * item.cartQuantity, 0);
 
   useEffect(() => {
     if (cart.length === 0 && !pedido) navigate("/produtos");
-    if (!user) navigate("/checkout");
+    if (!user || !cadastroCompleto(user)) navigate("/checkout");
   }, [cart, user, pedido]);
 
   const handleFinalize = async () => {
     setLoading(true);
 
     try {
-      // O banco confere o estoque, calcula o total pelos preços cadastrados e grava o pedido no nome do cliente logado
-      const { data, error } = await supabase.rpc('criar_pedido', {
-        p_itens: cart.map(item => ({ id: item.id, quantidade: item.cartQuantity })),
+      // O banco confere o estoque, calcula o total pelos preços cadastrados e grava o pedido no nome do cliente logado;
+      // na edição, cancela o pedido anterior e grava o novo na mesma transação
+      const dados = {
+        p_itens: cart.map(item => ({ id: item.id, quantidade: item.cartQuantity, opcao: item.opcao })),
         p_forma_pagamento: "PIX",
         p_entrega: entrega
-      });
+      };
+      const { data, error } = edicao
+        ? await supabase.rpc('refazer_pedido', { p_pedido: edicao.id, ...dados })
+        : await supabase.rpc('criar_pedido', dados);
 
       if (error) throw error;
 
       setPedido({
         id: data,
-        description: cart.map(item => `${item.cartQuantity}x ${item.name}`).join(", "),
+        description: cart.map(item => `${item.cartQuantity}x ${item.name}${item.opcao ? ` (${item.opcao})` : ""}`).join(", "),
         total_price: total,
-        delivery_method: entrega
+        delivery_method: entrega,
+        anterior: edicao?.id
       });
-      onClearCart();
+      onPedidoFeito();
     } catch (error: any) {
       console.error("Erro ao salvar pedido:", error);
       alert("Erro ao finalizar pedido: " + error.message);
@@ -970,6 +1174,7 @@ const PaymentPage = ({ cart, user, onClearCart }: { cart: CartItem[], user: any,
             <Leaf size={40} />
           </div>
           <h2 className="text-4xl font-serif text-brand-olive">Pedido #{pedido.id} recebido!</h2>
+          {pedido.anterior && <p className="text-sm text-gray-600">Ele substitui o pedido #{pedido.anterior}, que foi cancelado.</p>}
           <InstrucoesPagamento pedido={pedido} />
           <div className="pt-2">
             <Link to="/meus-pedidos" className="text-brand-olive font-medium underline underline-offset-4">
@@ -985,17 +1190,22 @@ const PaymentPage = ({ cart, user, onClearCart }: { cart: CartItem[], user: any,
     <div className="max-w-2xl mx-auto px-4 py-20 min-h-screen">
       <div className="bg-white p-10 rounded-[2.5rem] shadow-2xl border border-brand-beige/20">
         <h2 className="text-3xl font-serif text-brand-olive mb-8 text-center">Resumo do Pedido</h2>
+        {edicao && (
+          <p className="-mt-4 mb-8 text-sm text-gray-600 text-center">
+            Ao finalizar, o pedido #{edicao.id} é cancelado e este entra no lugar dele.
+          </p>
+        )}
         
         <div className="space-y-4 mb-8">
           {cart.map(item => (
-            <div key={item.id} className="flex justify-between text-sm border-b border-brand-beige/10 pb-2">
-              <span className="text-gray-600">{item.cartQuantity}x {item.name}</span>
-              <span className="font-medium text-brand-olive">R$ {(item.price * item.cartQuantity).toFixed(2)}</span>
+            <div key={chaveCarrinho(item.id, item.opcao)} className="flex justify-between text-sm border-b border-brand-beige/10 pb-2">
+              <span className="text-gray-600">{item.cartQuantity}x {item.name}{item.opcao ? ` (${item.opcao})` : ""}</span>
+              <span className="font-medium text-brand-olive">{reais((item.price * item.cartQuantity))}</span>
             </div>
           ))}
           <div className="flex justify-between text-xl font-serif pt-4 text-brand-olive">
             <span>Total dos produtos</span>
-            <span>R$ {total.toFixed(2)}</span>
+            <span>{reais(total)}</span>
           </div>
         </div>
 
@@ -1026,10 +1236,13 @@ const PaymentPage = ({ cart, user, onClearCart }: { cart: CartItem[], user: any,
               </h4>
               <p className="text-sm text-gray-600 leading-relaxed">
                 {user?.full_name}<br />
-                {user?.address}, {user?.number}<br />
+                {user?.address}<br />
                 CEP: {user?.cep}
               </p>
               <p className="text-sm text-gray-600 mt-3">O frete dos Correios é combinado pelo WhatsApp depois de finalizar.</p>
+              <a href={linkWhatsApp("Olá! Estou fazendo um pedido no site e queria combinar a entrega pelos Correios.")} target="_blank" rel="noreferrer" className="inline-flex items-center gap-2 mt-3 text-sm font-bold text-green-700 hover:underline">
+                <Phone size={16} /> Combinar a entrega pelo WhatsApp
+              </a>
             </>
           ) : (
             <>
@@ -1039,6 +1252,9 @@ const PaymentPage = ({ cart, user, onClearCart }: { cart: CartItem[], user: any,
               <p className="text-sm text-gray-600 leading-relaxed">
                 {LOJA.localRetirada || LOJA.cidade}. Combinamos o dia e o horário pelo WhatsApp.
               </p>
+              <a href={linkWhatsApp(`Olá! Estou fazendo um pedido no site e queria combinar a retirada em ${LOJA.localRetirada || LOJA.cidade}.`)} target="_blank" rel="noreferrer" className="inline-flex items-center gap-2 mt-3 text-sm font-bold text-green-700 hover:underline">
+                <Phone size={16} /> Combinar a retirada pelo WhatsApp
+              </a>
             </>
           )}
         </div>
@@ -1048,9 +1264,14 @@ const PaymentPage = ({ cart, user, onClearCart }: { cart: CartItem[], user: any,
           <p className="text-sm text-gray-600">PIX. Depois de finalizar, mostramos a chave e o botão para enviar o comprovante pelo WhatsApp.</p>
         </div>
 
+        {cart.some(item => item.adult) && !maiorDeIdade(user?.birth_date) && (
+          <p className="mb-4 text-sm text-red-700 bg-red-50 border border-red-200 rounded-xl p-4">
+            Seu carrinho tem itens só para maiores de 18 anos. {user?.birth_date ? "Pela data de nascimento do cadastro, a compra não é permitida." : <>Informe sua data de nascimento em <Link to="/minha-conta" className="underline">Minha conta</Link> para continuar.</>}
+          </p>
+        )}
         <button 
           onClick={handleFinalize}
-          disabled={loading}
+          disabled={loading || (cart.some(item => item.adult) && !maiorDeIdade(user?.birth_date))}
           className="w-full bg-brand-olive text-white font-bold py-5 rounded-full hover:opacity-90 transition-all shadow-xl flex items-center justify-center gap-3 text-lg disabled:opacity-50"
         >
           {loading ? "Processando..." : "Finalizar Pedido"}
@@ -1060,8 +1281,9 @@ const PaymentPage = ({ cart, user, onClearCart }: { cart: CartItem[], user: any,
   );
 };
 
-const MyOrders = ({ user }: { user: any }) => {
+const MyOrders = ({ user, onCarregar }: { user: any, onCarregar: (pedido: any, editar: boolean) => Promise<boolean> }) => {
   const [orders, setOrders] = useState<any[]>([]);
+  const [processando, setProcessando] = useState<number | null>(null);
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -1094,6 +1316,27 @@ const MyOrders = ({ user }: { user: any }) => {
     }
   };
 
+  // Método que leva os itens do pedido para o carrinho: para editar (refaz o pedido) ou para fazer um pedido igual
+  const levarParaCarrinho = async (order: any, editar: boolean) => {
+    setProcessando(order.id);
+    const carregado = await onCarregar(order, editar);
+    setProcessando(null);
+    if (carregado) navigate("/carrinho");
+  };
+
+  // Método que cancela o pedido que ainda aguarda o pagamento; o estoque volta para a loja
+  const cancelar = async (order: any) => {
+    if (!confirm(`Cancelar o pedido #${order.id}?`)) return;
+    setProcessando(order.id);
+    const { error } = await supabase.rpc('cancelar_pedido', { p_pedido: order.id });
+    setProcessando(null);
+    if (error) {
+      alert("Não foi possível cancelar: " + error.message);
+      return;
+    }
+    setOrders(orders.map(o => o.id === order.id ? { ...o, status: "pedido cancelado" } : o));
+  };
+
   return (
     <div className="max-w-4xl mx-auto px-4 py-20 min-h-screen">
       <h2 className="text-4xl font-serif text-brand-olive mb-12">Meus Pedidos</h2>
@@ -1104,7 +1347,10 @@ const MyOrders = ({ user }: { user: any }) => {
               <div>
                 <span className="text-xs text-gray-400 uppercase tracking-widest">Status</span>
                 <div className="font-serif text-xl text-brand-olive">{STATUS_PEDIDO[order.status] || order.status}</div>
-                <div className="text-sm text-gray-600 mt-1">Pedido #{order.id} · {order.delivery_method === "Retirada" ? "Retirada" : "Correios"}</div>
+                <div className="text-sm text-gray-600 mt-1">
+                  Pedido #{order.id} · {order.delivery_method === "Retirada" ? "Retirada" : "Correios"}
+                  {order.pedido_anterior && <> · substitui o #{order.pedido_anterior}</>}
+                </div>
               </div>
               <div className="text-right">
                 <span className="text-xs text-gray-400 uppercase tracking-widest">Data</span>
@@ -1113,10 +1359,36 @@ const MyOrders = ({ user }: { user: any }) => {
             </div>
             <div className="border-t border-brand-beige/10 pt-4 mb-6">
               <p className="text-sm text-gray-600">{order.description}</p>
-              <p className="text-sm font-bold text-brand-olive mt-2">Total: R$ {order.total_price.toFixed(2)}</p>
+              <p className="text-sm font-bold text-brand-olive mt-2">Total: {reais(order.total_price)}</p>
             </div>
             {order.status === "aguardando pagamento" && (
-              <InstrucoesPagamento pedido={order} />
+              <>
+                <InstrucoesPagamento pedido={order} />
+                <div className="grid grid-cols-2 gap-3 mt-3">
+                  <button
+                    onClick={() => levarParaCarrinho(order, true)}
+                    disabled={processando === order.id}
+                    className="py-3 rounded-full border-2 border-brand-olive text-brand-olive font-bold hover:bg-brand-olive hover:text-white transition-all disabled:opacity-50"
+                  >
+                    Editar pedido
+                  </button>
+                  <button
+                    onClick={() => cancelar(order)}
+                    disabled={processando === order.id}
+                    className="py-3 rounded-full border-2 border-red-300 text-red-600 font-bold hover:bg-red-50 transition-all disabled:opacity-50"
+                  >
+                    Cancelar pedido
+                  </button>
+                </div>
+                <p className="text-xs text-gray-500 mt-3 text-center">
+                  Dá para editar ou cancelar enquanto o pagamento não é confirmado. Na edição, o pedido é refeito com os valores recalculados.
+                </p>
+              </>
+            )}
+            {["pagamento confirmado", "pedido sendo separado", "pronto para retirada", "pedido enviado para entrega"].includes(order.status) && (
+              <div className="mb-4">
+                <BotaoCombinarEntrega pedido={order} />
+              </div>
             )}
             {order.status === "pedido enviado para entrega" && (
               <button 
@@ -1127,9 +1399,27 @@ const MyOrders = ({ user }: { user: any }) => {
               </button>
             )}
             {order.status === "pedido entregue" && (
-              <div className="text-center text-brand-olive font-medium flex items-center justify-center gap-2">
+              <div className="text-center text-brand-olive font-medium flex items-center justify-center gap-2 mb-4">
                 <Check size={20} /> Pedido Entregue
               </div>
+            )}
+            {["pedido cancelado", "pedido entregue"].includes(order.status) && (
+              orders.some(o => o.pedido_anterior === order.id) ? (
+                <p className="text-sm text-gray-500 text-center">Substituído pelo pedido #{orders.find(o => o.pedido_anterior === order.id).id}.</p>
+              ) : (
+                <>
+                  <button
+                    onClick={() => levarParaCarrinho(order, false)}
+                    disabled={processando === order.id}
+                    className="w-full py-3 rounded-full border-2 border-brand-olive text-brand-olive font-bold hover:bg-brand-olive hover:text-white transition-all disabled:opacity-50"
+                  >
+                    Fazer pedido igual
+                  </button>
+                  <p className="text-xs text-gray-500 mt-3 text-center">
+                    Os mesmos produtos e quantidades vão para o carrinho, com o preço e o estoque de hoje.
+                  </p>
+                </>
+              )
             )}
           </div>
         ))}
@@ -1139,6 +1429,24 @@ const MyOrders = ({ user }: { user: any }) => {
           </div>
         )}
       </div>
+    </div>
+  );
+};
+
+// Campo de senha com o olho para mostrar ou esconder o que foi digitado
+const CampoSenha = (props: React.InputHTMLAttributes<HTMLInputElement>) => {
+  const [visivel, setVisivel] = useState(false);
+  return (
+    <div className="relative">
+      <input {...props} type={visivel ? "text" : "password"} className={`${props.className || ""} pr-12`} />
+      <button
+        type="button"
+        onClick={() => setVisivel(!visivel)}
+        aria-label={visivel ? "Esconder senha" : "Mostrar senha"}
+        className="absolute right-3 top-1/2 -translate-y-1/2 p-1 text-gray-500 hover:text-brand-olive"
+      >
+        {visivel ? <EyeOff size={18} /> : <Eye size={18} />}
+      </button>
     </div>
   );
 };
@@ -1160,34 +1468,166 @@ const traduzirErroAuth = (error: any) => {
   return mensagem ? `${traducao}\n\n(${mensagem})` : traducao;
 };
 
-const Checkout = ({ user }: { user: any }) => {
-  const [isRegistering, setIsRegistering] = useState(true);
-  const [formData, setFormData] = useState({
-    email: "", password: "", full_name: "", cpf: "", address: "", cep: "", number: "", phone: ""
-  });
+type DadosCliente = { full_name: string, cpf: string, birth_date: string, cep: string, rua: string, bairro: string, cidade: string, uf: string, number: string, complemento: string, phone: string };
+
+const dadosClienteVazios: DadosCliente = { full_name: "", cpf: "", birth_date: "", cep: "", rua: "", bairro: "", cidade: "", uf: "", number: "", complemento: "", phone: "" };
+
+// Método que diz se o cadastro tem o que a loja precisa para entregar (quem entra pelo Google chega sem isso)
+const cadastroCompleto = (user: any) => !!(user?.cpf && user?.birth_date && user?.address && user?.cep && user?.phone);
+
+// Método que monta o endereço numa linha: rua, número, complemento - bairro, cidade/UF
+const montarEndereco = (d: DadosCliente) =>
+  [d.rua, d.number, d.complemento].filter(Boolean).join(", ") + ` - ${[d.bairro, `${d.cidade}/${d.uf}`].filter(Boolean).join(", ")}`;
+
+// Campos de nome, CPF, endereço pelo CEP (ViaCEP) e WhatsApp, usados no cadastro e ao completar o cadastro
+const CamposCliente = ({ dados, setDados, travarNomeCpf = false }: { dados: DadosCliente, setDados: React.Dispatch<React.SetStateAction<DadosCliente>>, travarNomeCpf?: boolean }) => {
+  const [cepStatus, setCepStatus] = useState<"" | "buscando" | "achou" | "erro">(dados.cidade ? "achou" : "");
+
+  // Com o CEP já preenchido (tela Minha conta), busca a rua e o bairro ao abrir
+  useEffect(() => {
+    if (!dados.cidade && dados.cep.replace(/\D/g, "").length === 8) buscarCep(dados.cep);
+  }, []);
+
+  // Método que preenche rua, bairro e cidade a partir do CEP
+  const buscarCep = async (valor: string) => {
+    setDados(d => ({ ...d, cep: valor }));
+    const cep = valor.replace(/\D/g, "");
+    if (cep.length !== 8) {
+      setCepStatus("");
+      setDados(d => ({ ...d, cidade: "" }));
+      return;
+    }
+    setCepStatus("buscando");
+    try {
+      const r = await fetch(`https://viacep.com.br/ws/${cep}/json/`).then(resposta => resposta.json());
+      if (r.erro) {
+        setCepStatus("erro");
+        return;
+      }
+      setDados(d => ({ ...d, rua: r.logradouro || "", bairro: r.bairro || "", cidade: r.localidade || "", uf: r.uf || "" }));
+      setCepStatus("achou");
+    } catch {
+      setCepStatus("erro");
+    }
+  };
+
+  const campo = "w-full px-4 py-3 rounded-xl border border-brand-beige/30";
+
+  return (
+    <>
+      {travarNomeCpf ? (
+        <div className="text-sm text-gray-700 bg-gray-50 rounded-xl px-4 py-3 space-y-1">
+          <div>{dados.full_name}</div>
+          <div>CPF {dados.cpf}</div>
+          {dados.birth_date && <div>Nascimento {dados.birth_date.split("-").reverse().join("/")}</div>}
+          <div className="text-xs text-gray-500">Nome, CPF e data de nascimento não podem ser alterados depois do cadastro.</div>
+        </div>
+      ) : (
+        <>
+          <input placeholder="Nome Completo" value={dados.full_name} onChange={e => setDados({ ...dados, full_name: e.target.value })} className={campo} required />
+          <input placeholder="CPF" inputMode="numeric" value={dados.cpf} onChange={e => setDados({ ...dados, cpf: e.target.value })} className={campo} required />
+        </>
+      )}
+      {(!travarNomeCpf || !dados.birth_date) && (
+        <label className="block">
+          <span className="block text-xs text-gray-500 mb-1 px-1">Data de nascimento</span>
+          <input type="date" value={dados.birth_date} max={new Date().toISOString().slice(0, 10)} onChange={e => setDados({ ...dados, birth_date: e.target.value })} className={campo} required />
+        </label>
+      )}
+      <div>
+        <input placeholder="CEP" inputMode="numeric" maxLength={9} value={dados.cep} onChange={e => buscarCep(e.target.value)} className={campo} required />
+        {cepStatus === "buscando" && <p className="text-xs text-gray-500 mt-1 px-1">Buscando o endereço...</p>}
+        {cepStatus === "erro" && <p className="text-xs text-red-600 mt-1 px-1">Não achamos esse CEP. Confira os números.</p>}
+      </div>
+      {cepStatus === "achou" && (
+        <>
+          <input placeholder="Rua" value={dados.rua} onChange={e => setDados({ ...dados, rua: e.target.value })} className={campo} required />
+          <p className="text-sm text-gray-600 px-1">{[dados.bairro, `${dados.cidade}/${dados.uf}`].filter(Boolean).join(" · ")}</p>
+          <div className="grid grid-cols-2 gap-4">
+            <input placeholder="Número" value={dados.number} onChange={e => setDados({ ...dados, number: e.target.value })} className={campo} required />
+            <input placeholder="Complemento" value={dados.complemento} onChange={e => setDados({ ...dados, complemento: e.target.value })} className={campo} />
+          </div>
+        </>
+      )}
+      <input type="tel" placeholder="WhatsApp com DDD" value={dados.phone} onChange={e => setDados({ ...dados, phone: e.target.value })} className={campo} required />
+    </>
+  );
+};
+
+// Botão de entrar ou se cadastrar com a conta Google
+const BotaoGoogle = () => {
+  // Método que manda o cliente para o login do Google e traz de volta para o cadastro
+  const entrarComGoogle = async () => {
+    definirManterConectado(true);
+    const { error } = await supabase.auth.signInWithOAuth({
+      provider: "google",
+      options: { redirectTo: `${window.location.origin}/checkout` }
+    });
+    if (error) alert(traduzirErroAuth(error));
+  };
+
+  return (
+    <button
+      type="button"
+      onClick={entrarComGoogle}
+      className="w-full flex items-center justify-center gap-3 border border-gray-300 bg-white text-gray-800 py-3 rounded-full font-medium hover:bg-gray-50 transition-all"
+    >
+      <svg width="18" height="18" viewBox="0 0 48 48" aria-hidden="true">
+        <path fill="#EA4335" d="M24 9.5c3.5 0 6.6 1.2 9 3.6l6.7-6.7C35.6 2.4 30.2 0 24 0 14.6 0 6.6 5.4 2.7 13.2l7.8 6.1C12.4 13.6 17.7 9.5 24 9.5z"/>
+        <path fill="#4285F4" d="M46.5 24.5c0-1.6-.1-3.1-.4-4.5H24v9h12.7c-.6 3-2.3 5.5-4.8 7.2l7.6 5.9c4.4-4.1 7-10.1 7-17.6z"/>
+        <path fill="#FBBC05" d="M10.5 28.7c-.5-1.4-.8-3-.8-4.7s.3-3.3.8-4.7l-7.8-6.1C1 16.6 0 20.2 0 24s1 7.4 2.7 10.8l7.8-6.1z"/>
+        <path fill="#34A853" d="M24 48c6.5 0 11.9-2.1 15.9-5.8l-7.6-5.9c-2.1 1.4-4.9 2.3-8.3 2.3-6.3 0-11.6-4.1-13.5-9.8l-7.8 6.1C6.6 42.6 14.6 48 24 48z"/>
+      </svg>
+      Continuar com Google
+    </button>
+  );
+};
+
+const Checkout = ({ user, onCadastroAtualizado }: { user: any, onCadastroAtualizado: (dados: any) => void }) => {
+  const location = useLocation();
+  const [isRegistering, setIsRegistering] = useState(!(location.state as any)?.entrar);
+  const [acesso, setAcesso] = useState({ email: "", password: "", confirmacao: "" });
+  const [manterConectado, setManterConectado] = useState(true);
+  const [dados, setDados] = useState<DadosCliente>(dadosClienteVazios);
+  const [salvando, setSalvando] = useState(false);
   const navigate = useNavigate();
 
-  // Depois do login o App carrega o cadastro; com ele carregado, segue para o carrinho
+  // O link "Login" do menu abre direto o formulário de entrar
   useEffect(() => {
-    if (user) navigate("/carrinho");
+    setIsRegistering(!(location.state as any)?.entrar);
+  }, [location.key]);
+
+  // Com o cadastro completo segue para o carrinho; quem entrou pelo Google completa o cadastro antes
+  useEffect(() => {
+    if (user && cadastroCompleto(user)) navigate((location.state as any)?.voltarPara || "/");
+    if (user && !cadastroCompleto(user)) setDados(d => ({ ...d, full_name: d.full_name || user.full_name || "" }));
   }, [user]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
       if (isRegistering) {
+        if (acesso.password !== acesso.confirmacao) {
+          alert("As duas senhas não são iguais.");
+          return;
+        }
+        if (!dados.cidade) {
+          alert("Digite um CEP válido para preencher o endereço de entrega.");
+          return;
+        }
         // A senha fica só no Supabase Auth; os dados de entrega vão para a tabela users pelo banco
         const { data, error } = await supabase.auth.signUp({
-          email: formData.email,
-          password: formData.password,
+          email: acesso.email,
+          password: acesso.password,
           options: {
             data: {
-              full_name: formData.full_name,
-              cpf: formData.cpf,
-              address: formData.address,
-              cep: formData.cep,
-              number: formData.number,
-              phone: formData.phone
+              full_name: dados.full_name,
+              cpf: dados.cpf,
+              birth_date: dados.birth_date,
+              address: montarEndereco(dados),
+              cep: dados.cep,
+              number: dados.number,
+              phone: dados.phone
             }
           }
         });
@@ -1199,9 +1639,10 @@ const Checkout = ({ user }: { user: any }) => {
           setIsRegistering(false);
         }
       } else {
+        definirManterConectado(manterConectado);
         const { error } = await supabase.auth.signInWithPassword({
-          email: formData.email,
-          password: formData.password
+          email: acesso.email,
+          password: acesso.password
         });
 
         if (error) throw error;
@@ -1211,17 +1652,54 @@ const Checkout = ({ user }: { user: any }) => {
     }
   };
 
+  // Método que grava os dados que faltam no cadastro de quem entrou pelo Google
+  const completarCadastro = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!dados.cidade) {
+      alert("Digite um CEP válido para preencher o endereço de entrega.");
+      return;
+    }
+    setSalvando(true);
+    const novos = { full_name: dados.full_name, cpf: dados.cpf, birth_date: dados.birth_date, address: montarEndereco(dados), cep: dados.cep, number: dados.number, phone: dados.phone };
+    const { error } = await supabase.from('users').update(novos).eq('id', user.id);
+    setSalvando(false);
+    if (error) {
+      alert("Não foi possível salvar o cadastro: " + error.message);
+      return;
+    }
+    onCadastroAtualizado(novos);
+  };
+
   // Método que envia o link para o cliente criar uma senha nova
   const esqueciSenha = async () => {
-    if (!formData.email) {
+    if (!acesso.email) {
       alert("Digite seu e-mail no campo acima e clique de novo em \"Esqueci minha senha\".");
       return;
     }
-    const { error } = await supabase.auth.resetPasswordForEmail(formData.email, {
+    const { error } = await supabase.auth.resetPasswordForEmail(acesso.email, {
       redirectTo: `${window.location.origin}/nova-senha`
     });
-    alert(error ? traduzirErroAuth(error) : `Se houver uma conta com ${formData.email}, enviamos um link para criar uma senha nova.`);
+    alert(error ? traduzirErroAuth(error) : `Se houver uma conta com ${acesso.email}, enviamos um link para criar uma senha nova.`);
   };
+
+  const campo = "w-full px-4 py-3 rounded-xl border border-brand-beige/30";
+
+  if (user && !cadastroCompleto(user)) {
+    return (
+      <div className="max-w-md mx-auto px-4 py-20 min-h-screen">
+        <div className="bg-white p-8 rounded-3xl shadow-xl border border-brand-beige/20">
+          <h2 className="text-3xl font-serif text-brand-olive mb-2 text-center">Complete seu cadastro</h2>
+          <p className="text-sm text-gray-600 text-center mb-8">Precisamos do endereço e do WhatsApp para entregar seu pedido.</p>
+          <form onSubmit={completarCadastro} className="space-y-4">
+            <CamposCliente dados={dados} setDados={setDados} />
+            <button disabled={salvando} className="w-full bg-brand-olive text-white py-4 rounded-full font-bold shadow-lg hover:shadow-xl transition-all disabled:opacity-50">
+              {salvando ? "Salvando..." : "Salvar e Continuar"}
+            </button>
+          </form>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="max-w-md mx-auto px-4 py-20 min-h-screen">
@@ -1229,85 +1707,36 @@ const Checkout = ({ user }: { user: any }) => {
         <h2 className="text-3xl font-serif text-brand-olive mb-8 text-center">
           {isRegistering ? "Crie sua conta" : "Entre na sua conta"}
         </h2>
+        <BotaoGoogle />
+        <div className="flex items-center gap-3 my-6 text-xs text-gray-500 uppercase tracking-widest">
+          <div className="flex-1 h-px bg-brand-beige/30" />ou<div className="flex-1 h-px bg-brand-beige/30" />
+        </div>
         <form onSubmit={handleSubmit} className="space-y-4">
+          {isRegistering && <CamposCliente dados={dados} setDados={setDados} />}
+          <input type="email" name="email" autoComplete="email" placeholder="Login (Seu melhor e-mail)" value={acesso.email} onChange={e => setAcesso({ ...acesso, email: e.target.value })} className={campo} required />
+          <CampoSenha name="password" autoComplete={isRegistering ? "new-password" : "current-password"} placeholder="Senha" value={acesso.password} onChange={e => setAcesso({ ...acesso, password: e.target.value })} className={campo} required />
           {isRegistering && (
-            <>
-              <input 
-                placeholder="Nome Completo" 
-                value={formData.full_name}
-                onChange={e => setFormData({...formData, full_name: e.target.value})}
-                className="w-full px-4 py-3 rounded-xl border border-brand-beige/30"
-                required
-              />
-              <input 
-                placeholder="CPF" 
-                value={formData.cpf}
-                onChange={e => setFormData({...formData, cpf: e.target.value})}
-                className="w-full px-4 py-3 rounded-xl border border-brand-beige/30"
-                required
-              />
-              <textarea 
-                placeholder="Endereço de Entrega" 
-                value={formData.address}
-                onChange={e => setFormData({...formData, address: e.target.value})}
-                className="w-full px-4 py-3 rounded-xl border border-brand-beige/30"
-                required
-              />
-              <div className="grid grid-cols-2 gap-4">
-                <input 
-                  placeholder="CEP" 
-                  value={formData.cep}
-                  onChange={e => setFormData({...formData, cep: e.target.value})}
-                  className="w-full px-4 py-3 rounded-xl border border-brand-beige/30"
-                  required
-                />
-                <input
-                  placeholder="Número"
-                  value={formData.number}
-                  onChange={e => setFormData({...formData, number: e.target.value})}
-                  className="w-full px-4 py-3 rounded-xl border border-brand-beige/30"
-                  required
-                />
-              </div>
-              <input
-                type="tel"
-                placeholder="WhatsApp com DDD"
-                value={formData.phone}
-                onChange={e => setFormData({...formData, phone: e.target.value})}
-                className="w-full px-4 py-3 rounded-xl border border-brand-beige/30"
-                required
-              />
-            </>
+            <CampoSenha name="confirmacao" autoComplete="new-password" placeholder="Confirme a senha" value={acesso.confirmacao} onChange={e => setAcesso({ ...acesso, confirmacao: e.target.value })} className={campo} required />
           )}
-          <input 
-            type="email" 
-            placeholder="Login (Seu melhor e-mail)" 
-            value={formData.email}
-            onChange={e => setFormData({...formData, email: e.target.value})}
-            className="w-full px-4 py-3 rounded-xl border border-brand-beige/30"
-            required
-          />
-          <input 
-            type="password" 
-            placeholder="Senha" 
-            value={formData.password}
-            onChange={e => setFormData({...formData, password: e.target.value})}
-            className="w-full px-4 py-3 rounded-xl border border-brand-beige/30"
-            required
-          />
+          {!isRegistering && (
+            <label className="flex items-center gap-2 text-sm text-gray-600 px-1">
+              <input type="checkbox" checked={manterConectado} onChange={e => setManterConectado(e.target.checked)} className="accent-brand-olive" />
+              Manter conectado
+            </label>
+          )}
           <button className="w-full bg-brand-olive text-white py-4 rounded-full font-bold shadow-lg hover:shadow-xl transition-all">
             {isRegistering ? "Cadastrar e Continuar" : "Entrar"}
           </button>
         </form>
         {!isRegistering && (
-          <button
+          <button 
             onClick={esqueciSenha}
             className="w-full mt-4 text-sm text-gray-500 hover:underline"
           >
             Esqueci minha senha
           </button>
         )}
-        <button
+        <button 
           onClick={() => setIsRegistering(!isRegistering)}
           className="w-full mt-6 text-sm text-brand-olive font-medium hover:underline"
         >
@@ -1349,17 +1778,13 @@ const NovaSenha = ({ user }: { user: any }) => {
           </p>
         ) : (
           <form onSubmit={salvar} className="space-y-4">
-            <input
-              type="password"
-              placeholder="Senha nova"
+            <CampoSenha placeholder="Senha nova"
               value={senha}
               onChange={e => setSenha(e.target.value)}
               className="w-full px-4 py-3 rounded-xl border border-brand-beige/30"
               required
             />
-            <input
-              type="password"
-              placeholder="Repita a senha nova"
+            <CampoSenha placeholder="Repita a senha nova"
               value={confirmacao}
               onChange={e => setConfirmacao(e.target.value)}
               className="w-full px-4 py-3 rounded-xl border border-brand-beige/30"
@@ -1419,6 +1844,100 @@ const Trocas = () => (
   </PaginaTexto>
 );
 
+const MinhaConta = ({ user, onCadastroAtualizado }: { user: any, onCadastroAtualizado: (dados: any) => void }) => {
+  const navigate = useNavigate();
+  const [dados, setDados] = useState<DadosCliente>({ ...dadosClienteVazios, full_name: user?.full_name || "", cpf: user?.cpf || "", birth_date: user?.birth_date || "", cep: user?.cep || "", number: user?.number || "", phone: user?.phone || "" });
+  const [senha, setSenha] = useState({ atual: "", nova: "", confirmacao: "" });
+  const [senhaAtualLiberada, setSenhaAtualLiberada] = useState(false);
+  const [salvando, setSalvando] = useState(false);
+
+  useEffect(() => {
+    if (!user) navigate("/checkout", { state: { entrar: true, voltarPara: "/minha-conta" } });
+  }, [user]);
+
+  // Método que grava os dados de cadastro e entrega
+  const salvarDados = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!dados.cidade) {
+      alert("Digite um CEP válido para preencher o endereço de entrega.");
+      return;
+    }
+    setSalvando(true);
+    const novos: any = { address: montarEndereco(dados), cep: dados.cep, number: dados.number, phone: dados.phone };
+    if (!user.cpf) Object.assign(novos, { full_name: dados.full_name, cpf: dados.cpf });
+    if (!user.birth_date) Object.assign(novos, { birth_date: dados.birth_date });
+    const { error } = await supabase.from('users').update(novos).eq('id', user.id);
+    setSalvando(false);
+    if (error) {
+      alert("Não foi possível salvar: " + error.message);
+      return;
+    }
+    onCadastroAtualizado(novos);
+    alert("Dados atualizados!");
+  };
+
+  // Método que troca a senha de quem está logado, conferindo antes a senha atual
+  const trocarSenha = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (senha.nova !== senha.confirmacao) {
+      alert("As duas senhas novas não são iguais.");
+      return;
+    }
+    const { error: erroAtual } = await supabase.auth.signInWithPassword({ email: user.email, password: senha.atual });
+    if (erroAtual) {
+      alert("A senha atual está incorreta.");
+      return;
+    }
+    const { error } = await supabase.auth.updateUser({ password: senha.nova });
+    if (error) {
+      alert(traduzirErroAuth(error));
+      return;
+    }
+    setSenha({ atual: "", nova: "", confirmacao: "" });
+    alert("Senha alterada!");
+  };
+
+  if (!user) return null;
+
+  const cartao = "bg-white p-8 rounded-3xl shadow-sm border border-brand-beige/20";
+  const campo = "w-full px-4 py-3 rounded-xl border border-brand-beige/30";
+
+  return (
+    <div className="max-w-2xl mx-auto px-4 py-20 min-h-screen space-y-8">
+      <h2 className="text-4xl font-serif text-brand-olive">Minha conta</h2>
+
+      <form onSubmit={salvarDados} className={`${cartao} space-y-4`}>
+        <h3 className="text-2xl font-serif text-brand-olive">Meus dados</h3>
+        {user.address && <p className="text-sm text-gray-600">Endereço atual: {user.address} · CEP {user.cep}</p>}
+        <CamposCliente dados={dados} setDados={setDados} travarNomeCpf={!!user.cpf} />
+        <button disabled={salvando} className="w-full bg-brand-olive text-white py-4 rounded-full font-bold shadow-lg hover:shadow-xl transition-all disabled:opacity-50">
+          {salvando ? "Salvando..." : "Salvar dados"}
+        </button>
+      </form>
+
+      <form onSubmit={trocarSenha} className={`${cartao} space-y-4`}>
+        <h3 className="text-2xl font-serif text-brand-olive">Acesso</h3>
+        <p className="text-sm text-gray-600">E-mail de login: {user.email}</p>
+        <CampoSenha name="conferencia-senha-atual" autoComplete="off" readOnly={!senhaAtualLiberada} onFocus={() => setSenhaAtualLiberada(true)} placeholder="Senha atual" value={senha.atual} onChange={e => setSenha({ ...senha, atual: e.target.value })} className={campo} required />
+        <CampoSenha name="nova-senha" autoComplete="new-password" placeholder="Senha nova" value={senha.nova} onChange={e => setSenha({ ...senha, nova: e.target.value })} className={campo} required />
+        <CampoSenha name="confirmacao-senha" autoComplete="new-password" placeholder="Confirme a senha nova" value={senha.confirmacao} onChange={e => setSenha({ ...senha, confirmacao: e.target.value })} className={campo} required />
+        <button className="w-full border-2 border-brand-olive text-brand-olive py-3 rounded-full font-bold hover:bg-brand-olive hover:text-white transition-all">
+          Trocar senha
+        </button>
+        <p className="text-xs text-gray-500">Se você entra com o Google e ainda não tem senha, use "Esqueci minha senha" na tela de login para criar uma.</p>
+      </form>
+
+      <div className={`${cartao} space-y-3`}>
+        <h3 className="text-2xl font-serif text-brand-olive">Pagamento</h3>
+        <p className="text-sm text-gray-600 leading-relaxed">
+          Os pagamentos são feitos por PIX, direto do seu banco: não é preciso cadastrar cartão nem conta aqui.
+          Se precisar de reembolso, combinamos a sua chave PIX pelo WhatsApp {LOJA.whatsappExibicao}.
+        </p>
+      </div>
+    </div>
+  );
+};
+
 // --- Main App ---
 
 export default function App() {
@@ -1453,30 +1972,116 @@ export default function App() {
     return () => subscription.unsubscribe();
   }, []);
 
-  const addToCart = (product: Product, qty: number) => {
-    setCart(prev => {
-      const existing = prev.find(item => item.id === product.id);
-      if (existing) {
-        return prev.map(item => 
-          item.id === product.id ? { ...item, cartQuantity: item.cartQuantity + qty } : item
-        );
-      }
-      return [...prev, { ...product, cartQuantity: qty }];
-    });
+  const [aviso, setAviso] = useState<{ id: number, texto: string } | null>(null);
+
+  // Método que mostra um aviso rápido no pé da tela e some depois de alguns segundos
+  const mostrarAviso = (texto: string) => {
+    const id = Date.now();
+    setAviso({ id, texto });
+    setTimeout(() => setAviso(atual => (atual?.id === id ? null : atual)), 3000);
   };
 
-  const updateCartQuantity = (id: number, delta: number) => {
+  const [edicao, setEdicao] = useState<EdicaoPedido | null>(null);
+
+  // Método que diz quanto do produto o cliente pode levar (na edição, soma o que o pedido já segurava)
+  const estoque = (product: Product) => product.quantity + (edicao?.reservado[product.id] || 0);
+
+  // Método que põe no carrinho os itens de um pedido: para editar (o pedido é refeito) ou para fazer um pedido igual
+  const carregarPedido = async (pedido: { id: number, delivery_method: string, items: { id: number, nome: string, opcao?: string | null, quantidade: number }[] }, editar: boolean) => {
+    const itens = pedido.items || [];
+    if (itens.length === 0) {
+      alert("Este pedido não tem os itens gravados. Escolha os produtos de novo na loja, ou fale com a gente pelo WhatsApp.");
+      return false;
+    }
+    if (cart.length > 0 && !confirm("Os produtos que estão no carrinho serão trocados pelos itens do pedido. Continuar?")) return false;
+
+    const { data: produtos, error } = await supabase.from('products').select('*').in('id', itens.map(item => item.id));
+    if (error) {
+      alert("Não foi possível carregar os produtos do pedido: " + error.message);
+      return false;
+    }
+
+    // Na edição, o estoque que o próprio pedido segura conta como disponível
+    const reservado: { [produto: number]: number } = {};
+    if (editar) itens.forEach(item => { reservado[item.id] = (reservado[item.id] || 0) + item.quantidade; });
+
+    const fora: string[] = [];
+    const avisos: string[] = [];
+    const usado: { [produto: number]: number } = {};
+    const novoCarrinho: CartItem[] = [];
+    itens.forEach(item => {
+      const produto = (produtos || []).find(p => p.id === item.id) as Product | undefined;
+      const opcoes = produto?.options || [];
+      const opcao = opcoes.length === 0 ? undefined : item.opcao || undefined;
+      const nome = item.opcao ? `${item.nome} (${item.opcao})` : item.nome;
+      if (!produto || (opcoes.length > 0 && opcao !== "Aleatório" && !opcoes.some(o => o.nome === opcao))) {
+        fora.push(nome);
+        return;
+      }
+      const disponivel = produto.quantity + (reservado[produto.id] || 0) - (usado[produto.id] || 0);
+      const quantidade = Math.min(item.quantidade, disponivel);
+      if (quantidade <= 0) {
+        avisos.push(`${nome}: esgotado`);
+        return;
+      }
+      if (quantidade < item.quantidade) avisos.push(`${nome}: só ${quantidade} em estoque`);
+      usado[produto.id] = (usado[produto.id] || 0) + quantidade;
+      novoCarrinho.push({ ...produto, opcao, cartQuantity: quantidade });
+    });
+
+    if (novoCarrinho.length === 0) {
+      alert(`Nenhum produto deste pedido está disponível agora. ${[...fora.map(f => `${f}: fora de venda`), ...avisos].join(", ")}`);
+      return false;
+    }
+
+    setCart(novoCarrinho);
+    setEdicao(editar ? { id: pedido.id, entrega: pedido.delivery_method === "Retirada" ? "Retirada" : "Correios", reservado } : null);
+    const mensagens = [...fora.map(f => `${f}: fora de venda`), ...avisos];
+    if (mensagens.length > 0) alert(`Alguns itens mudaram desde o pedido: ${mensagens.join(", ")}`);
+    return true;
+  };
+
+  // Método que encerra a edição (pedido refeito ou desistência) e esvazia o carrinho
+  const encerrarEdicao = () => {
+    setEdicao(null);
+    setCart([]);
+  };
+
+  // O estoque é do produto: as cores e aromas do mesmo produto somam juntos
+  const addToCart = (product: Product, qty: number, opcao?: string) => {
+    const noCarrinho = cart.filter(item => item.id === product.id).reduce((total, item) => total + item.cartQuantity, 0);
+    const quantidade = Math.min(qty, estoque(product) - noCarrinho);
+    if (quantidade <= 0) {
+      mostrarAviso(`Você já tem todo o estoque de ${product.name} no carrinho`);
+      return;
+    }
+    const chave = chaveCarrinho(product.id, opcao);
+    setCart(prev => {
+      const existing = prev.find(item => chaveCarrinho(item.id, item.opcao) === chave);
+      if (existing) {
+        return prev.map(item => 
+          chaveCarrinho(item.id, item.opcao) === chave ? { ...item, cartQuantity: item.cartQuantity + quantidade } : item
+        );
+      }
+      return [...prev, { ...product, opcao, cartQuantity: quantidade }];
+    });
+    const nome = opcao ? `${product.name} (${opcao})` : product.name;
+    mostrarAviso(`${quantidade}x ${nome} ${quantidade > 1 ? "adicionados" : "adicionado"} ao carrinho`);
+  };
+
+  const updateCartQuantity = (chave: string, delta: number) => {
     setCart(prev => prev.map(item => {
-      if (item.id === id) {
-        const newQty = Math.max(1, item.cartQuantity + delta);
+      if (chaveCarrinho(item.id, item.opcao) === chave) {
+        const outros = prev.filter(i => i.id === item.id && chaveCarrinho(i.id, i.opcao) !== chave).reduce((total, i) => total + i.cartQuantity, 0);
+        const newQty = Math.min(Math.max(1, estoque(item) - outros), Math.max(1, item.cartQuantity + delta));
         return { ...item, cartQuantity: newQty };
       }
       return item;
     }));
   };
 
-  const removeFromCart = (id: number) => {
-    setCart(prev => prev.filter(item => item.id !== id));
+  const removeFromCart = (chave: string) => {
+    setCart(prev => prev.filter(item => chaveCarrinho(item.id, item.opcao) !== chave));
   };
 
   return (
@@ -1495,19 +2100,38 @@ export default function App() {
             <Routes>
               <Route path="/" element={<Home />} />
               <Route path="/produtos" element={<Products onAddToCart={addToCart} isAdmin={isAdmin} />} />
-              <Route path="/carrinho" element={<Cart cart={cart} onUpdateQuantity={updateCartQuantity} onRemove={removeFromCart} user={user} onClearCart={() => setCart([])} />} />
-              <Route path="/checkout" element={<Checkout user={user} />} />
+              <Route path="/carrinho" element={<Cart cart={cart} onUpdateQuantity={updateCartQuantity} onRemove={removeFromCart} user={user} edicao={edicao} onDesistirEdicao={encerrarEdicao} />} />
+              <Route path="/checkout" element={<Checkout user={user} onCadastroAtualizado={dados => setUser((u: any) => ({ ...u, ...dados }))} />} />
               <Route path="/nova-senha" element={<NovaSenha user={user} />} />
               <Route path="/privacidade" element={<Privacidade />} />
               <Route path="/trocas" element={<Trocas />} />
-              <Route path="/meus-pedidos" element={<MyOrders user={user} />} />
-              <Route path="/pagamento" element={<PaymentPage cart={cart} user={user} onClearCart={() => setCart([])} />} />
+              <Route path="/meus-pedidos" element={<MyOrders user={user} onCarregar={carregarPedido} />} />
+              <Route path="/minha-conta" element={<MinhaConta user={user} onCadastroAtualizado={dados => setUser((u: any) => ({ ...u, ...dados }))} />} />
+              <Route path="/pagamento" element={<PaymentPage cart={cart} user={user} edicao={edicao} onPedidoFeito={encerrarEdicao} />} />
               <Route path="/admin" element={<Admin isAdmin={isAdmin} />} />
             </Routes>
           )}
         </main>
 
         <Footer />
+
+        <div className="fixed inset-x-0 bottom-6 z-50 flex justify-center px-4 pointer-events-none">
+          <AnimatePresence>
+            {aviso && (
+              <motion.div
+                key={aviso.id}
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: 20 }}
+                className="pointer-events-auto flex items-center gap-3 bg-brand-olive text-white text-sm px-5 py-3 rounded-full shadow-2xl"
+              >
+                <Check size={18} className="text-brand-mint shrink-0" />
+                <span>{aviso.texto}</span>
+                <Link to="/carrinho" onClick={() => setAviso(null)} className="font-bold underline underline-offset-4 whitespace-nowrap">Ver carrinho</Link>
+              </motion.div>
+            )}
+          </AnimatePresence>
+        </div>
       </div>
     </Router>
   );
