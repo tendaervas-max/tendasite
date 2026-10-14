@@ -704,12 +704,24 @@ const Admin = ({ isAdmin, ehDono }: { isAdmin: boolean, ehDono: boolean }) => {
     setRegistros([]);
     setCarregandoRegistros(true);
     const { data, error } = await supabase.from(tabela).select('*').order('created_at', { ascending: false }).limit(200);
-    setCarregandoRegistros(false);
     if (error) {
+      setCarregandoRegistros(false);
       alert(`Erro ao ler ${tabela}: ${error.message}`);
       return;
     }
-    setRegistros(data || []);
+    // Nas tabelas admin e equipe, mostra se a pessoa é só admin, só da gestão ou as duas coisas
+    if (tabela === 'admin' || tabela === 'equipe') {
+      const { data: outra } = await supabase.from(tabela === 'admin' ? 'equipe' : 'admin').select('user_id');
+      const naOutra = new Set((outra || []).map(r => r.user_id));
+      setRegistros((data || []).map(({ user_id, email, nome, ...resto }) => ({
+        user_id, email, nome,
+        acesso: naOutra.has(user_id) ? "Admin e gestão" : tabela === 'admin' ? "Só admin" : "Só gestão",
+        ...resto
+      })));
+    } else {
+      setRegistros(data || []);
+    }
+    setCarregandoRegistros(false);
   };
 
   // Método que carrega os usuários, quem deles é administrador e quem acessa a gestão
