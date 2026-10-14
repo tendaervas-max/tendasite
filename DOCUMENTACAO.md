@@ -69,7 +69,9 @@ As senhas passaram a ficar só no Supabase Auth, que as guarda criptografadas (b
 
 São dois projetos Supabase separados, um para a loja e outro para a gestão, porque os dois têm uma tabela `orders`. Criar os projetos exige entrar na conta Supabase da Tenda Ervas, então essa parte fica com você. Os arquivos `.env.local` já estão criados nas duas pastas, só falta colar o endereço e a chave.
 
-Os projetos antigos não foram apagados. Em 14/10/2026 estavam pausados na organização `tendaervas-max's Org`, no plano Free: Site Tenda (us-west-2), tenda (us-east-1) e Tenda Ervas (sa-east-1). O melhor caminho é restaurar o da loja e o da gestão, para manter produtos, pedidos e cadastros. Nesse caso o `schema.sql` não serve como está, porque as tabelas já existem: depois de restaurar, é preciso um script de ajuste feito a partir das tabelas atuais. Os passos abaixo valem para projeto novo.
+Os projetos antigos não foram apagados: estavam pausados na organização `tendaervas-max's Org` (plano Free) e foram retomados em 14/10/2026. Site Tenda (`hbkywvztwhdccznwuuex`) é a loja, Tenda Ervas (`msbofqngdoqvuxfpodjd`) é a gestão, e tenda (`parmnfeapncnvhnespwz`) não é usado por nenhum dos dois. Nenhum dos três tinha arquivos no Storage.
+
+O banco da gestão estava sem tabelas, então leva só o `schema.sql`. O da loja tinha `products` e `orders` vazios, 2 logins antigos em `admin` e os clientes em `users` com senha sem criptografia. Nele, rode antes o `supabase/migracao-banco-antigo.sql`, que move essas tabelas para o esquema `backup` sem apagar nada, e depois o `schema.sql`. Depois de conferir que nada falta, apague o esquema `backup`, que ainda guarda as senhas antigas. Nos passos abaixo, pule a criação do projeto.
 
 | O que o `schema.sql` cria | Loja | Gestão |
 | --- | --- | --- |
