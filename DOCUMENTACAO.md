@@ -1,23 +1,44 @@
 # Tenda Ervas — documentação técnica
 
-Atualizado em 13/10/2026. Versão editável: [Tenda Ervas — documentação técnica](https://claude.ai/code/artifact/64d7d56c-dd49-4957-82d6-aa7b441094a9).
+Atualizado em 14/10/2026. Versão editável: [Tenda Ervas — documentação técnica](https://claude.ai/code/artifact/64d7d56c-dd49-4957-82d6-aa7b441094a9).
 
 ## Visão geral
 
-A conta do GitHub `tendaervas-max` tem dois sistemas, os dois gerados no Google AI Studio e usando o Supabase como banco. Hoje nenhum deles tem banco funcionando: os projetos Supabase estão pausados.
+A conta do GitHub `tendaervas-max` tem dois sistemas, os dois gerados no Google AI Studio e usando o Supabase como banco. Os dois projetos Supabase foram retomados em 14/10/2026: a loja já está ligada ao banco novo e a gestão ainda falta configurar.
 
 | Sistema | Para que serve | Repositório | Pasta na máquina | Tecnologia | Publicação | Porta local |
 | --- | --- | --- | --- | --- | --- | --- |
 | Loja (`tendasite`) | Loja virtual de ervas para banho: catálogo, carrinho, cadastro de cliente, pedidos e painel `/admin` | [tendaervas-max/tendasite](https://github.com/tendaervas-max/tendasite) (público) | `~/Documents/GitHub/tendasite` | React 19, Vite 6, Tailwind 4, React Router, Supabase | Netlify (`netlify.toml`: `npm run build`, pasta `dist`) | 5173 |
 | Gestão (`Tenda-Ervas`) | Sistema interno: vendas em quadro (kanban), pedidos de produção, estoque de ervas e dashboard | [tendaervas-max/Tenda-Ervas](https://github.com/tendaervas-max/Tenda-Ervas) (privado) | `~/Documents/GitHub/Tenda-Ervas` | React 19, Vite 6, Tailwind pelo CDN, Supabase | Nenhuma configurada | 3000 |
 
-Os ajustes de segurança estão na branch `ajustes-nathalia` dos dois repositórios, já enviada para o GitHub.
+Os ajustes estão na branch `ajustes-nathalia` dos dois repositórios, com os commits feitos e o push ainda pendente.
 
 Os dois sistemas não conversam entre si: um pedido feito na loja não aparece na gestão.
 
+## Situação em 14/10/2026 e próximos passos
+
+O código está pronto e os dois projetos Supabase foram retomados. Em 14/10 a loja ficou ligada ao banco novo. Falta configurar a gestão, publicar a branch e testar com o banco de verdade. Para continuar com o Claude numa conversa nova, abra a pasta do projeto e peça para ele ler o `DOCUMENTACAO.md`.
+
+- [x] Ajustes de segurança com commit na branch `ajustes-nathalia` dos dois repositórios
+- [x] Site Tenda (loja) e Tenda Ervas (gestão) retomados no Supabase; o projeto tenda continua pausado
+- [x] Conferido o que cada banco tinha (consulta na seção Consultas úteis); RLS ligado em todas as tabelas da loja
+- [ ] Publicar a branch `ajustes-nathalia` nos dois repositórios pelo GitHub Desktop (o terminal não tem login do GitHub)
+- [x] Loja: no SQL Editor do Site Tenda, rodar `supabase/migracao-banco-antigo.sql` e depois `supabase/schema.sql`
+- [x] Loja: criar o admin em Authentication > Users e rodar o `insert into public.admin`
+- [x] Loja: `.env.local` preenchido com o endereço e a chave publishable do Site Tenda; o site rodando local já conecta no banco novo
+- [ ] Gestão: no SQL Editor do Tenda Ervas, rodar `supabase/schema.sql`
+- [ ] Gestão: ver quem é o único usuário em Authentication > Users, liberar com o `insert into public.equipe` e desligar "Allow new users to sign up"
+- [ ] Gestão: preencher `VITE_SUPABASE_URL` e `VITE_SUPABASE_ANON_KEY` no `.env.local` (Project Settings > API Keys do Tenda Ervas); o endereço já está preenchido e falta só a chave publishable
+- [ ] Testar loja e gestão rodando local com `npm run dev`
+- [ ] Abrir pull request de `ajustes-nathalia` para a `main` e, depois do merge, cadastrar as variáveis na Netlify e publicar
+- [ ] Apagar o esquema `backup` da loja depois de conferir que nada falta, porque ele guarda as senhas antigas sem criptografia
+- [ ] Decidir o autor do git: o `~/.gitconfig` global está como `tendaervas-max`, e isso vale para todos os repositórios da máquina
+
+Se a versão antiga da loja estiver no ar na Netlify, ela para de funcionar com as regras novas do banco. Isso se resolve publicando a nova versão.
+
 ## O que a análise encontrou
 
-O problema mais grave era o banco sem nenhuma regra de acesso. Qualquer pessoa com a chave pública do site, que vai junto para todo navegador, lia CPF e endereço dos clientes e alterava produtos e pedidos. Só o item dos projetos Supabase pausados ainda depende de ação.
+O problema mais grave era o banco sem nenhuma regra de acesso. Qualquer pessoa com a chave pública do site, que vai junto para todo navegador, lia CPF e endereço dos clientes e alterava produtos e pedidos. Só falta configurar o banco da gestão, que já foi retomado.
 
 | Problema | Sistema | O que permitia | Situação |
 | --- | --- | --- | --- |
@@ -32,7 +53,7 @@ O problema mais grave era o banco sem nenhuma regra de acesso. Qualquer pessoa c
 | Sem `.gitignore` | Loja | `node_modules` e `.env.local` irem para o GitHub | Corrigido |
 | `index.html` sem a linha que carrega o app | Gestão | Página abria em branco | Corrigido |
 | Chave do Supabase lida por `process.env`, que não chega ao navegador | Gestão | Sistema sempre em modo local, sem salvar nada | Corrigido |
-| Projetos Supabase `hbkywvztwhdccznwuuex` (loja) e `msbofqngdoqvuxfpodjd` (gestão) estão pausados (o endereço deles não responde) | Loja e gestão | Nenhum dado aparece nem é salvo | Pendente: restaurar os projetos (seção Configuração do Supabase) |
+| Projetos Supabase `hbkywvztwhdccznwuuex` (loja) e `msbofqngdoqvuxfpodjd` (gestão) estavam pausados (o endereço deles não respondia) | Loja e gestão | Nenhum dado aparece nem é salvo | Loja resolvida em 14/10/2026; na gestão falta configurar o banco e a chave (seção Configuração do Supabase) |
 
 ## O que foi feito na branch `ajustes-nathalia`
 
@@ -63,11 +84,11 @@ As senhas passaram a ficar só no Supabase Auth, que as guarda criptografadas (b
 - Os dois `schema.sql` rodaram sem erro num Postgres 16 local que imita o Supabase (esquemas `auth` e `storage`, papéis `anon` e `authenticated`).
 - Regras conferidas por perfil: visitante, cliente, outro cliente, admin, pessoa da equipe e pessoa de fora. Exemplo: pedido de 2x Arruda gravou R$ 25,00 pelo preço do banco, e alterar o total na mão foi negado.
 - TypeScript sem erros nos dois projetos; telas de login e cadastro abertas no navegador com um endereço de Supabase fictício.
-- Ainda não testado contra um Supabase de verdade: cadastro com confirmação de e-mail, login do admin e envio de foto.
+- Em 14/10/2026 a loja rodando local conectou no banco novo do Site Tenda (tabelas, função is\_admin e bucket de fotos respondem). Ainda não testado com ele: cadastro com confirmação de e-mail, login do admin e envio de foto.
 
 ## Configuração do Supabase
 
-São dois projetos Supabase separados, um para a loja e outro para a gestão, porque os dois têm uma tabela `orders`. Criar os projetos exige entrar na conta Supabase da Tenda Ervas, então essa parte fica com você. Os arquivos `.env.local` já estão criados nas duas pastas, só falta colar o endereço e a chave.
+São dois projetos Supabase separados, um para a loja e outro para a gestão, porque os dois têm uma tabela `orders`. Criar os projetos exige entrar na conta Supabase da Tenda Ervas, então essa parte fica com você. Os arquivos `.env.local` já têm o endereço de cada projeto; o da loja também tem a chave, e o da gestão ainda espera a chave publishable.
 
 Os projetos antigos não foram apagados: estavam pausados na organização `tendaervas-max's Org` (plano Free) e foram retomados em 14/10/2026. Site Tenda (`hbkywvztwhdccznwuuex`) é a loja, Tenda Ervas (`msbofqngdoqvuxfpodjd`) é a gestão, e tenda (`parmnfeapncnvhnespwz`) não é usado por nenhum dos dois. Nenhum dos três tinha arquivos no Storage.
 
@@ -121,11 +142,11 @@ O autor dos commits vem do `~/.gitconfig` global da máquina, que hoje está com
 
 ## Melhorias a serem feitas
 
-Antes de publicar: restaurar os projetos Supabase, tirar as dependências com falha de segurança e corrigir o erro 404 da Netlify. O resto melhora o uso, sem risco de segurança.
+Antes de publicar: terminar de configurar os bancos no Supabase, tirar as dependências com falha de segurança e corrigir o erro 404 da Netlify. O resto melhora o uso, sem risco de segurança.
 
 | Prioridade | Status | Sistema | Melhoria | Por quê |
 | --- | --- | --- | --- | --- |
-| Alta | A fazer | Loja e gestão | Restaurar os projetos Supabase pausados, rodar o script de ajuste e preencher os `.env.local` | Sem isso nada é salvo |
+| Alta | Fazendo | Loja e gestão | Configurar os bancos retomados: loja feita em 14/10/2026; na gestão falta rodar o schema.sql e colar a chave no `.env.local` | Sem isso nada é salvo |
 | Alta | A fazer | Loja | Remover pacotes sem uso (`express`, `better-sqlite3`, `multer`, `jsonwebtoken`, `bcryptjs`, `mercadopago`, `dotenv`, `@google/genai`) e atualizar `vite` e `react-router-dom` | O `npm audit` aponta 22 vulnerabilidades (2 críticas, 12 altas); as críticas vêm de pacotes sem uso |
 | Alta | A fazer | Loja | Criar `public/_redirects` com `/* /index.html 200` | Abrir `/produtos` ou `/admin` direto por link dá 404 na Netlify |
 | Alta | A fazer | Loja | Baixar o estoque ao finalizar o pedido e recusar compra acima do estoque | Hoje a quantidade em estoque nunca muda |
@@ -137,6 +158,7 @@ Antes de publicar: restaurar os projetos Supabase, tirar as dependências com fa
 | Média | A fazer | Loja | Esconder o botão "+ Novo Produto" de visitantes | Aparece para todo mundo e leva ao login do admin |
 | Média | A fazer | Loja | Traduzir as mensagens de erro do cadastro | O Supabase responde em inglês (ex.: senha curta, e-mail já usado) |
 | Média | A fazer | Loja | Pagamento online (PIX e cartão) | Hoje só registra a forma escolhida; há sobra de código de retorno do Mercado Pago no carrinho |
+| Média | A fazer | Loja | Avisar na página de produtos quando o banco não responde | Hoje aparece "Nenhum produto cadastrado no momento" mesmo quando a consulta falha |
 | Média | A fazer | Gestão | Avisar quando o banco recusar uma gravação | A tela atualiza mesmo quando a gravação falha |
 | Média | A fazer | Gestão | Número do pedido gerado pelo banco | Hoje é a quantidade de pedidos + 1, e pode repetir |
 | Média | A fazer | Gestão | Instalar o Tailwind no build e tirar o `importmap` do esm.sh do `index.html` | O Tailwind pelo CDN não é para produção (o próprio aviso no console diz isso) |
@@ -146,5 +168,6 @@ Antes de publicar: restaurar os projetos Supabase, tirar as dependências com fa
 | Baixa | A fazer | Loja | Título da aba e idioma da página: "Tenda Ervas" e `pt-BR` | Hoje aparece "My Google AI Studio App", em inglês |
 | Baixa | A fazer | Loja | Apagar a foto do Storage ao excluir o produto | As fotos ficam ocupando espaço |
 | Baixa | A fazer | Gestão | Alterar estoque pelo id da erva, não pelo nome | Duas ervas com o mesmo nome mudam juntas |
+| Baixa | A fazer | Gestão | Arrumar o campo de busca da tela Estoque em janela estreita | Numa janela de 800 px ele fica espremido ao lado dos filtros de peso |
 | Baixa | A fazer | Loja | Política de privacidade (LGPD) | A loja guarda CPF e endereço dos clientes |
 | Baixa | A fazer | Loja e gestão | Levar os pedidos da loja para a gestão | Hoje os dois sistemas não se falam |
