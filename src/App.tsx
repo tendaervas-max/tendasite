@@ -5,7 +5,7 @@ import { ShoppingCart, User, LogOut, Plus, Trash2, Instagram, Phone, MapPin, Men
 import type { Session } from "@supabase/supabase-js";
 import { supabase, definirManterConectado } from "./lib/supabase";
 import { Product, CartItem } from "./types";
-import { LOJA, linkWhatsApp, STATUS_PEDIDO, mensagemPedido } from "./loja";
+import { LOJA, linkWhatsApp, STATUS_PEDIDO, mensagemPedido, mensagemEntrega } from "./loja";
 
 // --- Components ---
 
@@ -932,9 +932,22 @@ const InstrucoesPagamento = ({ pedido }: { pedido: { id: number, description: st
       >
         <Phone size={18} /> Enviar pedido pelo WhatsApp
       </a>
+      <BotaoCombinarEntrega pedido={pedido} />
     </div>
   );
 };
+
+// Botão que abre o WhatsApp da loja com a mensagem para combinar a entrega ou a retirada
+const BotaoCombinarEntrega = ({ pedido }: { pedido: { id: number, delivery_method: string } }) => (
+  <a
+    href={linkWhatsApp(mensagemEntrega(pedido))}
+    target="_blank"
+    rel="noreferrer"
+    className="w-full inline-flex items-center justify-center gap-2 border-2 border-green-600 text-green-700 font-bold py-3 rounded-full hover:bg-green-50 transition-all"
+  >
+    <Phone size={18} /> Combinar a {pedido.delivery_method === "Retirada" ? "retirada" : "entrega"} pelo WhatsApp
+  </a>
+);
 
 const PaymentPage = ({ cart, user, onClearCart }: { cart: CartItem[], user: any, onClearCart: () => void }) => {
   const [pedido, setPedido] = useState<{ id: number, description: string, total_price: number, delivery_method: string } | null>(null);
@@ -1135,6 +1148,11 @@ const MyOrders = ({ user }: { user: any }) => {
             </div>
             {order.status === "aguardando pagamento" && (
               <InstrucoesPagamento pedido={order} />
+            )}
+            {["pagamento confirmado", "pedido sendo separado", "pronto para retirada", "pedido enviado para entrega"].includes(order.status) && (
+              <div className="mb-4">
+                <BotaoCombinarEntrega pedido={order} />
+              </div>
             )}
             {order.status === "pedido enviado para entrega" && (
               <button 

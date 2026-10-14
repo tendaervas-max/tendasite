@@ -36,3 +36,7 @@ export const mensagemPedido = (pedido: { id: number, description: string, total_
   (pedido.delivery_method === "Retirada"
     ? "Vou retirar. Segue o comprovante do PIX."
     : "Envio pelos Correios: pode me passar o valor do frete?");
+
+// Método que monta a mensagem do WhatsApp para combinar a entrega do pedido
+export const mensagemEntrega = (pedido: { id: number, delivery_method: string }) =>
+  `Olá! Fiz o pedido #${pedido.id} no site. Podemos combinar a ${pedido.delivery_method === "Retirada" ? "retirada" : "entrega"}?`;
