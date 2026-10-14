@@ -5,7 +5,7 @@ import { ShoppingCart, User, LogOut, Plus, Trash2, Instagram, Phone, MapPin, Men
 import type { Session } from "@supabase/supabase-js";
 import { supabase, definirManterConectado } from "./lib/supabase";
 import { Product, CartItem } from "./types";
-import { LOJA, linkWhatsApp, STATUS_PEDIDO, mensagemPedido, mensagemEntrega, reais, CATEGORIAS, maiorDeIdade, chaveCarrinho } from "./loja";
+import { LOJA, linkWhatsApp, STATUS_PEDIDO, mensagemPedido, mensagemEntrega, reais, CATEGORIAS, maiorDeIdade, chaveCarrinho, cpfValido, formatarCpf } from "./loja";
 
 // --- Components ---
 
@@ -1479,6 +1479,12 @@ const cadastroCompleto = (user: any) => !!(user?.cpf && user?.birth_date && user
 const montarEndereco = (d: DadosCliente) =>
   [d.rua, d.number, d.complemento].filter(Boolean).join(", ") + ` - ${[d.bairro, `${d.cidade}/${d.uf}`].filter(Boolean).join(", ")}`;
 
+// Método que confere os dados do cliente antes de gravar e devolve o aviso do que está errado (null quando está tudo certo)
+const problemaDadosCliente = (d: DadosCliente, conferirCpf: boolean) =>
+  conferirCpf && !cpfValido(d.cpf) ? "CPF inválido. Confira os números digitados."
+    : !d.cidade ? "Digite um CEP válido para preencher o endereço de entrega."
+    : null;
+
 // Campos de nome, CPF, endereço pelo CEP (ViaCEP) e WhatsApp, usados no cadastro e ao completar o cadastro
 const CamposCliente = ({ dados, setDados, travarNomeCpf = false }: { dados: DadosCliente, setDados: React.Dispatch<React.SetStateAction<DadosCliente>>, travarNomeCpf?: boolean }) => {
   const [cepStatus, setCepStatus] = useState<"" | "buscando" | "achou" | "erro">(dados.cidade ? "achou" : "");
@@ -1525,7 +1531,12 @@ const CamposCliente = ({ dados, setDados, travarNomeCpf = false }: { dados: Dado
       ) : (
         <>
           <input placeholder="Nome Completo" value={dados.full_name} onChange={e => setDados({ ...dados, full_name: e.target.value })} className={campo} required />
-          <input placeholder="CPF" inputMode="numeric" value={dados.cpf} onChange={e => setDados({ ...dados, cpf: e.target.value })} className={campo} required />
+          <div>
+            <input placeholder="CPF" inputMode="numeric" value={dados.cpf} onChange={e => setDados({ ...dados, cpf: formatarCpf(e.target.value) })} className={campo} required />
+            {dados.cpf.replace(/\D/g, "").length === 11 && !cpfValido(dados.cpf) && (
+              <p className="text-xs text-red-600 mt-1 ml-2">CPF inválido. Confira os números digitados.</p>
+            )}
+          </div>
         </>
       )}
       {(!travarNomeCpf || !dados.birth_date) && (
@@ -1611,8 +1622,9 @@ const Checkout = ({ user, onCadastroAtualizado }: { user: any, onCadastroAtualiz
           alert("As duas senhas não são iguais.");
           return;
         }
-        if (!dados.cidade) {
-          alert("Digite um CEP válido para preencher o endereço de entrega.");
+        const problema = problemaDadosCliente(dados, true);
+        if (problema) {
+          alert(problema);
           return;
         }
         // A senha fica só no Supabase Auth; os dados de entrega vão para a tabela users pelo banco
@@ -1655,8 +1667,9 @@ const Checkout = ({ user, onCadastroAtualizado }: { user: any, onCadastroAtualiz
   // Método que grava os dados que faltam no cadastro de quem entrou pelo Google
   const completarCadastro = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!dados.cidade) {
-      alert("Digite um CEP válido para preencher o endereço de entrega.");
+    const problema = problemaDadosCliente(dados, true);
+    if (problema) {
+      alert(problema);
       return;
     }
     setSalvando(true);
@@ -1858,8 +1871,9 @@ const MinhaConta = ({ user, onCadastroAtualizado }: { user: any, onCadastroAtual
   // Método que grava os dados de cadastro e entrega
   const salvarDados = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!dados.cidade) {
-      alert("Digite um CEP válido para preencher o endereço de entrega.");
+    const problema = problemaDadosCliente(dados, !user.cpf);
+    if (problema) {
+      alert(problema);
       return;
     }
     setSalvando(true);
