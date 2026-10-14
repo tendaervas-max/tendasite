@@ -99,7 +99,7 @@ const Navbar = ({ cartCount, isAdmin, user }: { cartCount: number, isAdmin: bool
 const Footer = () => (
   <footer className="bg-brand-olive text-brand-paper py-12">
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-12">
+      <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-10">
         <div>
           <h3 className="text-2xl font-serif mb-4">Tenda Ervas</h3>
           <p className="text-brand-paper/70 text-sm leading-relaxed">
@@ -126,23 +126,26 @@ const Footer = () => (
         </div>
         <div>
           <h4 className="text-lg font-medium mb-4">Informações</h4>
-          <div className="space-y-1 text-xs text-brand-paper/70">
-            {LOJA.razaoSocial && <p>{LOJA.razaoSocial}</p>}
-            <p>CNPJ: {LOJA.cnpj}</p>
-            {LOJA.endereco && <p>{LOJA.endereco}</p>}
-            <p>{LOJA.email}</p>
-          </div>
-          <div className="mt-4 space-y-1 text-sm">
-            <Link to="/privacidade" className="block text-brand-paper/80 hover:text-brand-paper transition-colors">Política de privacidade</Link>
-            <Link to="/trocas" className="block text-brand-paper/80 hover:text-brand-paper transition-colors">Trocas e devoluções</Link>
-          </div>
-          <Link to="/admin" className="mt-4 block text-xs text-brand-paper/70 hover:text-brand-paper transition-colors">
-            Área do Administrador
-          </Link>
-          <p className="mt-4 text-xs text-brand-paper/50">
-            © {new Date().getFullYear()} {LOJA.nome}. Todos os direitos reservados.
-          </p>
+          <ul className="space-y-3 text-sm text-brand-paper/70">
+            {LOJA.razaoSocial && <li>{LOJA.razaoSocial}</li>}
+            <li>CNPJ {LOJA.cnpj}</li>
+            {LOJA.endereco && <li>{LOJA.endereco}</li>}
+            <li>
+              <a href={`mailto:${LOJA.email}`} className="hover:text-brand-paper transition-colors">{LOJA.email}</a>
+            </li>
+          </ul>
         </div>
+        <div>
+          <h4 className="text-lg font-medium mb-4">Ajuda</h4>
+          <ul className="space-y-3 text-sm text-brand-paper/70">
+            <li><Link to="/privacidade" className="hover:text-brand-paper transition-colors">Política de privacidade</Link></li>
+            <li><Link to="/trocas" className="hover:text-brand-paper transition-colors">Trocas e devoluções</Link></li>
+            <li><Link to="/admin" className="hover:text-brand-paper transition-colors">Área do Administrador</Link></li>
+          </ul>
+        </div>
+      </div>
+      <div className="mt-10 pt-6 border-t border-brand-paper/20 text-center text-xs text-brand-paper/60">
+        © {new Date().getFullYear()} {LOJA.nome}. Todos os direitos reservados.
       </div>
     </div>
   </footer>
@@ -233,7 +236,15 @@ const Home = () => (
 
 const ProductCard = ({ product, onAddToCart }: { product: Product, onAddToCart: (p: Product, qty: number) => void }) => {
   const [qty, setQty] = useState(1);
+  const [adicionado, setAdicionado] = useState(false);
   const esgotado = product.quantity <= 0;
+
+  // Método que adiciona ao carrinho e mostra "Adicionado" no botão por um instante
+  const adicionar = () => {
+    onAddToCart(product, qty);
+    setAdicionado(true);
+    setTimeout(() => setAdicionado(false), 1500);
+  };
 
   return (
     <motion.div 
@@ -266,11 +277,11 @@ const ProductCard = ({ product, onAddToCart }: { product: Product, onAddToCart: 
             </div>
           </div>
           <button
-            onClick={() => onAddToCart(product, qty)}
+            onClick={adicionar}
             disabled={esgotado}
             className="w-full bg-brand-olive text-white py-2 rounded-full hover:bg-brand-olive/90 transition-colors shadow-md flex items-center justify-center gap-2 text-sm font-medium disabled:opacity-50 disabled:cursor-not-allowed"
           >
-            {esgotado ? "Esgotado" : <><Plus size={16} /> Adicionar R$ {(product.price * qty).toFixed(2)}</>}
+            {esgotado ? "Esgotado" : adicionado ? <><Check size={16} /> Adicionado</> : <><Plus size={16} /> Adicionar R$ {(product.price * qty).toFixed(2)}</>}
           </button>
         </div>
       </div>
@@ -1453,22 +1464,38 @@ export default function App() {
     return () => subscription.unsubscribe();
   }, []);
 
+  const [aviso, setAviso] = useState<{ id: number, texto: string } | null>(null);
+
+  // Método que mostra um aviso rápido no pé da tela e some depois de alguns segundos
+  const mostrarAviso = (texto: string) => {
+    const id = Date.now();
+    setAviso({ id, texto });
+    setTimeout(() => setAviso(atual => (atual?.id === id ? null : atual)), 3000);
+  };
+
   const addToCart = (product: Product, qty: number) => {
+    const noCarrinho = cart.find(item => item.id === product.id)?.cartQuantity ?? 0;
+    const quantidade = Math.min(qty, product.quantity - noCarrinho);
+    if (quantidade <= 0) {
+      mostrarAviso(`Você já tem todo o estoque de ${product.name} no carrinho`);
+      return;
+    }
     setCart(prev => {
       const existing = prev.find(item => item.id === product.id);
       if (existing) {
         return prev.map(item => 
-          item.id === product.id ? { ...item, cartQuantity: item.cartQuantity + qty } : item
+          item.id === product.id ? { ...item, cartQuantity: item.cartQuantity + quantidade } : item
         );
       }
-      return [...prev, { ...product, cartQuantity: qty }];
+      return [...prev, { ...product, cartQuantity: quantidade }];
     });
+    mostrarAviso(`${quantidade}x ${product.name} ${quantidade > 1 ? "adicionados" : "adicionado"} ao carrinho`);
   };
 
   const updateCartQuantity = (id: number, delta: number) => {
     setCart(prev => prev.map(item => {
       if (item.id === id) {
-        const newQty = Math.max(1, item.cartQuantity + delta);
+        const newQty = Math.min(Math.max(1, item.quantity), Math.max(1, item.cartQuantity + delta));
         return { ...item, cartQuantity: newQty };
       }
       return item;
@@ -1508,6 +1535,24 @@ export default function App() {
         </main>
 
         <Footer />
+
+        <div className="fixed inset-x-0 bottom-6 z-50 flex justify-center px-4 pointer-events-none">
+          <AnimatePresence>
+            {aviso && (
+              <motion.div
+                key={aviso.id}
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: 20 }}
+                className="pointer-events-auto flex items-center gap-3 bg-brand-olive text-white text-sm px-5 py-3 rounded-full shadow-2xl"
+              >
+                <Check size={18} className="text-brand-mint shrink-0" />
+                <span>{aviso.texto}</span>
+                <Link to="/carrinho" onClick={() => setAviso(null)} className="font-bold underline underline-offset-4 whitespace-nowrap">Ver carrinho</Link>
+              </motion.div>
+            )}
+          </AnimatePresence>
+        </div>
       </div>
     </Router>
   );
