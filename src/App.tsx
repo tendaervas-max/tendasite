@@ -2,9 +2,9 @@ import React, { useState, useEffect } from "react";
 import { BrowserRouter as Router, Routes, Route, Link, useNavigate, useLocation } from "react-router-dom";
 import { motion, AnimatePresence } from "motion/react";
 import { ShoppingCart, User, LogOut, Plus, Trash2, Instagram, Phone, MapPin, Menu, X, ChevronRight, Leaf, Check, Database } from "lucide-react";
+import type { Session } from "@supabase/supabase-js";
 import { supabase } from "./lib/supabase";
 import { Product, CartItem } from "./types";
-import bcrypt from "bcryptjs";
 
 // --- Components ---
 
@@ -34,6 +34,7 @@ const Navbar = ({ cartCount, isAdmin, user }: { cartCount: number, isAdmin: bool
             <Link to="/produtos" className="text-sm font-medium hover:text-brand-olive transition-colors">Produtos</Link>
             {!user && <Link to="/checkout" className="text-sm font-medium hover:text-brand-olive transition-colors">Cadastro</Link>}
             {user && <Link to="/meus-pedidos" className="text-sm font-medium hover:text-brand-olive transition-colors">Meus Pedidos</Link>}
+            {user && <button onClick={() => supabase.auth.signOut()} className="text-sm font-medium hover:text-brand-olive transition-colors">Sair</button>}
             <Link to="/carrinho" className="relative p-2 text-gray-700 hover:text-brand-olive transition-colors">
               <ShoppingCart size={20} />
               {cartCount > 0 && (
@@ -82,6 +83,7 @@ const Navbar = ({ cartCount, isAdmin, user }: { cartCount: number, isAdmin: bool
               <Link to="/produtos" onClick={() => setIsOpen(false)} className="block text-lg font-medium">Produtos</Link>
               {!user && <Link to="/checkout" onClick={() => setIsOpen(false)} className="block text-lg font-medium">Cadastro</Link>}
               {user && <Link to="/meus-pedidos" onClick={() => setIsOpen(false)} className="block text-lg font-medium">Meus Pedidos</Link>}
+              {user && <button onClick={() => { setIsOpen(false); supabase.auth.signOut(); }} className="block text-lg font-medium">Sair</button>}
               {isAdmin && (
                 <Link to="/admin" onClick={() => setIsOpen(false)} className="block text-lg font-medium text-brand-olive">Admin</Link>
               )}
@@ -417,9 +419,9 @@ const Cart = ({ cart, onUpdateQuantity, onRemove, user, onClearCart }: {
   );
 };
 
-const Admin = ({ onLogin, onLogout }: { onLogin: () => void, onLogout: () => void }) => {
+const Admin = ({ isAdmin }: { isAdmin: boolean }) => {
   const location = useLocation();
-  const [isLoggedIn, setIsLoggedIn] = useState(!!localStorage.getItem("adminToken"));
+  const isLoggedIn = isAdmin;
   const [activeTab, setActiveTab] = useState<"products" | "add" | "orders" | "supabase">("products");
 
   useEffect(() => {
@@ -482,24 +484,19 @@ const Admin = ({ onLogin, onLogout }: { onLogin: () => void, onLogout: () => voi
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
-      // For Netlify/SPA, we'll check the admin table directly
-      // In a real app, you'd use Supabase Auth, but we'll stick to the table check for now
-      const { data, error } = await supabase
-        .from('admin')
-        .select('*')
-        .eq('username', username)
-        .maybeSingle();
-      
-      if (error) throw error;
-      
-      // Note: In a pure SPA, bcrypt.compareSync might be slow or not work if not imported correctly
-      // But we have bcryptjs installed.
-      if (data && bcrypt.compareSync(password, data.password)) {
-        localStorage.setItem("adminToken", "spa-admin-token"); // Mock token for SPA
-        setIsLoggedIn(true);
-        onLogin();
-      } else {
+      // Login pelo Supabase Auth; quem é administrador é decidido pelo banco (tabela admin)
+      const { error } = await supabase.auth.signInWithPassword({ email: username, password });
+      if (error) {
         alert("Usuário ou senha incorretos");
+        return;
+      }
+
+      const { data: ehAdmin, error: erroAdmin } = await supabase.rpc('is_admin');
+      if (erroAdmin) throw erroAdmin;
+
+      if (!ehAdmin) {
+        await supabase.auth.signOut();
+        alert("Este usuário não tem acesso administrativo");
       }
     } catch (err: any) {
       alert(`Erro no login: ${err.message}`);
@@ -586,9 +583,9 @@ const Admin = ({ onLogin, onLogout }: { onLogin: () => void, onLogout: () => voi
           <h2 className="text-3xl font-serif text-brand-olive mb-8 text-center">Acesso Restrito</h2>
           <form onSubmit={handleLogin} className="space-y-6">
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">Usuário</label>
-              <input 
-                type="text" 
+              <label className="block text-sm font-medium text-gray-700 mb-2">E-mail</label>
+              <input
+                type="email"
                 value={username} 
                 onChange={e => setUsername(e.target.value)}
                 className="w-full px-4 py-3 rounded-xl border border-brand-beige/30 focus:ring-2 focus:ring-brand-olive outline-none"
@@ -645,7 +642,7 @@ const Admin = ({ onLogin, onLogout }: { onLogin: () => void, onLogout: () => voi
           </div>
         </div>
         <button 
-          onClick={() => { localStorage.removeItem("adminToken"); setIsLoggedIn(false); onLogout(); }}
+          onClick={() => supabase.auth.signOut()}
           className="flex items-center gap-2 text-red-500 hover:text-red-700 font-medium"
         >
           <LogOut size={20} /> Sair
@@ -822,10 +819,7 @@ const Admin = ({ onLogin, onLogout }: { onLogin: () => void, onLogout: () => voi
                   Este projeto foi convertido para uma <strong>SPA (Single Page Application)</strong>. Isso significa que ele funciona perfeitamente na Netlify ou Vercel!
                 </p>
                 <p className="text-xs text-green-700 mt-2 leading-relaxed">
-                  <strong>Importante:</strong> No seu painel do Supabase, você deve criar um <strong>Bucket de Storage</strong> chamado <code>product-images</code> com acesso público para que o upload de fotos funcione.
-                </p>
-                <p className="text-xs text-green-700 mt-2 leading-relaxed">
-                  Certifique-se também de ter as tabelas <code>admin</code>, <code>products</code>, <code>users</code> e <code>orders</code> criadas no seu banco de dados.
+                  <strong>Importante:</strong> As tabelas <code>admin</code>, <code>products</code>, <code>users</code> e <code>orders</code>, o bucket <code>product-images</code> e as regras de acesso são criados pelo arquivo <code>supabase/schema.sql</code>, rodado no SQL Editor do Supabase.
                 </p>
               </div>
             </div>
@@ -850,19 +844,13 @@ const PaymentPage = ({ cart, user, onClearCart }: { cart: CartItem[], user: any,
 
   const handleFinalize = async () => {
     setLoading(true);
-    const description = cart.map(item => `${item.cartQuantity}x ${item.name}`).join(", ");
-    
+
     try {
-      const { error } = await supabase
-        .from('orders')
-        .insert([{
-          user_id: user.id,
-          customer_name: user.full_name,
-          payment_method: paymentMethod,
-          description: description,
-          total_price: total,
-          status: 'pedido recebido'
-        }]);
+      // O banco calcula o total pelos preços cadastrados e grava o pedido no nome do cliente logado
+      const { error } = await supabase.rpc('criar_pedido', {
+        p_itens: cart.map(item => ({ id: item.id, quantidade: item.cartQuantity })),
+        p_forma_pagamento: paymentMethod
+      });
 
       if (!error) {
         setIsSuccess(true);
@@ -1050,52 +1038,50 @@ const MyOrders = ({ user }: { user: any }) => {
   );
 };
 
-const Checkout = ({ onLoginSuccess }: { onLoginSuccess: (user: any) => void }) => {
+const Checkout = ({ user }: { user: any }) => {
   const [isRegistering, setIsRegistering] = useState(true);
   const [formData, setFormData] = useState({
     email: "", password: "", full_name: "", cpf: "", address: "", cep: "", number: ""
   });
   const navigate = useNavigate();
 
+  // Depois do login o App carrega o cadastro; com ele carregado, segue para o carrinho
+  useEffect(() => {
+    if (user) navigate("/carrinho");
+  }, [user]);
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
       if (isRegistering) {
-        const { data, error } = await supabase
-          .from('users')
-          .insert([{
-            email: formData.email,
-            password: formData.password, // In a real app, use Supabase Auth!
-            full_name: formData.full_name,
-            cpf: formData.cpf,
-            address: formData.address,
-            cep: formData.cep,
-            number: formData.number
-          }])
-          .select()
-          .single();
-        
+        // A senha fica só no Supabase Auth; os dados de entrega vão para a tabela users pelo banco
+        const { data, error } = await supabase.auth.signUp({
+          email: formData.email,
+          password: formData.password,
+          options: {
+            data: {
+              full_name: formData.full_name,
+              cpf: formData.cpf,
+              address: formData.address,
+              cep: formData.cep,
+              number: formData.number
+            }
+          }
+        });
+
         if (error) throw error;
 
-        localStorage.setItem("userToken", "spa-user-token");
-        localStorage.setItem("userData", JSON.stringify(data));
-        onLoginSuccess(data);
-        navigate("/carrinho");
+        if (!data.session) {
+          alert("Cadastro feito! Confirme seu e-mail pelo link que enviamos e depois entre na sua conta.");
+          setIsRegistering(false);
+        }
       } else {
-        const { data, error } = await supabase
-          .from('users')
-          .select('*')
-          .eq('email', formData.email)
-          .eq('password', formData.password)
-          .maybeSingle();
-        
-        if (error) throw error;
-        if (!data) throw new Error("Email ou senha incorretos");
+        const { error } = await supabase.auth.signInWithPassword({
+          email: formData.email,
+          password: formData.password
+        });
 
-        localStorage.setItem("userToken", "spa-user-token");
-        localStorage.setItem("userData", JSON.stringify(data));
-        onLoginSuccess(data);
-        navigate("/carrinho");
+        if (error) throw new Error("Email ou senha incorretos");
       }
     } catch (err: any) {
       alert(err.message || "Erro ao processar solicitação");
@@ -1185,11 +1171,35 @@ const Checkout = ({ onLoginSuccess }: { onLoginSuccess: (user: any) => void }) =
 
 export default function App() {
   const [cart, setCart] = useState<CartItem[]>([]);
-  const [isAdmin, setIsAdmin] = useState(!!localStorage.getItem("adminToken"));
-  const [user, setUser] = useState<any>(() => {
-    const saved = localStorage.getItem("userData");
-    return saved ? JSON.parse(saved) : null;
-  });
+  const [isAdmin, setIsAdmin] = useState(false);
+  const [user, setUser] = useState<any>(null);
+  const [sessaoCarregada, setSessaoCarregada] = useState(false);
+
+  useEffect(() => {
+    // Remove o login da versão antiga, que guardava o cadastro do cliente (com a senha) no navegador
+    ["userData", "userToken", "adminToken"].forEach(chave => localStorage.removeItem(chave));
+
+    // Método que carrega o cadastro e o perfil de administrador do usuário logado
+    const carregarSessao = async (session: Session | null) => {
+      if (!session) {
+        setUser(null);
+        setIsAdmin(false);
+      } else {
+        const { data: cadastro } = await supabase.from('users').select('*').eq('id', session.user.id).maybeSingle();
+        const { data: ehAdmin } = await supabase.rpc('is_admin');
+        setUser(cadastro ?? { id: session.user.id, email: session.user.email });
+        setIsAdmin(!!ehAdmin);
+      }
+      setSessaoCarregada(true);
+    };
+
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_evento, session) => {
+      // O Supabase pede para não chamar o client dentro deste callback; o setTimeout tira a chamada dele
+      setTimeout(() => carregarSessao(session), 0);
+    });
+
+    return () => subscription.unsubscribe();
+  }, []);
 
   const addToCart = (product: Product, qty: number) => {
     setCart(prev => {
@@ -1227,15 +1237,19 @@ export default function App() {
         />
         
         <main className="flex-grow">
-          <Routes>
-            <Route path="/" element={<Home />} />
-            <Route path="/produtos" element={<Products onAddToCart={addToCart} isAdmin={isAdmin} />} />
-            <Route path="/carrinho" element={<Cart cart={cart} onUpdateQuantity={updateCartQuantity} onRemove={removeFromCart} user={user} onClearCart={() => setCart([])} />} />
-            <Route path="/checkout" element={<Checkout onLoginSuccess={setUser} />} />
-            <Route path="/meus-pedidos" element={<MyOrders user={user} />} />
-            <Route path="/pagamento" element={<PaymentPage cart={cart} user={user} onClearCart={() => setCart([])} />} />
-            <Route path="/admin" element={<Admin onLogin={() => setIsAdmin(true)} onLogout={() => setIsAdmin(false)} />} />
-          </Routes>
+          {!sessaoCarregada ? (
+            <div className="min-h-screen flex items-center justify-center">Carregando...</div>
+          ) : (
+            <Routes>
+              <Route path="/" element={<Home />} />
+              <Route path="/produtos" element={<Products onAddToCart={addToCart} isAdmin={isAdmin} />} />
+              <Route path="/carrinho" element={<Cart cart={cart} onUpdateQuantity={updateCartQuantity} onRemove={removeFromCart} user={user} onClearCart={() => setCart([])} />} />
+              <Route path="/checkout" element={<Checkout user={user} />} />
+              <Route path="/meus-pedidos" element={<MyOrders user={user} />} />
+              <Route path="/pagamento" element={<PaymentPage cart={cart} user={user} onClearCart={() => setCart([])} />} />
+              <Route path="/admin" element={<Admin isAdmin={isAdmin} />} />
+            </Routes>
+          )}
         </main>
 
         <Footer />
