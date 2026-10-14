@@ -263,6 +263,8 @@ create table if not exists public.products (
   category text not null default 'Ervas',
   options jsonb not null default '[]',
   adult boolean not null default false,
+  estoque_minimo integer not null default 5 check (estoque_minimo >= 0),
+  atualizado_em timestamptz not null default now(),
   created_at timestamptz not null default now()
 );
 
@@ -284,6 +286,36 @@ create policy "administrador altera produtos"
 create policy "administrador exclui produtos"
   on public.products for delete
   using (public.is_admin());
+
+-- Função que marca a data da última alteração do produto
+create or replace function public.marcar_atualizacao_produto()
+returns trigger
+language plpgsql
+as $$
+begin
+  new.atualizado_em := now();
+  return new;
+end;
+$$;
+
+drop trigger if exists ao_alterar_produto on public.products;
+create trigger ao_alterar_produto
+  before update on public.products
+  for each row execute function public.marcar_atualizacao_produto();
+
+-- A equipe da gestão cadastra, altera e exclui produtos
+create policy "equipe cadastra produtos"
+  on public.products for insert
+  with check (public.eh_da_equipe());
+
+create policy "equipe altera produtos"
+  on public.products for update
+  using (public.eh_da_equipe())
+  with check (public.eh_da_equipe());
+
+create policy "equipe exclui produtos"
+  on public.products for delete
+  using (public.eh_da_equipe());
 
 -- Pedidos: cliente vê os próprios, administrador vê todos
 create table if not exists public.orders (
@@ -317,6 +349,20 @@ create policy "cliente confirma a entrega"
   on public.orders for update
   using (user_id = auth.uid() and status = 'pedido enviado para entrega')
   with check (user_id = auth.uid() and status = 'pedido entregue');
+
+-- A equipe da gestão vê os clientes e os pedidos da loja e muda o status do pedido (o cliente recebe o aviso por e-mail)
+create policy "equipe vê os clientes"
+  on public.users for select
+  using (public.eh_da_equipe());
+
+create policy "equipe vê os pedidos"
+  on public.orders for select
+  using (public.eh_da_equipe());
+
+create policy "equipe altera o status do pedido"
+  on public.orders for update
+  using (public.eh_da_equipe())
+  with check (public.eh_da_equipe());
 
 -- Pedido só entra pela função criar_pedido e só o status pode ser alterado
 revoke insert, update, delete on public.orders from anon, authenticated;
