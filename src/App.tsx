@@ -789,7 +789,7 @@ const Admin = ({ isAdmin }: { isAdmin: boolean }) => {
                         </a>
                       )}
                       <div>{order.users.email}</div>
-                      <div>{order.users.address}, {order.users.number} · CEP {order.users.cep}</div>
+                      <div>{order.users.address} · CEP {order.users.cep}</div>
                       {order.users.cpf && <div>CPF {order.users.cpf}</div>}
                     </div>
                   )}
@@ -938,7 +938,7 @@ const PaymentPage = ({ cart, user, onClearCart }: { cart: CartItem[], user: any,
 
   useEffect(() => {
     if (cart.length === 0 && !pedido) navigate("/produtos");
-    if (!user) navigate("/checkout");
+    if (!user || !cadastroCompleto(user)) navigate("/checkout");
   }, [cart, user, pedido]);
 
   const handleFinalize = async () => {
@@ -1037,7 +1037,7 @@ const PaymentPage = ({ cart, user, onClearCart }: { cart: CartItem[], user: any,
               </h4>
               <p className="text-sm text-gray-600 leading-relaxed">
                 {user?.full_name}<br />
-                {user?.address}, {user?.number}<br />
+                {user?.address}<br />
                 CEP: {user?.cep}
               </p>
               <p className="text-sm text-gray-600 mt-3">O frete dos Correios é combinado pelo WhatsApp depois de finalizar.</p>
@@ -1171,34 +1171,135 @@ const traduzirErroAuth = (error: any) => {
   return mensagem ? `${traducao}\n\n(${mensagem})` : traducao;
 };
 
-const Checkout = ({ user }: { user: any }) => {
+type DadosCliente = { full_name: string, cpf: string, cep: string, rua: string, bairro: string, cidade: string, uf: string, number: string, complemento: string, phone: string };
+
+const dadosClienteVazios: DadosCliente = { full_name: "", cpf: "", cep: "", rua: "", bairro: "", cidade: "", uf: "", number: "", complemento: "", phone: "" };
+
+// Método que diz se o cadastro tem o que a loja precisa para entregar (quem entra pelo Google chega sem isso)
+const cadastroCompleto = (user: any) => !!(user?.cpf && user?.address && user?.cep && user?.phone);
+
+// Método que monta o endereço numa linha: rua, número, complemento - bairro, cidade/UF
+const montarEndereco = (d: DadosCliente) =>
+  [d.rua, d.number, d.complemento].filter(Boolean).join(", ") + ` - ${[d.bairro, `${d.cidade}/${d.uf}`].filter(Boolean).join(", ")}`;
+
+// Campos de nome, CPF, endereço pelo CEP (ViaCEP) e WhatsApp, usados no cadastro e ao completar o cadastro
+const CamposCliente = ({ dados, setDados }: { dados: DadosCliente, setDados: React.Dispatch<React.SetStateAction<DadosCliente>> }) => {
+  const [cepStatus, setCepStatus] = useState<"" | "buscando" | "achou" | "erro">(dados.cidade ? "achou" : "");
+
+  // Método que preenche rua, bairro e cidade a partir do CEP
+  const buscarCep = async (valor: string) => {
+    setDados(d => ({ ...d, cep: valor }));
+    const cep = valor.replace(/\D/g, "");
+    if (cep.length !== 8) {
+      setCepStatus("");
+      setDados(d => ({ ...d, cidade: "" }));
+      return;
+    }
+    setCepStatus("buscando");
+    try {
+      const r = await fetch(`https://viacep.com.br/ws/${cep}/json/`).then(resposta => resposta.json());
+      if (r.erro) {
+        setCepStatus("erro");
+        return;
+      }
+      setDados(d => ({ ...d, rua: r.logradouro || "", bairro: r.bairro || "", cidade: r.localidade || "", uf: r.uf || "" }));
+      setCepStatus("achou");
+    } catch {
+      setCepStatus("erro");
+    }
+  };
+
+  const campo = "w-full px-4 py-3 rounded-xl border border-brand-beige/30";
+
+  return (
+    <>
+      <input placeholder="Nome Completo" value={dados.full_name} onChange={e => setDados({ ...dados, full_name: e.target.value })} className={campo} required />
+      <input placeholder="CPF" inputMode="numeric" value={dados.cpf} onChange={e => setDados({ ...dados, cpf: e.target.value })} className={campo} required />
+      <div>
+        <input placeholder="CEP" inputMode="numeric" maxLength={9} value={dados.cep} onChange={e => buscarCep(e.target.value)} className={campo} required />
+        {cepStatus === "buscando" && <p className="text-xs text-gray-500 mt-1 px-1">Buscando o endereço...</p>}
+        {cepStatus === "erro" && <p className="text-xs text-red-600 mt-1 px-1">Não achamos esse CEP. Confira os números.</p>}
+      </div>
+      {cepStatus === "achou" && (
+        <>
+          <input placeholder="Rua" value={dados.rua} onChange={e => setDados({ ...dados, rua: e.target.value })} className={campo} required />
+          <p className="text-sm text-gray-600 px-1">{[dados.bairro, `${dados.cidade}/${dados.uf}`].filter(Boolean).join(" · ")}</p>
+          <div className="grid grid-cols-2 gap-4">
+            <input placeholder="Número" value={dados.number} onChange={e => setDados({ ...dados, number: e.target.value })} className={campo} required />
+            <input placeholder="Complemento" value={dados.complemento} onChange={e => setDados({ ...dados, complemento: e.target.value })} className={campo} />
+          </div>
+        </>
+      )}
+      <input type="tel" placeholder="WhatsApp com DDD" value={dados.phone} onChange={e => setDados({ ...dados, phone: e.target.value })} className={campo} required />
+    </>
+  );
+};
+
+// Botão de entrar ou se cadastrar com a conta Google
+const BotaoGoogle = () => {
+  // Método que manda o cliente para o login do Google e traz de volta para o cadastro
+  const entrarComGoogle = async () => {
+    const { error } = await supabase.auth.signInWithOAuth({
+      provider: "google",
+      options: { redirectTo: `${window.location.origin}/checkout` }
+    });
+    if (error) alert(traduzirErroAuth(error));
+  };
+
+  return (
+    <button
+      type="button"
+      onClick={entrarComGoogle}
+      className="w-full flex items-center justify-center gap-3 border border-gray-300 bg-white text-gray-800 py-3 rounded-full font-medium hover:bg-gray-50 transition-all"
+    >
+      <svg width="18" height="18" viewBox="0 0 48 48" aria-hidden="true">
+        <path fill="#EA4335" d="M24 9.5c3.5 0 6.6 1.2 9 3.6l6.7-6.7C35.6 2.4 30.2 0 24 0 14.6 0 6.6 5.4 2.7 13.2l7.8 6.1C12.4 13.6 17.7 9.5 24 9.5z"/>
+        <path fill="#4285F4" d="M46.5 24.5c0-1.6-.1-3.1-.4-4.5H24v9h12.7c-.6 3-2.3 5.5-4.8 7.2l7.6 5.9c4.4-4.1 7-10.1 7-17.6z"/>
+        <path fill="#FBBC05" d="M10.5 28.7c-.5-1.4-.8-3-.8-4.7s.3-3.3.8-4.7l-7.8-6.1C1 16.6 0 20.2 0 24s1 7.4 2.7 10.8l7.8-6.1z"/>
+        <path fill="#34A853" d="M24 48c6.5 0 11.9-2.1 15.9-5.8l-7.6-5.9c-2.1 1.4-4.9 2.3-8.3 2.3-6.3 0-11.6-4.1-13.5-9.8l-7.8 6.1C6.6 42.6 14.6 48 24 48z"/>
+      </svg>
+      Continuar com Google
+    </button>
+  );
+};
+
+const Checkout = ({ user, onCadastroAtualizado }: { user: any, onCadastroAtualizado: (dados: any) => void }) => {
   const [isRegistering, setIsRegistering] = useState(true);
-  const [formData, setFormData] = useState({
-    email: "", password: "", full_name: "", cpf: "", address: "", cep: "", number: "", phone: ""
-  });
+  const [acesso, setAcesso] = useState({ email: "", password: "", confirmacao: "" });
+  const [dados, setDados] = useState<DadosCliente>(dadosClienteVazios);
+  const [salvando, setSalvando] = useState(false);
   const navigate = useNavigate();
 
-  // Depois do login o App carrega o cadastro; com ele carregado, segue para o carrinho
+  // Com o cadastro completo segue para o carrinho; quem entrou pelo Google completa o cadastro antes
   useEffect(() => {
-    if (user) navigate("/carrinho");
+    if (user && cadastroCompleto(user)) navigate("/carrinho");
+    if (user && !cadastroCompleto(user)) setDados(d => ({ ...d, full_name: d.full_name || user.full_name || "" }));
   }, [user]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
       if (isRegistering) {
+        if (acesso.password !== acesso.confirmacao) {
+          alert("As duas senhas não são iguais.");
+          return;
+        }
+        if (!dados.cidade) {
+          alert("Digite um CEP válido para preencher o endereço de entrega.");
+          return;
+        }
         // A senha fica só no Supabase Auth; os dados de entrega vão para a tabela users pelo banco
         const { data, error } = await supabase.auth.signUp({
-          email: formData.email,
-          password: formData.password,
+          email: acesso.email,
+          password: acesso.password,
           options: {
             data: {
-              full_name: formData.full_name,
-              cpf: formData.cpf,
-              address: formData.address,
-              cep: formData.cep,
-              number: formData.number,
-              phone: formData.phone
+              full_name: dados.full_name,
+              cpf: dados.cpf,
+              address: montarEndereco(dados),
+              cep: dados.cep,
+              number: dados.number,
+              phone: dados.phone
             }
           }
         });
@@ -1211,8 +1312,8 @@ const Checkout = ({ user }: { user: any }) => {
         }
       } else {
         const { error } = await supabase.auth.signInWithPassword({
-          email: formData.email,
-          password: formData.password
+          email: acesso.email,
+          password: acesso.password
         });
 
         if (error) throw error;
@@ -1222,17 +1323,54 @@ const Checkout = ({ user }: { user: any }) => {
     }
   };
 
+  // Método que grava os dados que faltam no cadastro de quem entrou pelo Google
+  const completarCadastro = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!dados.cidade) {
+      alert("Digite um CEP válido para preencher o endereço de entrega.");
+      return;
+    }
+    setSalvando(true);
+    const novos = { full_name: dados.full_name, cpf: dados.cpf, address: montarEndereco(dados), cep: dados.cep, number: dados.number, phone: dados.phone };
+    const { error } = await supabase.from('users').update(novos).eq('id', user.id);
+    setSalvando(false);
+    if (error) {
+      alert("Não foi possível salvar o cadastro: " + error.message);
+      return;
+    }
+    onCadastroAtualizado(novos);
+  };
+
   // Método que envia o link para o cliente criar uma senha nova
   const esqueciSenha = async () => {
-    if (!formData.email) {
+    if (!acesso.email) {
       alert("Digite seu e-mail no campo acima e clique de novo em \"Esqueci minha senha\".");
       return;
     }
-    const { error } = await supabase.auth.resetPasswordForEmail(formData.email, {
+    const { error } = await supabase.auth.resetPasswordForEmail(acesso.email, {
       redirectTo: `${window.location.origin}/nova-senha`
     });
-    alert(error ? traduzirErroAuth(error) : `Se houver uma conta com ${formData.email}, enviamos um link para criar uma senha nova.`);
+    alert(error ? traduzirErroAuth(error) : `Se houver uma conta com ${acesso.email}, enviamos um link para criar uma senha nova.`);
   };
+
+  const campo = "w-full px-4 py-3 rounded-xl border border-brand-beige/30";
+
+  if (user && !cadastroCompleto(user)) {
+    return (
+      <div className="max-w-md mx-auto px-4 py-20 min-h-screen">
+        <div className="bg-white p-8 rounded-3xl shadow-xl border border-brand-beige/20">
+          <h2 className="text-3xl font-serif text-brand-olive mb-2 text-center">Complete seu cadastro</h2>
+          <p className="text-sm text-gray-600 text-center mb-8">Precisamos do endereço e do WhatsApp para entregar seu pedido.</p>
+          <form onSubmit={completarCadastro} className="space-y-4">
+            <CamposCliente dados={dados} setDados={setDados} />
+            <button disabled={salvando} className="w-full bg-brand-olive text-white py-4 rounded-full font-bold shadow-lg hover:shadow-xl transition-all disabled:opacity-50">
+              {salvando ? "Salvando..." : "Salvar e Continuar"}
+            </button>
+          </form>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="max-w-md mx-auto px-4 py-20 min-h-screen">
@@ -1240,85 +1378,30 @@ const Checkout = ({ user }: { user: any }) => {
         <h2 className="text-3xl font-serif text-brand-olive mb-8 text-center">
           {isRegistering ? "Crie sua conta" : "Entre na sua conta"}
         </h2>
+        <BotaoGoogle />
+        <div className="flex items-center gap-3 my-6 text-xs text-gray-500 uppercase tracking-widest">
+          <div className="flex-1 h-px bg-brand-beige/30" />ou<div className="flex-1 h-px bg-brand-beige/30" />
+        </div>
         <form onSubmit={handleSubmit} className="space-y-4">
+          {isRegistering && <CamposCliente dados={dados} setDados={setDados} />}
+          <input type="email" placeholder="Login (Seu melhor e-mail)" value={acesso.email} onChange={e => setAcesso({ ...acesso, email: e.target.value })} className={campo} required />
+          <input type="password" placeholder="Senha" value={acesso.password} onChange={e => setAcesso({ ...acesso, password: e.target.value })} className={campo} required />
           {isRegistering && (
-            <>
-              <input 
-                placeholder="Nome Completo" 
-                value={formData.full_name}
-                onChange={e => setFormData({...formData, full_name: e.target.value})}
-                className="w-full px-4 py-3 rounded-xl border border-brand-beige/30"
-                required
-              />
-              <input 
-                placeholder="CPF" 
-                value={formData.cpf}
-                onChange={e => setFormData({...formData, cpf: e.target.value})}
-                className="w-full px-4 py-3 rounded-xl border border-brand-beige/30"
-                required
-              />
-              <textarea 
-                placeholder="Endereço de Entrega" 
-                value={formData.address}
-                onChange={e => setFormData({...formData, address: e.target.value})}
-                className="w-full px-4 py-3 rounded-xl border border-brand-beige/30"
-                required
-              />
-              <div className="grid grid-cols-2 gap-4">
-                <input 
-                  placeholder="CEP" 
-                  value={formData.cep}
-                  onChange={e => setFormData({...formData, cep: e.target.value})}
-                  className="w-full px-4 py-3 rounded-xl border border-brand-beige/30"
-                  required
-                />
-                <input
-                  placeholder="Número"
-                  value={formData.number}
-                  onChange={e => setFormData({...formData, number: e.target.value})}
-                  className="w-full px-4 py-3 rounded-xl border border-brand-beige/30"
-                  required
-                />
-              </div>
-              <input
-                type="tel"
-                placeholder="WhatsApp com DDD"
-                value={formData.phone}
-                onChange={e => setFormData({...formData, phone: e.target.value})}
-                className="w-full px-4 py-3 rounded-xl border border-brand-beige/30"
-                required
-              />
-            </>
+            <input type="password" placeholder="Confirme a senha" value={acesso.confirmacao} onChange={e => setAcesso({ ...acesso, confirmacao: e.target.value })} className={campo} required />
           )}
-          <input 
-            type="email" 
-            placeholder="Login (Seu melhor e-mail)" 
-            value={formData.email}
-            onChange={e => setFormData({...formData, email: e.target.value})}
-            className="w-full px-4 py-3 rounded-xl border border-brand-beige/30"
-            required
-          />
-          <input 
-            type="password" 
-            placeholder="Senha" 
-            value={formData.password}
-            onChange={e => setFormData({...formData, password: e.target.value})}
-            className="w-full px-4 py-3 rounded-xl border border-brand-beige/30"
-            required
-          />
           <button className="w-full bg-brand-olive text-white py-4 rounded-full font-bold shadow-lg hover:shadow-xl transition-all">
             {isRegistering ? "Cadastrar e Continuar" : "Entrar"}
           </button>
         </form>
         {!isRegistering && (
-          <button
+          <button 
             onClick={esqueciSenha}
             className="w-full mt-4 text-sm text-gray-500 hover:underline"
           >
             Esqueci minha senha
           </button>
         )}
-        <button
+        <button 
           onClick={() => setIsRegistering(!isRegistering)}
           className="w-full mt-6 text-sm text-brand-olive font-medium hover:underline"
         >
@@ -1523,7 +1606,7 @@ export default function App() {
               <Route path="/" element={<Home />} />
               <Route path="/produtos" element={<Products onAddToCart={addToCart} isAdmin={isAdmin} />} />
               <Route path="/carrinho" element={<Cart cart={cart} onUpdateQuantity={updateCartQuantity} onRemove={removeFromCart} user={user} onClearCart={() => setCart([])} />} />
-              <Route path="/checkout" element={<Checkout user={user} />} />
+              <Route path="/checkout" element={<Checkout user={user} onCadastroAtualizado={dados => setUser((u: any) => ({ ...u, ...dados }))} />} />
               <Route path="/nova-senha" element={<NovaSenha user={user} />} />
               <Route path="/privacidade" element={<Privacidade />} />
               <Route path="/trocas" element={<Trocas />} />

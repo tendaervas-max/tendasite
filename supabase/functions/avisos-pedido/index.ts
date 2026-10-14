@@ -53,7 +53,7 @@ const emailsPedidoNovo = (p: Pedido): Email[] => {
       `WhatsApp: ${cliente?.phone ?? "-"}`,
       `E-mail: ${cliente?.email ?? "-"}`,
       `CPF: ${cliente?.cpf ?? "-"}`,
-      `Endereço: ${cliente?.address ?? "-"}, ${cliente?.number ?? ""} - CEP ${cliente?.cep ?? "-"}`,
+      `Endereço: ${cliente?.address ?? "-"} - CEP ${cliente?.cep ?? "-"}`,
       ``,
       SITE_URL ? `Painel: ${SITE_URL}/admin` : ``,
     ].join("\n"),
