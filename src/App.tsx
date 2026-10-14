@@ -2171,7 +2171,7 @@ const Privacidade = () => (
     <h3 className="text-2xl font-serif text-brand-olive pt-2">Para que usamos</h3>
     <p>Para separar e entregar os pedidos, falar com você sobre a compra, emitir documentos fiscais e cumprir obrigações legais. Não vendemos nem usamos seus dados para propaganda de terceiros.</p>
     <h3 className="text-2xl font-serif text-brand-olive pt-2">Com quem compartilhamos</h3>
-    <p>Só com quem é necessário para a compra acontecer: os Correios ou a transportadora (nome e endereço de entrega) e os serviços que hospedam o site e o banco de dados (Netlify e Supabase).</p>
+    <p>Só com quem é necessário para a compra acontecer: os Correios ou a transportadora (nome e endereço de entrega) e os serviços que hospedam o site e o banco de dados (Cloudflare e Supabase).</p>
     <h3 className="text-2xl font-serif text-brand-olive pt-2">Seus direitos</h3>
     <p>Você pode pedir a qualquer momento para ver, corrigir ou apagar seus dados, ou tirar dúvidas sobre o uso deles. Alguns dados de compras precisam ser guardados pelo prazo que a lei fiscal exige.</p>
     <h3 className="text-2xl font-serif text-brand-olive pt-2">Contato</h3>

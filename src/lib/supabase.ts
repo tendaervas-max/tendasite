@@ -1,6 +1,6 @@
 import { createClient } from '@supabase/supabase-js';
 
-// Endereço e chave pública do projeto vêm do .env.local (ou das variáveis de ambiente da Netlify)
+// Endereço e chave pública do projeto vêm do .env.local (ou das variáveis de ambiente da Cloudflare)
 const rawUrl = import.meta.env.VITE_SUPABASE_URL;
 const rawKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
 

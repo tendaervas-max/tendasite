@@ -180,7 +180,7 @@ create trigger ao_liberar_admin
   before insert or update of user_id on public.admin
   for each row execute function public.preencher_admin();
 
--- Quem acessa a gestão (sistematenda.netlify.app), escolhido pelo dono no painel Admin da loja
+-- Quem acessa a gestão (sistematenda.pages.dev), escolhido pelo dono no painel Admin da loja
 create table if not exists public.equipe (
   user_id uuid primary key references auth.users (id) on delete cascade,
   email text,
