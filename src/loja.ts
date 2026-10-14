@@ -15,6 +15,9 @@ export const LOJA = {
   localRetirada: "Guarulhos, SP"
 };
 
+// Método que formata o valor em reais no padrão brasileiro (R$ 48,93)
+export const reais = (valor: number) => Number(valor).toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
+
 // Método que monta o link do WhatsApp da loja com uma mensagem pronta
 export const linkWhatsApp = (mensagem: string) =>
   `https://wa.me/${LOJA.whatsapp}?text=${encodeURIComponent(mensagem)}`;
@@ -32,7 +35,7 @@ export const STATUS_PEDIDO: { [status: string]: string } = {
 
 // Método que monta a mensagem do WhatsApp com o resumo do pedido
 export const mensagemPedido = (pedido: { id: number, description: string, total_price: number, delivery_method: string }) =>
-  `Olá! Fiz o pedido #${pedido.id} no site: ${pedido.description}. Total dos produtos: R$ ${Number(pedido.total_price).toFixed(2)}. ` +
+  `Olá! Fiz o pedido #${pedido.id} no site: ${pedido.description}. Total dos produtos: ${reais(pedido.total_price)}. ` +
   (pedido.delivery_method === "Retirada"
     ? "Vou retirar. Segue o comprovante do PIX."
     : "Envio pelos Correios: pode me passar o valor do frete?");

@@ -5,7 +5,7 @@ import { ShoppingCart, User, LogOut, Plus, Trash2, Instagram, Phone, MapPin, Men
 import type { Session } from "@supabase/supabase-js";
 import { supabase, definirManterConectado } from "./lib/supabase";
 import { Product, CartItem } from "./types";
-import { LOJA, linkWhatsApp, STATUS_PEDIDO, mensagemPedido, mensagemEntrega } from "./loja";
+import { LOJA, linkWhatsApp, STATUS_PEDIDO, mensagemPedido, mensagemEntrega, reais } from "./loja";
 
 // --- Components ---
 
@@ -269,7 +269,7 @@ const ProductCard = ({ product, onAddToCart }: { product: Product, onAddToCart: 
           referrerPolicy="no-referrer"
         />
         <div className="absolute top-4 right-4 bg-white/90 backdrop-blur-sm px-3 py-1 rounded-full text-xs font-bold text-brand-olive shadow-sm">
-          R$ {product.price.toFixed(2)}
+          {reais(product.price)}
         </div>
       </div>
       <div className="p-6 space-y-3">
@@ -289,7 +289,7 @@ const ProductCard = ({ product, onAddToCart }: { product: Product, onAddToCart: 
             disabled={esgotado}
             className="w-full bg-brand-olive text-white py-2 rounded-full hover:bg-brand-olive/90 transition-colors shadow-md flex items-center justify-center gap-2 text-sm font-medium disabled:opacity-50 disabled:cursor-not-allowed"
           >
-            {esgotado ? "Esgotado" : adicionado ? <><Check size={16} /> Adicionado</> : <><Plus size={16} /> Adicionar R$ {(product.price * qty).toFixed(2)}</>}
+            {esgotado ? "Esgotado" : adicionado ? <><Check size={16} /> Adicionado</> : <><Plus size={16} /> Adicionar {reais((product.price * qty))}</>}
           </button>
         </div>
       </div>
@@ -416,7 +416,7 @@ const Cart = ({ cart, onUpdateQuantity, onRemove, user, onClearCart }: {
                 />
                 <div className="flex-1">
                   <h3 className="font-serif text-lg text-brand-olive">{item.name}</h3>
-                  <p className="text-sm text-gray-400">R$ {item.price.toFixed(2)}</p>
+                  <p className="text-sm text-gray-400">{reais(item.price)}</p>
                 </div>
                 <div className="flex items-center gap-4">
                   <div className="flex items-center border border-brand-beige/30 rounded-full px-3 py-1">
@@ -435,7 +435,7 @@ const Cart = ({ cart, onUpdateQuantity, onRemove, user, onClearCart }: {
           <div className="bg-brand-olive text-white p-8 rounded-3xl shadow-xl space-y-6">
             <div className="flex justify-between items-center text-xl font-serif">
               <span>Total do Pedido</span>
-              <span>R$ {total.toFixed(2)}</span>
+              <span>{reais(total)}</span>
             </div>
             <p className="text-sm text-brand-paper/70 leading-relaxed">
               Pagamento por PIX. Envio pelos Correios, com frete combinado pelo WhatsApp, ou retirada em {LOJA.localRetirada || LOJA.cidade}.
@@ -763,7 +763,7 @@ const Admin = ({ isAdmin }: { isAdmin: boolean }) => {
                 />
                 <div className="flex-1">
                   <h4 className="font-medium text-brand-olive">{p.name}</h4>
-                  <p className="text-xs text-gray-400">R$ {p.price.toFixed(2)} • Est: {p.quantity}</p>
+                  <p className="text-xs text-gray-400">{reais(p.price)} • Est: {p.quantity}</p>
                 </div>
                 <button onClick={() => handleDelete(p.id)} className="text-red-400 hover:text-red-600">
                   <Trash2 size={20} />
@@ -810,7 +810,7 @@ const Admin = ({ isAdmin }: { isAdmin: boolean }) => {
                 <div className="col-span-2 flex justify-between items-center">
                   <div className="text-sm text-gray-600 flex-1">
                     {order.description}
-                    <div className="text-[10px] text-gray-400 mt-1">Total: R$ {order.total_price.toFixed(2)} • {new Date(order.created_at).toLocaleString()}</div>
+                    <div className="text-[10px] text-gray-400 mt-1">Total: {reais(order.total_price)} • {new Date(order.created_at).toLocaleString()}</div>
                   </div>
                   <div className="ml-4">
                     <select 
@@ -905,8 +905,8 @@ const InstrucoesPagamento = ({ pedido }: { pedido: { id: number, description: st
     <div className="space-y-4 text-left">
       <p className="text-gray-700 leading-relaxed">
         {pedido.delivery_method === "Retirada"
-          ? <>Pague <strong>R$ {Number(pedido.total_price).toFixed(2)}</strong> pelo PIX e mande o comprovante pelo WhatsApp. Combinamos a retirada por lá.</>
-          : <>Mande o pedido pelo WhatsApp para calcularmos o frete dos Correios. Depois é só pagar pelo PIX o valor dos produtos (R$ {Number(pedido.total_price).toFixed(2)}) mais o frete.</>}
+          ? <>Pague <strong>{reais(Number(pedido.total_price))}</strong> pelo PIX e mande o comprovante pelo WhatsApp. Combinamos a retirada por lá.</>
+          : <>Mande o pedido pelo WhatsApp para calcularmos o frete dos Correios. Depois é só pagar pelo PIX o valor dos produtos ({reais(Number(pedido.total_price))}) mais o frete.</>}
       </p>
       <div className="bg-brand-mint/20 p-5 rounded-2xl">
         <div className="text-xs text-gray-600 uppercase tracking-widest mb-1">Chave PIX</div>
@@ -1021,12 +1021,12 @@ const PaymentPage = ({ cart, user, onClearCart }: { cart: CartItem[], user: any,
           {cart.map(item => (
             <div key={item.id} className="flex justify-between text-sm border-b border-brand-beige/10 pb-2">
               <span className="text-gray-600">{item.cartQuantity}x {item.name}</span>
-              <span className="font-medium text-brand-olive">R$ {(item.price * item.cartQuantity).toFixed(2)}</span>
+              <span className="font-medium text-brand-olive">{reais((item.price * item.cartQuantity))}</span>
             </div>
           ))}
           <div className="flex justify-between text-xl font-serif pt-4 text-brand-olive">
             <span>Total dos produtos</span>
-            <span>R$ {total.toFixed(2)}</span>
+            <span>{reais(total)}</span>
           </div>
         </div>
 
@@ -1061,6 +1061,9 @@ const PaymentPage = ({ cart, user, onClearCart }: { cart: CartItem[], user: any,
                 CEP: {user?.cep}
               </p>
               <p className="text-sm text-gray-600 mt-3">O frete dos Correios é combinado pelo WhatsApp depois de finalizar.</p>
+              <a href={linkWhatsApp("Olá! Estou fazendo um pedido no site e queria combinar a entrega pelos Correios.")} target="_blank" rel="noreferrer" className="inline-flex items-center gap-2 mt-3 text-sm font-bold text-green-700 hover:underline">
+                <Phone size={16} /> Combinar a entrega pelo WhatsApp
+              </a>
             </>
           ) : (
             <>
@@ -1070,6 +1073,9 @@ const PaymentPage = ({ cart, user, onClearCart }: { cart: CartItem[], user: any,
               <p className="text-sm text-gray-600 leading-relaxed">
                 {LOJA.localRetirada || LOJA.cidade}. Combinamos o dia e o horário pelo WhatsApp.
               </p>
+              <a href={linkWhatsApp(`Olá! Estou fazendo um pedido no site e queria combinar a retirada em ${LOJA.localRetirada || LOJA.cidade}.`)} target="_blank" rel="noreferrer" className="inline-flex items-center gap-2 mt-3 text-sm font-bold text-green-700 hover:underline">
+                <Phone size={16} /> Combinar a retirada pelo WhatsApp
+              </a>
             </>
           )}
         </div>
@@ -1144,7 +1150,7 @@ const MyOrders = ({ user }: { user: any }) => {
             </div>
             <div className="border-t border-brand-beige/10 pt-4 mb-6">
               <p className="text-sm text-gray-600">{order.description}</p>
-              <p className="text-sm font-bold text-brand-olive mt-2">Total: R$ {order.total_price.toFixed(2)}</p>
+              <p className="text-sm font-bold text-brand-olive mt-2">Total: {reais(order.total_price)}</p>
             </div>
             {order.status === "aguardando pagamento" && (
               <InstrucoesPagamento pedido={order} />
