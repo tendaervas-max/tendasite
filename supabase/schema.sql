@@ -223,6 +223,11 @@ $$;
 revoke execute on function public.eh_da_equipe() from public, anon;
 grant execute on function public.eh_da_equipe() to authenticated;
 
+-- A equipe da gestão vê os administradores, para escolher o responsável da venda
+create policy "equipe vê os administradores"
+  on public.admin for select
+  using (public.eh_da_equipe());
+
 -- Função que cria o cadastro do cliente quando ele se registra
 create or replace function public.criar_cadastro_cliente()
 returns trigger
@@ -319,6 +324,111 @@ create policy "equipe altera produtos"
 create policy "equipe exclui produtos"
   on public.products for delete
   using (public.eh_da_equipe());
+
+-- Categorias dos produtos, na ordem das abas do site; admin e equipe da gestão criam, renomeiam e excluem
+create table if not exists public.categorias (
+  nome text primary key,
+  ordem integer not null default 100,
+  created_at timestamptz not null default now()
+);
+
+alter table public.categorias enable row level security;
+
+create policy "todos veem as categorias"
+  on public.categorias for select
+  using (true);
+
+create policy "admin e equipe cadastram categorias"
+  on public.categorias for insert
+  with check (public.is_admin() or public.eh_da_equipe());
+
+insert into public.categorias (nome, ordem) values
+  ('Ervas', 1), ('Incensos', 2), ('Porta Incenso', 3), ('Defumadores', 4), ('Colares e Pulseiras', 5), ('HeadShop', 6),
+  ('Fumo', 7), ('Potes de Vidro', 8), ('Bags e Bolsas', 9), ('Enfeites e Decoração', 10), ('Acessórios', 11), ('Kits', 12)
+on conflict (nome) do nothing;
+
+insert into public.categorias (nome)
+select distinct category from public.products
+on conflict (nome) do nothing;
+
+-- Função que coloca na lista a categoria nova usada num produto
+create or replace function public.registrar_categoria()
+returns trigger
+language plpgsql
+security definer
+set search_path = public
+as $$
+begin
+  insert into public.categorias (nome) values (new.category) on conflict (nome) do nothing;
+  return new;
+end;
+$$;
+
+drop trigger if exists ao_gravar_categoria_produto on public.products;
+create trigger ao_gravar_categoria_produto
+  before insert or update of category on public.products
+  for each row execute function public.registrar_categoria();
+
+-- Função que renomeia a categoria e leva os produtos junto
+create or replace function public.renomear_categoria(p_nome text, p_novo text)
+returns void
+language plpgsql
+security definer
+set search_path = public
+as $$
+begin
+  if not (public.is_admin() or public.eh_da_equipe()) then
+    raise exception 'Só administrador ou equipe da gestão altera categoria';
+  end if;
+
+  if coalesce(trim(p_novo), '') = '' then
+    raise exception 'Informe o novo nome da categoria';
+  end if;
+
+  if exists (select 1 from public.categorias where lower(nome) = lower(trim(p_novo)) and nome <> p_nome) then
+    raise exception 'Já existe a categoria %', trim(p_novo);
+  end if;
+
+  update public.categorias set nome = trim(p_novo) where nome = p_nome;
+  if not found then
+    raise exception 'Categoria não encontrada';
+  end if;
+
+  update public.products set category = trim(p_novo) where category = p_nome;
+end;
+$$;
+
+revoke execute on function public.renomear_categoria(text, text) from public, anon;
+grant execute on function public.renomear_categoria(text, text) to authenticated;
+
+-- Função que exclui a categoria; se ela tiver produtos, eles vão para a categoria escolhida
+create or replace function public.excluir_categoria(p_nome text, p_mover_para text)
+returns void
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_produtos integer;
+begin
+  if not (public.is_admin() or public.eh_da_equipe()) then
+    raise exception 'Só administrador ou equipe da gestão exclui categoria';
+  end if;
+
+  select count(*) into v_produtos from public.products where category = p_nome;
+  if v_produtos > 0 then
+    if p_mover_para is null or p_mover_para = p_nome or not exists (select 1 from public.categorias where nome = p_mover_para) then
+      raise exception 'A categoria % tem % produto(s): escolha para qual categoria eles vão', p_nome, v_produtos;
+    end if;
+    update public.products set category = p_mover_para where category = p_nome;
+  end if;
+
+  delete from public.categorias where nome = p_nome;
+end;
+$$;
+
+revoke execute on function public.excluir_categoria(text, text) from public, anon;
+grant execute on function public.excluir_categoria(text, text) to authenticated;
 
 -- Pedidos: cliente vê os próprios, administrador vê todos
 create table if not exists public.orders (

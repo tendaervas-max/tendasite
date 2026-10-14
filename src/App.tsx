@@ -244,6 +244,17 @@ const Home = () => (
   </div>
 );
 
+// Método que carrega as categorias da loja (tabela categorias, editável pela gestão), na ordem das abas
+const useCategorias = () => {
+  const [lista, setLista] = useState<string[]>(CATEGORIAS);
+  useEffect(() => {
+    supabase.from('categorias').select('nome').order('ordem').order('nome').then(({ data }) => {
+      if (data?.length) setLista(data.map(c => c.nome));
+    });
+  }, []);
+  return lista;
+};
+
 // Método que diz o que o cliente escolhe no produto: aroma, sabor ou cor
 const tipoOpcao = (product: Product) =>
   ["Incensos", "Defumadores"].includes(product.category) ? "aroma" : product.category === "Fumo" ? "sabor" : "cor";
@@ -419,6 +430,7 @@ const Products = ({ onAddToCart, isAdmin }: { onAddToCart: (p: Product, qty: num
   const [erro, setErro] = useState("");
   const [aberto, setAberto] = useState<Product | null>(null);
   const [busca, setBusca] = useSearchParams();
+  const ordemCategorias = useCategorias();
   const categoria = busca.get("categoria") || "";
   const navigate = useNavigate();
 
@@ -442,8 +454,8 @@ const Products = ({ onAddToCart, isAdmin }: { onAddToCart: (p: Product, qty: num
 
   if (loading) return <div className="min-h-screen flex items-center justify-center">Carregando...</div>;
 
-  const categorias = CATEGORIAS.filter(c => products.some(p => p.category === c))
-    .concat(Array.from(new Set<string>(products.map(p => p.category))).filter(c => c && !CATEGORIAS.includes(c)));
+  const categorias = ordemCategorias.filter(c => products.some(p => p.category === c))
+    .concat(Array.from(new Set<string>(products.map(p => p.category))).filter(c => c && !ordemCategorias.includes(c)));
   const visiveis = categoria ? products.filter(p => p.category === categoria) : products;
 
   return (
@@ -653,7 +665,8 @@ const Admin = ({ isAdmin, ehDono }: { isAdmin: boolean, ehDono: boolean }) => {
   const [novoUsuario, setNovoUsuario] = useState({ nome: "", email: "", senha: "", administrador: false });
   const [salvandoUsuario, setSalvandoUsuario] = useState(false);
   // Categorias fixas mais as criadas no cadastro de produtos
-  const categoriasCadastro = CATEGORIAS.concat(Array.from(new Set<string>(products.map(p => p.category))).filter(c => c && !CATEGORIAS.includes(c)));
+  const ordemCategorias = useCategorias();
+  const categoriasCadastro = ordemCategorias.concat(Array.from(new Set<string>(products.map(p => p.category))).filter(c => c && !ordemCategorias.includes(c)));
   const [supabaseStatus, setSupabaseStatus] = useState<{ [key: string]: string }>({
     products: "Checking...",
     admin: "Checking...",
