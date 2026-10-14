@@ -5,7 +5,7 @@ import { ShoppingCart, User, LogOut, Plus, Trash2, Instagram, Phone, MapPin, Men
 import type { Session } from "@supabase/supabase-js";
 import { supabase, definirManterConectado } from "./lib/supabase";
 import { Product, CartItem } from "./types";
-import { LOJA, linkWhatsApp, STATUS_PEDIDO, mensagemPedido, mensagemEntrega, reais, CATEGORIAS, maiorDeIdade, chaveCarrinho, cpfValido, formatarCpf } from "./loja";
+import { LOJA, linkWhatsApp, STATUS_PEDIDO, mensagemPedido, mensagemEntrega, reais, CATEGORIAS, maiorDeIdade, chaveCarrinho, cpfValido, formatarCpf, comPromocao } from "./loja";
 
 // --- Components ---
 
@@ -276,8 +276,12 @@ const ProductCard = ({ product, onAddToCart, onAbrir }: { product: Product, onAd
           referrerPolicy="no-referrer"
         />
         <div className="absolute top-4 right-4 bg-white/90 backdrop-blur-sm px-3 py-1 rounded-full text-xs font-bold text-brand-olive shadow-sm">
+          {product.precoOriginal && <span className="line-through text-gray-400 font-normal mr-1">{reais(product.precoOriginal)}</span>}
           {reais(product.price)}
         </div>
+        {product.precoOriginal && (
+          <div className="absolute bottom-4 left-4 bg-brand-mint text-brand-olive px-2.5 py-1 rounded-full text-xs font-bold shadow-sm">Promoção</div>
+        )}
         {product.adult && (
           <div className="absolute top-4 left-4 bg-red-600 text-white px-2.5 py-1 rounded-full text-xs font-bold shadow-sm">18+</div>
         )}
@@ -357,7 +361,11 @@ const JanelaProduto = ({ product, onFechar, onAddToCart }: { product: Product, o
           <div>
             <div className="text-xs text-gray-500 uppercase tracking-widest">{product.category}</div>
             <h3 className="text-3xl font-serif text-brand-olive pr-8">{product.name}</h3>
-            <div className="text-xl font-bold text-brand-olive mt-1">{reais(product.price)}</div>
+            <div className="text-xl font-bold text-brand-olive mt-1">
+              {product.precoOriginal && <span className="line-through text-gray-400 font-normal text-base mr-2">{reais(product.precoOriginal)}</span>}
+              {reais(product.price)}
+              {product.precoOriginal && <span className="ml-2 align-middle text-xs bg-brand-mint text-brand-olive px-2 py-0.5 rounded-full">Promoção</span>}
+            </div>
           </div>
           {product.description && <p className="text-sm text-gray-600 leading-relaxed">{product.description}</p>}
           {product.adult && <p className="text-xs text-red-700 bg-red-50 rounded-xl p-3">Venda só para maiores de 18 anos. Conferimos pela data de nascimento do cadastro.</p>}
@@ -425,7 +433,7 @@ const Products = ({ onAddToCart, isAdmin }: { onAddToCart: (p: Product, qty: num
         console.error("Error fetching products:", error);
         setErro(error.message || "sem resposta");
       } else {
-        setProducts(data || []);
+        setProducts((data || []).map(comPromocao));
       }
       setLoading(false);
     };
@@ -2293,7 +2301,8 @@ export default function App() {
     }
     if (cart.length > 0 && !confirm("Os produtos que estão no carrinho serão trocados pelos itens do pedido. Continuar?")) return false;
 
-    const { data: produtos, error } = await supabase.from('products').select('*').in('id', itens.map(item => item.id));
+    const { data: dadosProdutos, error } = await supabase.from('products').select('*').in('id', itens.map(item => item.id));
+    const produtos = (dadosProdutos || []).map(comPromocao);
     if (error) {
       alert("Não foi possível carregar os produtos do pedido: " + error.message);
       return false;

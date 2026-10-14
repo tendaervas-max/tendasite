@@ -76,5 +76,12 @@ export const formatarCpf = (valor: string) =>
     .replace(/(\d{3})\.(\d{3})(\d)/, "$1.$2.$3")
     .replace(/(\d{3})\.(\d{3})\.(\d{3})(\d)/, "$1.$2.$3-$4");
 
+// Método que aplica a promoção que está no prazo (data de São Paulo): price vira o promocional e precoOriginal guarda o normal
+export const comPromocao = <T extends { price: number, preco_promocional?: number | null, promocao_ate?: string | null }>(produto: T): T & { precoOriginal?: number } => {
+  const hoje = new Date().toLocaleDateString("sv-SE", { timeZone: "America/Sao_Paulo" });
+  const ativa = produto.preco_promocional != null && (!produto.promocao_ate || produto.promocao_ate >= hoje);
+  return ativa ? { ...produto, price: Number(produto.preco_promocional), precoOriginal: Number(produto.price) } : produto;
+};
+
 // Método que monta a chave do item no carrinho (o mesmo produto em cores diferentes vira itens separados)
 export const chaveCarrinho = (id: number, opcao?: string) => `${id}|${opcao || ""}`;

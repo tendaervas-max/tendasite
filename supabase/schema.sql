@@ -265,6 +265,9 @@ create table if not exists public.products (
   adult boolean not null default false,
   estoque_minimo integer not null default 5 check (estoque_minimo >= 0),
   atualizado_em timestamptz not null default now(),
+  preco_promocional numeric(10, 2) check (preco_promocional >= 0),
+  promocao_ate date,
+  kit_itens jsonb not null default '[]',
   created_at timestamptz not null default now()
 );
 
@@ -368,6 +371,20 @@ create policy "equipe altera o status do pedido"
 revoke insert, update, delete on public.orders from anon, authenticated;
 grant update (status) on public.orders to authenticated;
 
+-- Função que diz o preço que vale hoje: o promocional enquanto a promoção está no prazo (data de São Paulo), senão o normal
+create or replace function public.preco_atual(p_produto public.products)
+returns numeric
+language sql
+stable
+as $$
+  select case
+    when p_produto.preco_promocional is not null
+     and (p_produto.promocao_ate is null or p_produto.promocao_ate >= (now() at time zone 'America/Sao_Paulo')::date)
+    then p_produto.preco_promocional
+    else p_produto.price
+  end;
+$$;
+
 -- Função que grava o pedido calculando o total pelos preços do banco e baixa o estoque
 create or replace function public.criar_pedido(p_itens jsonb, p_forma_pagamento text, p_entrega text)
 returns bigint
@@ -381,6 +398,7 @@ declare
   v_item jsonb;
   v_quantidade integer;
   v_total numeric(10, 2) := 0;
+  v_preco numeric(10, 2);
   v_descricao text[] := '{}';
   v_itens jsonb := '[]';
   v_opcao text;
@@ -432,9 +450,10 @@ begin
 
     update public.products set quantity = quantity - v_quantidade where id = v_produto.id;
 
-    v_total := v_total + v_produto.price * v_quantidade;
+    v_preco := public.preco_atual(v_produto);
+    v_total := v_total + v_preco * v_quantidade;
     v_descricao := v_descricao || (v_quantidade || 'x ' || v_produto.name || coalesce(' (' || v_opcao || ')', ''));
-    v_itens := v_itens || jsonb_build_object('id', v_produto.id, 'nome', v_produto.name, 'opcao', v_opcao, 'quantidade', v_quantidade, 'preco', v_produto.price);
+    v_itens := v_itens || jsonb_build_object('id', v_produto.id, 'nome', v_produto.name, 'opcao', v_opcao, 'quantidade', v_quantidade, 'preco', v_preco);
   end loop;
 
   insert into public.orders (user_id, customer_name, payment_method, delivery_method, description, items, total_price)
@@ -447,6 +466,128 @@ $$;
 
 revoke execute on function public.criar_pedido(jsonb, text, text) from public, anon;
 grant execute on function public.criar_pedido(jsonb, text, text) to authenticated;
+
+-- Função que cria o kit: grava o produto na categoria Kits e tira do estoque os itens dos kits montados
+create or replace function public.criar_kit(p_nome text, p_descricao text, p_preco numeric, p_quantidade integer, p_estoque_minimo integer, p_itens jsonb)
+returns bigint
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_item jsonb;
+  v_produto public.products;
+  v_quantidade integer;
+  v_descricao text[] := '{}';
+  v_itens jsonb := '[]';
+  v_id bigint;
+begin
+  if not public.eh_da_equipe() then
+    raise exception 'Só a equipe da gestão cria kit';
+  end if;
+
+  if coalesce(trim(p_nome), '') = '' then
+    raise exception 'Informe o nome do kit';
+  end if;
+
+  if p_preco is null or p_preco < 0 then
+    raise exception 'Preço inválido';
+  end if;
+
+  if p_quantidade is null or p_quantidade < 0 then
+    raise exception 'Quantidade de kits inválida';
+  end if;
+
+  if p_itens is null or jsonb_typeof(p_itens) <> 'array' or jsonb_array_length(p_itens) = 0 then
+    raise exception 'Escolha os produtos do kit';
+  end if;
+
+  for v_item in select * from jsonb_array_elements(p_itens) loop
+    v_quantidade := (v_item ->> 'quantidade')::integer;
+    if v_quantidade is null or v_quantidade < 1 then
+      raise exception 'Quantidade inválida';
+    end if;
+
+    select * into v_produto from public.products where id = (v_item ->> 'id')::bigint for update;
+    if not found then
+      raise exception 'Produto não encontrado';
+    end if;
+
+    if v_produto.quantity < v_quantidade * p_quantidade then
+      raise exception 'Estoque insuficiente de % para montar % kit(s): restam %', v_produto.name, p_quantidade, v_produto.quantity;
+    end if;
+
+    update public.products set quantity = quantity - v_quantidade * p_quantidade where id = v_produto.id;
+
+    v_descricao := v_descricao || (v_quantidade || 'x ' || v_produto.name);
+    v_itens := v_itens || jsonb_build_object('id', v_produto.id, 'nome', v_produto.name, 'quantidade', v_quantidade);
+  end loop;
+
+  insert into public.products (name, description, category, price, quantity, estoque_minimo, kit_itens)
+  values (
+    trim(p_nome),
+    coalesce(nullif(trim(p_descricao), ''), 'Inclui ' || array_to_string(v_descricao, ', ') || '.'),
+    'Kits',
+    p_preco,
+    p_quantidade,
+    coalesce(p_estoque_minimo, 5),
+    v_itens
+  )
+  returning id into v_id;
+
+  return v_id;
+end;
+$$;
+
+revoke execute on function public.criar_kit(text, text, numeric, integer, integer, jsonb) from public, anon;
+grant execute on function public.criar_kit(text, text, numeric, integer, integer, jsonb) to authenticated;
+
+-- Função que monta mais unidades de um kit: tira os itens do estoque e soma no estoque do kit
+create or replace function public.montar_kit(p_kit bigint, p_quantidade integer)
+returns void
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_kit public.products;
+  v_item jsonb;
+  v_produto public.products;
+  v_quantidade integer;
+begin
+  if not public.eh_da_equipe() then
+    raise exception 'Só a equipe da gestão monta kit';
+  end if;
+
+  if p_quantidade is null or p_quantidade < 1 then
+    raise exception 'Quantidade de kits inválida';
+  end if;
+
+  select * into v_kit from public.products where id = p_kit for update;
+  if not found or jsonb_array_length(v_kit.kit_itens) = 0 then
+    raise exception 'Este produto não é um kit montado pela gestão';
+  end if;
+
+  for v_item in select * from jsonb_array_elements(v_kit.kit_itens) loop
+    v_quantidade := (v_item ->> 'quantidade')::integer;
+    select * into v_produto from public.products where id = (v_item ->> 'id')::bigint for update;
+    if not found then
+      raise exception 'O produto % do kit não existe mais', v_item ->> 'nome';
+    end if;
+
+    if v_produto.quantity < v_quantidade * p_quantidade then
+      raise exception 'Estoque insuficiente de % para montar % kit(s): restam %', v_produto.name, p_quantidade, v_produto.quantity;
+    end if;
+
+    update public.products set quantity = quantity - v_quantidade * p_quantidade where id = v_produto.id;
+  end loop;
+
+  update public.products set quantity = quantity + p_quantidade where id = p_kit;
+end;
+$$;
+
+revoke execute on function public.montar_kit(bigint, integer) from public, anon;
+grant execute on function public.montar_kit(bigint, integer) to authenticated;
 
 -- Função que cancela o pedido do cliente logado enquanto ele aguarda o pagamento (o gatilho devolve o estoque)
 create or replace function public.cancelar_pedido(p_pedido bigint)
