@@ -58,5 +58,22 @@ export const maiorDeIdade = (nascimento?: string | null) => {
   return new Date(`${nascimento}T00:00:00`) <= limite;
 };
 
+// Método que confere os dois dígitos verificadores do CPF (aceita com ou sem pontuação)
+export const cpfValido = (cpf: string) => {
+  const digitos = cpf.replace(/\D/g, "");
+  if (digitos.length !== 11 || /^(\d)\1{10}$/.test(digitos)) return false;
+  return [9, 10].every(posicao => {
+    const soma = digitos.slice(0, posicao).split("").reduce((total, d, i) => total + Number(d) * (posicao + 1 - i), 0);
+    return (soma * 10) % 11 % 10 === Number(digitos[posicao]);
+  });
+};
+
+// Método que formata o CPF enquanto o cliente digita (000.000.000-00)
+export const formatarCpf = (valor: string) =>
+  valor.replace(/\D/g, "").slice(0, 11)
+    .replace(/(\d{3})(\d)/, "$1.$2")
+    .replace(/(\d{3})\.(\d{3})(\d)/, "$1.$2.$3")
+    .replace(/(\d{3})\.(\d{3})\.(\d{3})(\d)/, "$1.$2.$3-$4");
+
 // Método que monta a chave do item no carrinho (o mesmo produto em cores diferentes vira itens separados)
 export const chaveCarrinho = (id: number, opcao?: string) => `${id}|${opcao || ""}`;

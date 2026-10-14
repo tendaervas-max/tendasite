@@ -11,6 +11,8 @@
 -- Tabela que diz quem é administrador
 create table if not exists public.admin (
   user_id uuid primary key references auth.users (id) on delete cascade,
+  email text,
+  nome text,
   created_at timestamptz not null default now()
 );
 
@@ -78,6 +80,76 @@ drop trigger if exists ao_alterar_cadastro on public.users;
 create trigger ao_alterar_cadastro
   before update on public.users
   for each row execute function public.travar_nome_cpf();
+
+-- Função que confere os dois dígitos verificadores do CPF (aceita com ou sem pontuação)
+create or replace function public.cpf_valido(p_cpf text)
+returns boolean
+language plpgsql
+immutable
+as $$
+declare
+  v_digitos text := regexp_replace(coalesce(p_cpf, ''), '\D', '', 'g');
+  v_soma integer;
+  v_resto integer;
+begin
+  if length(v_digitos) <> 11 or v_digitos = repeat(left(v_digitos, 1), 11) then
+    return false;
+  end if;
+
+  for v_posicao in 9..10 loop
+    v_soma := 0;
+    for v_i in 1..v_posicao loop
+      v_soma := v_soma + substr(v_digitos, v_i, 1)::integer * (v_posicao + 2 - v_i);
+    end loop;
+    v_resto := (v_soma * 10) % 11 % 10;
+    if v_resto <> substr(v_digitos, v_posicao + 1, 1)::integer then
+      return false;
+    end if;
+  end loop;
+
+  return true;
+end;
+$$;
+
+-- Função que recusa CPF inválido quando o CPF do cadastro é gravado ou trocado
+create or replace function public.validar_cpf()
+returns trigger
+language plpgsql
+set search_path = public
+as $$
+begin
+  if coalesce(new.cpf, '') <> ''
+     and (tg_op = 'INSERT' or new.cpf is distinct from old.cpf)
+     and not public.cpf_valido(new.cpf) then
+    raise exception 'CPF inválido. Confira os números digitados.';
+  end if;
+  return new;
+end;
+$$;
+
+drop trigger if exists ao_gravar_cpf on public.users;
+create trigger ao_gravar_cpf
+  before insert or update of cpf on public.users
+  for each row execute function public.validar_cpf();
+
+-- Função que preenche o e-mail e o nome do administrador a partir do login e do cadastro
+create or replace function public.preencher_admin()
+returns trigger
+language plpgsql
+security definer
+set search_path = public
+as $$
+begin
+  select u.email into new.email from auth.users u where u.id = new.user_id;
+  select nullif(c.full_name, '') into new.nome from public.users c where c.id = new.user_id;
+  return new;
+end;
+$$;
+
+drop trigger if exists ao_liberar_admin on public.admin;
+create trigger ao_liberar_admin
+  before insert or update of user_id on public.admin
+  for each row execute function public.preencher_admin();
 
 -- Função que cria o cadastro do cliente quando ele se registra
 create or replace function public.criar_cadastro_cliente()

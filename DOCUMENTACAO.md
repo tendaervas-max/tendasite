@@ -22,7 +22,7 @@ O código está pronto e os dois projetos Supabase foram retomados. Em 14/10 a l
 - [x] Ajustes de segurança com commit na branch `ajustes-nathalia` dos dois repositórios
 - [x] Site Tenda (loja) e Tenda Ervas (gestão) retomados no Supabase; o projeto tenda continua pausado
 - [x] Conferido o que cada banco tinha (consulta na seção Consultas úteis); RLS ligado em todas as tabelas da loja
-- [ ] Publicar a branch `ajustes-nathalia` nos dois repositórios pelo GitHub Desktop (o terminal não tem login do GitHub)
+- [x] Publicar a branch `ajustes-nathalia` nos dois repositórios pelo GitHub Desktop (o terminal não tem login do GitHub)
 - [x] Loja: no SQL Editor do Site Tenda, rodar `supabase/migracao-banco-antigo.sql` e depois `supabase/schema.sql`
 - [x] Loja: liberar o admin com o `insert into public.admin` (em 14/10/2026 foi liberado o usuário que já existia no Auth; ele nunca entrou, então talvez precise de Send password recovery)
 - [x] Loja: `.env.local` preenchido com o endereço e a chave publishable do Site Tenda; o site rodando local já conecta no banco novo
@@ -35,12 +35,14 @@ O código está pronto e os dois projetos Supabase foram retomados. Em 14/10 a l
 - [x] Loja: catálogo completo do Canva (95 produtos em 12 categorias) com abas de categoria, escolha de cor, aroma ou sabor e itens 18+ conferidos pela data de nascimento (`supabase/atualizacao-2026-10-14-categorias.sql` e `supabase/produtos-catalogo-completo.sql`)
 - [x] Loja: cadastro pelo CEP, confirmação e olho da senha, Minha conta (dados e senha), Manter conectado, aviso de produto adicionado, preços no formato R$ 0,00 e botões de WhatsApp para combinar a entrega
 - [x] Loja: cliente edita ou cancela o pedido enquanto ele aguarda o pagamento (editar refaz o pedido com os valores recalculados e cancela o anterior), pedido cancelado ou entregue tem o botão Fazer pedido igual (mesmos produtos e quantidades, com preço e estoque de hoje) e os kits avisam que as cores dos itens são aleatórias, com link do WhatsApp para escolher (`supabase/atualizacao-2026-10-14-editar-cancelar.sql`, já rodado)
+- [x] Loja: CPF conferido pelos dígitos verificadores no site e no banco; logins antigos ganharam cadastro em `users` e a tabela `admin` mostra nome e e-mail, com um segundo admin liberado (`supabase/atualizacao-2026-10-14-admin-cpf.sql`, já rodado)
 - [ ] Ajustar o estoque real de cada produto (todos entraram com 10) no Table Editor do Supabase, tabela products, coluna quantity
 - [ ] Gmail: ligar a verificação em duas etapas da conta da loja, criar uma senha de app e colar no Supabase em Authentication > Emails > SMTP Settings (smtp.gmail.com, porta 465) e no secret `GMAIL_SENHA_APP` da função
 - [x] Netlify: site publicado em tendaervas.netlify.app, com o secret `SITE_URL` da função e, no Supabase, o Site URL e as Redirect URLs configurados (com `/nova-senha`)
 - [ ] Revisar os textos de privacidade e de trocas e preencher razão social e endereço em `src/loja.ts`
 - [ ] Testar loja e gestão rodando local com `npm run dev`
-- [ ] Abrir pull request de `ajustes-nathalia` para a `main` e, depois do merge, cadastrar as variáveis na Netlify e publicar
+- [x] Pull request de `ajustes-nathalia` para a `main` mesclado nos dois repositórios em 14/10/2026; a loja está no ar em tendaervas.netlify.app com a versão nova
+- [ ] Gestão: no projeto sistematenda da Netlify (sistematenda.netlify.app, publica a `main` do Tenda-Ervas), cadastrar `VITE_SUPABASE_URL` e `VITE_SUPABASE_ANON_KEY` em Environment variables e publicar de novo; sem elas a gestão abre em MODO LOCAL, sem login, e o que se cadastra fica só no navegador. No Supabase da gestão, colocar o endereço em Authentication > URL Configuration > Site URL
 - [x] Apagar o esquema `backup` da loja com `drop schema backup cascade;`: apagado em 14/10/2026; só guardava os 2 logins antigos de admin
 - [ ] Decidir o autor do git: o `~/.gitconfig` global está como `tendaervas-max`, e isso vale para todos os repositórios da máquina
 
@@ -133,7 +135,7 @@ O banco da gestão estava sem tabelas, então leva só o `schema.sql`. O da loja
 | --- | --- | --- |
 | Tabelas | `products`, `orders`, `users` (cadastro, sem senha), `admin` | `inventory`, `sales`, `orders`, `equipe` |
 | Quem acessa | Produtos: todos veem, só admin altera. Pedidos e cadastro: o dono e o admin | Só quem está em `equipe` |
-| Funções | `is_admin`, `criar_pedido`, `cancelar_pedido`, `refazer_pedido`, gatilho `ao_criar_usuario` | `eh_da_equipe` |
+| Funções | `is_admin`, `criar_pedido`, `cancelar_pedido`, `refazer_pedido`, `cpf_valido`, gatilho `ao_criar_usuario` | `eh_da_equipe` |
 | Fotos | Bucket público `product-images` (PNG, JPEG ou WebP, até 5 MB), envio só pelo admin | — |
 
 **Projeto da loja**
@@ -167,7 +169,7 @@ Código se altera pelo VS Code e vai para o GitHub. Dados e usuários se alteram
 | Enviar alterações | GitHub `tendaervas-max` | Na branch `ajustes-nathalia`: `git push -u origin ajustes-nathalia` e abrir um pull request para a `main` |
 | Dados (produtos, pedidos, estoque) | Supabase > Table Editor | Ver e editar linha a linha; as regras de acesso não valem para quem está no painel |
 | Estrutura e consultas | Supabase > SQL Editor | Rodar SQL, como os `insert` de admin e equipe |
-| Usuários e senhas | Supabase > Authentication > Users | Criar usuário, mandar redefinição de senha, excluir conta |
+| Usuários e senhas | Supabase > Authentication > Users | Criar usuário, mandar redefinição de senha, excluir conta; a senha criptografada aparece no Table Editor, esquema auth, tabela users, coluna encrypted\_password |
 | Fotos dos produtos | Supabase > Storage > `product-images` | Ver, trocar ou apagar arquivos |
 | Produtos e status de pedido | Site da loja em `/admin` | Entrar com e-mail e senha do admin; a aba Supabase confere se as tabelas existem |
 | Publicação da loja | [app.netlify.com](https://app.netlify.com), site ligado ao `tendasite` | Deploys, variáveis de ambiente e endereço; confira em Build & deploy qual branch ele publica |
