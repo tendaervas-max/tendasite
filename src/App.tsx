@@ -3,7 +3,7 @@ import { BrowserRouter as Router, Routes, Route, Link, useNavigate, useLocation 
 import { motion, AnimatePresence } from "motion/react";
 import { ShoppingCart, User, LogOut, Plus, Trash2, Instagram, Phone, MapPin, Menu, X, ChevronRight, Leaf, Check, Database } from "lucide-react";
 import type { Session } from "@supabase/supabase-js";
-import { supabase } from "./lib/supabase";
+import { supabase, definirManterConectado } from "./lib/supabase";
 import { Product, CartItem } from "./types";
 import { LOJA, linkWhatsApp, STATUS_PEDIDO, mensagemPedido } from "./loja";
 
@@ -11,6 +11,14 @@ import { LOJA, linkWhatsApp, STATUS_PEDIDO, mensagemPedido } from "./loja";
 
 const Navbar = ({ cartCount, isAdmin, user }: { cartCount: number, isAdmin: boolean, user: any }) => {
   const [isOpen, setIsOpen] = useState(false);
+  const navigate = useNavigate();
+
+  // Método que sai da conta e volta para o início
+  const sair = async () => {
+    setIsOpen(false);
+    await supabase.auth.signOut();
+    navigate("/");
+  };
   
   return (
     <nav className="sticky top-0 z-50 bg-brand-paper/80 backdrop-blur-md border-b border-brand-beige/20">
@@ -35,7 +43,7 @@ const Navbar = ({ cartCount, isAdmin, user }: { cartCount: number, isAdmin: bool
             <Link to="/produtos" className="text-sm font-medium hover:text-brand-olive transition-colors">Produtos</Link>
             {!user && <Link to="/checkout" className="text-sm font-medium hover:text-brand-olive transition-colors">Cadastro</Link>}
             {user && <Link to="/meus-pedidos" className="text-sm font-medium hover:text-brand-olive transition-colors">Meus Pedidos</Link>}
-            {user && <button onClick={() => supabase.auth.signOut()} className="text-sm font-medium hover:text-brand-olive transition-colors">Sair</button>}
+            {user && <button onClick={sair} className="text-sm font-medium hover:text-brand-olive transition-colors">Sair</button>}
             <Link to="/carrinho" className="relative p-2 text-gray-700 hover:text-brand-olive transition-colors">
               <ShoppingCart size={20} />
               {cartCount > 0 && (
@@ -44,12 +52,10 @@ const Navbar = ({ cartCount, isAdmin, user }: { cartCount: number, isAdmin: bool
                 </span>
               )}
             </Link>
-            <Link to="/admin" className="text-sm font-medium hover:text-brand-olive transition-colors ml-2">
-              Admin
-            </Link>
+            {!user && <Link to="/checkout" state={{ entrar: true }} className="text-sm font-medium hover:text-brand-olive transition-colors">Login</Link>}
             {isAdmin && (
-              <Link to="/admin" className="p-2 text-brand-olive hover:opacity-80 transition-colors">
-                <User size={20} />
+              <Link to="/admin" className="flex items-center gap-1 text-sm font-medium text-brand-olive hover:opacity-80 transition-colors">
+                <User size={18} /> Admin
               </Link>
             )}
           </div>
@@ -83,8 +89,9 @@ const Navbar = ({ cartCount, isAdmin, user }: { cartCount: number, isAdmin: bool
               <Link to="/" onClick={() => setIsOpen(false)} className="block text-lg font-medium">Início</Link>
               <Link to="/produtos" onClick={() => setIsOpen(false)} className="block text-lg font-medium">Produtos</Link>
               {!user && <Link to="/checkout" onClick={() => setIsOpen(false)} className="block text-lg font-medium">Cadastro</Link>}
+              {!user && <Link to="/checkout" state={{ entrar: true }} onClick={() => setIsOpen(false)} className="block text-lg font-medium">Login</Link>}
               {user && <Link to="/meus-pedidos" onClick={() => setIsOpen(false)} className="block text-lg font-medium">Meus Pedidos</Link>}
-              {user && <button onClick={() => { setIsOpen(false); supabase.auth.signOut(); }} className="block text-lg font-medium">Sair</button>}
+              {user && <button onClick={sair} className="block text-lg font-medium">Sair</button>}
               {isAdmin && (
                 <Link to="/admin" onClick={() => setIsOpen(false)} className="block text-lg font-medium text-brand-olive">Admin</Link>
               )}
@@ -140,7 +147,6 @@ const Footer = () => (
           <ul className="space-y-3 text-sm text-brand-paper/70">
             <li><Link to="/privacidade" className="hover:text-brand-paper transition-colors">Política de privacidade</Link></li>
             <li><Link to="/trocas" className="hover:text-brand-paper transition-colors">Trocas e devoluções</Link></li>
-            <li><Link to="/admin" className="hover:text-brand-paper transition-colors">Área do Administrador</Link></li>
           </ul>
         </div>
       </div>
@@ -380,7 +386,7 @@ const Cart = ({ cart, onUpdateQuantity, onRemove, user, onClearCart }: {
   
   const handleGoToPayment = () => {
     if (!user) {
-      navigate("/checkout");
+      navigate("/checkout", { state: { entrar: true, voltarPara: "/carrinho" } });
       return;
     }
     navigate("/pagamento");
@@ -447,6 +453,7 @@ const Cart = ({ cart, onUpdateQuantity, onRemove, user, onClearCart }: {
 
 const Admin = ({ isAdmin }: { isAdmin: boolean }) => {
   const location = useLocation();
+  const navigate = useNavigate();
   const isLoggedIn = isAdmin;
   const [activeTab, setActiveTab] = useState<"products" | "add" | "orders" | "supabase">("products");
 
@@ -677,7 +684,7 @@ const Admin = ({ isAdmin }: { isAdmin: boolean }) => {
           </div>
         </div>
         <button 
-          onClick={() => supabase.auth.signOut()}
+          onClick={async () => { await supabase.auth.signOut(); navigate("/"); }}
           className="flex items-center gap-2 text-red-500 hover:text-red-700 font-medium"
         >
           <LogOut size={20} /> Sair
@@ -1239,6 +1246,7 @@ const CamposCliente = ({ dados, setDados }: { dados: DadosCliente, setDados: Rea
 const BotaoGoogle = () => {
   // Método que manda o cliente para o login do Google e traz de volta para o cadastro
   const entrarComGoogle = async () => {
+    definirManterConectado(true);
     const { error } = await supabase.auth.signInWithOAuth({
       provider: "google",
       options: { redirectTo: `${window.location.origin}/checkout` }
@@ -1264,15 +1272,22 @@ const BotaoGoogle = () => {
 };
 
 const Checkout = ({ user, onCadastroAtualizado }: { user: any, onCadastroAtualizado: (dados: any) => void }) => {
-  const [isRegistering, setIsRegistering] = useState(true);
+  const location = useLocation();
+  const [isRegistering, setIsRegistering] = useState(!(location.state as any)?.entrar);
   const [acesso, setAcesso] = useState({ email: "", password: "", confirmacao: "" });
+  const [manterConectado, setManterConectado] = useState(true);
   const [dados, setDados] = useState<DadosCliente>(dadosClienteVazios);
   const [salvando, setSalvando] = useState(false);
   const navigate = useNavigate();
 
+  // O link "Login" do menu abre direto o formulário de entrar
+  useEffect(() => {
+    setIsRegistering(!(location.state as any)?.entrar);
+  }, [location.key]);
+
   // Com o cadastro completo segue para o carrinho; quem entrou pelo Google completa o cadastro antes
   useEffect(() => {
-    if (user && cadastroCompleto(user)) navigate("/carrinho");
+    if (user && cadastroCompleto(user)) navigate((location.state as any)?.voltarPara || "/");
     if (user && !cadastroCompleto(user)) setDados(d => ({ ...d, full_name: d.full_name || user.full_name || "" }));
   }, [user]);
 
@@ -1311,6 +1326,7 @@ const Checkout = ({ user, onCadastroAtualizado }: { user: any, onCadastroAtualiz
           setIsRegistering(false);
         }
       } else {
+        definirManterConectado(manterConectado);
         const { error } = await supabase.auth.signInWithPassword({
           email: acesso.email,
           password: acesso.password
@@ -1384,10 +1400,16 @@ const Checkout = ({ user, onCadastroAtualizado }: { user: any, onCadastroAtualiz
         </div>
         <form onSubmit={handleSubmit} className="space-y-4">
           {isRegistering && <CamposCliente dados={dados} setDados={setDados} />}
-          <input type="email" placeholder="Login (Seu melhor e-mail)" value={acesso.email} onChange={e => setAcesso({ ...acesso, email: e.target.value })} className={campo} required />
-          <input type="password" placeholder="Senha" value={acesso.password} onChange={e => setAcesso({ ...acesso, password: e.target.value })} className={campo} required />
+          <input type="email" name="email" autoComplete="email" placeholder="Login (Seu melhor e-mail)" value={acesso.email} onChange={e => setAcesso({ ...acesso, email: e.target.value })} className={campo} required />
+          <input type="password" name="password" autoComplete={isRegistering ? "new-password" : "current-password"} placeholder="Senha" value={acesso.password} onChange={e => setAcesso({ ...acesso, password: e.target.value })} className={campo} required />
           {isRegistering && (
-            <input type="password" placeholder="Confirme a senha" value={acesso.confirmacao} onChange={e => setAcesso({ ...acesso, confirmacao: e.target.value })} className={campo} required />
+            <input type="password" name="confirmacao" autoComplete="new-password" placeholder="Confirme a senha" value={acesso.confirmacao} onChange={e => setAcesso({ ...acesso, confirmacao: e.target.value })} className={campo} required />
+          )}
+          {!isRegistering && (
+            <label className="flex items-center gap-2 text-sm text-gray-600 px-1">
+              <input type="checkbox" checked={manterConectado} onChange={e => setManterConectado(e.target.checked)} className="accent-brand-olive" />
+              Manter conectado
+            </label>
           )}
           <button className="w-full bg-brand-olive text-white py-4 rounded-full font-bold shadow-lg hover:shadow-xl transition-all">
             {isRegistering ? "Cadastrar e Continuar" : "Entrar"}
