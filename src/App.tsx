@@ -110,7 +110,11 @@ const Footer = () => (
           <h4 className="text-lg font-medium mb-4">Contato</h4>
           <ul className="space-y-3 text-sm text-brand-paper/70">
             <li className="flex items-center gap-2">
-              <Phone size={16} /> {LOJA.whatsappExibicao}
+              <Phone size={16} />
+              <a href={linkWhatsApp("Olá! Vim pelo site da Tenda Ervas.")} target="_blank" rel="noreferrer" className="hover:text-brand-paper">{LOJA.whatsappExibicao}</a>
+            </li>
+            <li className="flex items-center gap-2">
+              <Phone size={16} /> {LOJA.whatsappOutroExibicao}
             </li>
             <li className="flex items-center gap-2">
               <Instagram size={16} /> @{LOJA.instagram}
@@ -285,7 +289,8 @@ const Products = ({ onAddToCart, isAdmin }: { onAddToCart: (p: Product, qty: num
       const { data, error } = await supabase
         .from('products')
         .select('*')
-        .order('created_at', { ascending: false });
+        .order('created_at', { ascending: false })
+        .order('name');
 
       if (error) {
         console.error("Error fetching products:", error);
@@ -414,7 +419,7 @@ const Cart = ({ cart, onUpdateQuantity, onRemove, user, onClearCart }: {
               <span>R$ {total.toFixed(2)}</span>
             </div>
             <p className="text-sm text-brand-paper/70 leading-relaxed">
-              Pagamento por PIX. Envio pelos Correios, com frete combinado pelo WhatsApp, ou retirada em {LOJA.cidade}.
+              Pagamento por PIX. Envio pelos Correios, com frete combinado pelo WhatsApp, ou retirada em {LOJA.localRetirada || LOJA.cidade}.
             </p>
             <button 
               onClick={handleGoToPayment}

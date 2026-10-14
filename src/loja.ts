@@ -6,12 +6,13 @@ export const LOJA = {
   endereco: "",
   cidade: "São Paulo, SP",
   email: "tendaervas@gmail.com",
-  whatsapp: "5511998653889",
-  whatsappExibicao: "(11) 99865-3889",
+  whatsapp: "5511995877633",
+  whatsappExibicao: "(11) 99587-7633",
+  whatsappOutroExibicao: "(11) 99865-3889",
   instagram: "tendaervas",
-  chavePix: "",
+  chavePix: "63.097.835/0001-21",
   favorecidoPix: "",
-  localRetirada: ""
+  localRetirada: "Guarulhos, SP"
 };
 
 // Método que monta o link do WhatsApp da loja com uma mensagem pronta
