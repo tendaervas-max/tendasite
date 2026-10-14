@@ -1,0 +1,148 @@
+# Tenda Ervas — documentação técnica
+
+Atualizado em 13/10/2026. Versão editável: [Tenda Ervas — documentação técnica](https://claude.ai/code/artifact/64d7d56c-dd49-4957-82d6-aa7b441094a9).
+
+## Visão geral
+
+A conta do GitHub `tendaervas-max` tem dois sistemas, os dois gerados no Google AI Studio e usando o Supabase como banco. Hoje nenhum deles tem banco funcionando: os projetos Supabase estão pausados.
+
+| Sistema | Para que serve | Repositório | Pasta na máquina | Tecnologia | Publicação | Porta local |
+| --- | --- | --- | --- | --- | --- | --- |
+| Loja (`tendasite`) | Loja virtual de ervas para banho: catálogo, carrinho, cadastro de cliente, pedidos e painel `/admin` | [tendaervas-max/tendasite](https://github.com/tendaervas-max/tendasite) (público) | `~/Documents/GitHub/tendasite` | React 19, Vite 6, Tailwind 4, React Router, Supabase | Netlify (`netlify.toml`: `npm run build`, pasta `dist`) | 5173 |
+| Gestão (`Tenda-Ervas`) | Sistema interno: vendas em quadro (kanban), pedidos de produção, estoque de ervas e dashboard | [tendaervas-max/Tenda-Ervas](https://github.com/tendaervas-max/Tenda-Ervas) (privado) | `~/Documents/GitHub/Tenda-Ervas` | React 19, Vite 6, Tailwind pelo CDN, Supabase | Nenhuma configurada | 3000 |
+
+Os ajustes de segurança estão na branch `ajustes-nathalia` dos dois repositórios, já enviada para o GitHub.
+
+Os dois sistemas não conversam entre si: um pedido feito na loja não aparece na gestão.
+
+## O que a análise encontrou
+
+O problema mais grave era o banco sem nenhuma regra de acesso. Qualquer pessoa com a chave pública do site, que vai junto para todo navegador, lia CPF e endereço dos clientes e alterava produtos e pedidos. Só o item dos projetos Supabase pausados ainda depende de ação.
+
+| Problema | Sistema | O que permitia | Situação |
+| --- | --- | --- | --- |
+| Banco sem regras de acesso (RLS) | Loja e gestão | Ler clientes, pedidos e vendas; alterar e excluir produtos e estoque sem login | Corrigido |
+| Senha do cliente gravada sem criptografia na tabela `users`; o login comparava a senha direto no banco | Loja | Quem lesse a tabela via todas as senhas | Corrigido |
+| Cadastro do cliente, com a senha, salvo no navegador (`localStorage`, chave `userData`) | Loja | Quem usasse o mesmo computador via a senha | Corrigido; o site apaga esse dado ao abrir |
+| Login do admin baixava o hash da senha para o navegador e comparava lá | Loja | Ver o hash e tentar descobrir a senha | Corrigido |
+| Gravar `adminToken` no `localStorage` abria o painel admin | Loja | Qualquer pessoa entrar no painel | Corrigido |
+| Total do pedido calculado no navegador | Loja | Gravar pedido com o valor que quisesse | Corrigido |
+| Sistema sem login | Gestão | Qualquer pessoa com o endereço usar o sistema | Corrigido |
+| Chave do banco fixa no código, apontando para projeto apagado | Loja | Nada funcionar sem mexer no código | Corrigido; agora vem do `.env.local` |
+| Sem `.gitignore` | Loja | `node_modules` e `.env.local` irem para o GitHub | Corrigido |
+| `index.html` sem a linha que carrega o app | Gestão | Página abria em branco | Corrigido |
+| Chave do Supabase lida por `process.env`, que não chega ao navegador | Gestão | Sistema sempre em modo local, sem salvar nada | Corrigido |
+| Projetos Supabase `hbkywvztwhdccznwuuex` (loja) e `msbofqngdoqvuxfpodjd` (gestão) estão pausados (o endereço deles não responde) | Loja e gestão | Nenhum dado aparece nem é salvo | Pendente: restaurar os projetos (seção Configuração do Supabase) |
+
+## O que foi feito na branch `ajustes-nathalia`
+
+As senhas passaram a ficar só no Supabase Auth, que as guarda criptografadas (bcrypt), e cada tabela ganhou regras de acesso no próprio banco. Vale a regra combinada: visitante vê produtos e usa o carrinho, e para comprar precisa de login.
+
+| Sistema | Commit | Arquivos principais |
+| --- | --- | --- |
+| Loja | `87e0496` | `src/App.tsx`, `src/lib/supabase.ts`, `supabase/schema.sql`, `.gitignore`, `.env.example`, `README.md` |
+| Gestão | `3457401` | `App.tsx`, `components/Login.tsx`, `components/Sidebar.tsx`, `lib/supabase.ts`, `vite-env.d.ts`, `index.html`, `supabase/schema.sql`, `.env.example`, `README.md` |
+
+**Loja**
+
+- Cadastro e login de cliente pelo Supabase Auth; os dados de entrega vão para a tabela `users` por um gatilho no banco.
+- Admin entra com e-mail e senha; quem é admin é decidido pela tabela `admin` (função `is_admin`).
+- Pedido gravado pela função `criar_pedido`, que calcula o total pelos preços do banco.
+- Cliente vê só o próprio cadastro e os próprios pedidos; só confirma a entrega de pedido já enviado.
+- Só o admin cadastra, altera e exclui produtos, fotos e status de pedido.
+- Botão Sair para o cliente, que antes não existia.
+
+**Gestão**
+
+- Tela de login e botão Sair no menu.
+- Só acessa quem estiver na tabela `equipe` (função `eh_da_equipe`).
+- Sem as chaves no `.env.local`, continua abrindo em modo local, sem login.
+
+**Como foi testado**
+
+- Os dois `schema.sql` rodaram sem erro num Postgres 16 local que imita o Supabase (esquemas `auth` e `storage`, papéis `anon` e `authenticated`).
+- Regras conferidas por perfil: visitante, cliente, outro cliente, admin, pessoa da equipe e pessoa de fora. Exemplo: pedido de 2x Arruda gravou R$ 25,00 pelo preço do banco, e alterar o total na mão foi negado.
+- TypeScript sem erros nos dois projetos; telas de login e cadastro abertas no navegador com um endereço de Supabase fictício.
+- Ainda não testado contra um Supabase de verdade: cadastro com confirmação de e-mail, login do admin e envio de foto.
+
+## Configuração do Supabase
+
+São dois projetos Supabase separados, um para a loja e outro para a gestão, porque os dois têm uma tabela `orders`. Criar os projetos exige entrar na conta Supabase da Tenda Ervas, então essa parte fica com você. Os arquivos `.env.local` já estão criados nas duas pastas, só falta colar o endereço e a chave.
+
+Os projetos antigos não foram apagados. Em 14/10/2026 estavam pausados na organização `tendaervas-max's Org`, no plano Free: Site Tenda (us-west-2), tenda (us-east-1) e Tenda Ervas (sa-east-1). O melhor caminho é restaurar o da loja e o da gestão, para manter produtos, pedidos e cadastros. Nesse caso o `schema.sql` não serve como está, porque as tabelas já existem: depois de restaurar, é preciso um script de ajuste feito a partir das tabelas atuais. Os passos abaixo valem para projeto novo.
+
+| O que o `schema.sql` cria | Loja | Gestão |
+| --- | --- | --- |
+| Tabelas | `products`, `orders`, `users` (cadastro, sem senha), `admin` | `inventory`, `sales`, `orders`, `equipe` |
+| Quem acessa | Produtos: todos veem, só admin altera. Pedidos e cadastro: o dono e o admin | Só quem está em `equipe` |
+| Funções | `is_admin`, `criar_pedido`, gatilho `ao_criar_usuario` | `eh_da_equipe` |
+| Fotos | Bucket público `product-images` (PNG, JPEG ou WebP, até 5 MB), envio só pelo admin | — |
+
+**Projeto da loja**
+
+1. Em [supabase.com/dashboard](https://supabase.com/dashboard), crie o projeto (sugestão: `tenda-ervas-loja`, região South America (São Paulo)). Guarde a senha do banco num gerenciador de senhas.
+2. Em SQL Editor > New query, cole o conteúdo de `tendasite/supabase/schema.sql` e clique em Run.
+3. Em Project Settings > API Keys, copie o Project URL e a chave publishable (anon) para o `tendasite/.env.local`, em `VITE_SUPABASE_URL` e `VITE_SUPABASE_ANON_KEY`. Nunca coloque a chave secret (service\_role) no site.
+4. Em Authentication > Users > Add user, crie o usuário do admin com e-mail, senha e "Auto Confirm User". Depois rode no SQL Editor: `insert into public.admin (user_id) select id from auth.users where email = 'email-do-admin';`
+5. Em Authentication > URL Configuration, coloque o endereço da Netlify em Site URL e `http://localhost:5173` em Redirect URLs, para o link de confirmação de e-mail funcionar.
+6. Em Authentication > Sign In / Providers > Email, deixe "Confirm email" ligado e aumente o tamanho mínimo de senha para 8.
+7. Na Netlify, em Site configuration > Environment variables, cadastre `VITE_SUPABASE_URL` e `VITE_SUPABASE_ANON_KEY` e faça um novo deploy.
+
+**Projeto da gestão**
+
+1. Crie o segundo projeto (sugestão: `tenda-ervas-gestao`).
+2. Rode `Tenda-Ervas/supabase/schema.sql` no SQL Editor.
+3. Copie o Project URL e a chave publishable para o `Tenda-Ervas/.env.local`.
+4. Crie cada pessoa da equipe em Authentication > Users > Add user e libere com: `insert into public.equipe (user_id) select id from auth.users where email = 'email-da-pessoa';`
+5. Em Authentication > Sign In / Providers, desligue "Allow new users to sign up". Assim ninguém cria conta sozinho.
+
+No plano gratuito, projeto sem uso por muito tempo é pausado, e foi o que aconteceu com os três projetos antigos. Confira as regras atuais em [supabase.com/pricing](https://supabase.com/pricing). Abra os sistemas de vez em quando ou avalie o plano pago.
+
+## Como acessar para fazer ajustes
+
+Código se altera pelo VS Code e vai para o GitHub. Dados e usuários se alteram no painel do Supabase. Produtos e pedidos da loja também se alteram pelo `/admin` do próprio site.
+
+| O que ajustar | Onde | Como |
+| --- | --- | --- |
+| Código da loja | `~/Documents/GitHub/tendasite` | VS Code > File > Open Folder; aceite "Trust" no aviso de Restricted Mode; no terminal, `npm install` (só na primeira vez) e `npm run dev`; abra http://localhost:5173 |
+| Código da gestão | `~/Documents/GitHub/Tenda-Ervas` | Mesmo caminho; `npm run dev` abre em http://localhost:3000 |
+| Enviar alterações | GitHub `tendaervas-max` | Na branch `ajustes-nathalia`: `git push -u origin ajustes-nathalia` e abrir um pull request para a `main` |
+| Dados (produtos, pedidos, estoque) | Supabase > Table Editor | Ver e editar linha a linha; as regras de acesso não valem para quem está no painel |
+| Estrutura e consultas | Supabase > SQL Editor | Rodar SQL, como os `insert` de admin e equipe |
+| Usuários e senhas | Supabase > Authentication > Users | Criar usuário, mandar redefinição de senha, excluir conta |
+| Fotos dos produtos | Supabase > Storage > `product-images` | Ver, trocar ou apagar arquivos |
+| Produtos e status de pedido | Site da loja em `/admin` | Entrar com e-mail e senha do admin; a aba Supabase confere se as tabelas existem |
+| Publicação da loja | [app.netlify.com](https://app.netlify.com), site ligado ao `tendasite` | Deploys, variáveis de ambiente e endereço; confira em Build & deploy qual branch ele publica |
+| Versão original | Google AI Studio: [loja](https://ai.studio/apps/43632240-6692-412b-9d38-f853e4d5d56e), [gestão](https://ai.studio/apps/drive/1U_kajzVf6Zrv_b0U0P63RD5mHiRwiSEj) | Só consulta: exportar de lá de novo apaga estes ajustes |
+
+O autor dos commits vem do `~/.gitconfig` global da máquina, que hoje está como `tendaervas-max`. Ele também vale para os outros repositórios da máquina. Para usar esse nome só nas pastas da Tenda Ervas, rode `git config user.name` e `git config user.email` dentro de cada uma, e volte o global para o seu nome.
+
+## Melhorias a serem feitas
+
+Antes de publicar: restaurar os projetos Supabase, tirar as dependências com falha de segurança e corrigir o erro 404 da Netlify. O resto melhora o uso, sem risco de segurança.
+
+| Prioridade | Status | Sistema | Melhoria | Por quê |
+| --- | --- | --- | --- | --- |
+| Alta | A fazer | Loja e gestão | Restaurar os projetos Supabase pausados, rodar o script de ajuste e preencher os `.env.local` | Sem isso nada é salvo |
+| Alta | A fazer | Loja | Remover pacotes sem uso (`express`, `better-sqlite3`, `multer`, `jsonwebtoken`, `bcryptjs`, `mercadopago`, `dotenv`, `@google/genai`) e atualizar `vite` e `react-router-dom` | O `npm audit` aponta 22 vulnerabilidades (2 críticas, 12 altas); as críticas vêm de pacotes sem uso |
+| Alta | A fazer | Loja | Criar `public/_redirects` com `/* /index.html 200` | Abrir `/produtos` ou `/admin` direto por link dá 404 na Netlify |
+| Alta | A fazer | Loja | Baixar o estoque ao finalizar o pedido e recusar compra acima do estoque | Hoje a quantidade em estoque nunca muda |
+| Alta | A fazer | Loja e gestão | Testar com o Supabase real: cadastro com confirmação de e-mail, login do admin, envio de foto, login da equipe | Só foi testado num banco local que imita o Supabase |
+| Média | A fazer | Loja | Opção "Esqueci minha senha" | Hoje o cliente não consegue recuperar a senha sozinho |
+| Média | A fazer | Loja | Tela para o cliente alterar endereço e dados | O banco já permite; falta a tela |
+| Média | A fazer | Loja | Editar produto no admin (preço, estoque, foto) | Hoje só cadastra e exclui |
+| Média | A fazer | Loja | Guardar o carrinho no navegador | O carrinho some ao recarregar a página |
+| Média | A fazer | Loja | Esconder o botão "+ Novo Produto" de visitantes | Aparece para todo mundo e leva ao login do admin |
+| Média | A fazer | Loja | Traduzir as mensagens de erro do cadastro | O Supabase responde em inglês (ex.: senha curta, e-mail já usado) |
+| Média | A fazer | Loja | Pagamento online (PIX e cartão) | Hoje só registra a forma escolhida; há sobra de código de retorno do Mercado Pago no carrinho |
+| Média | A fazer | Gestão | Avisar quando o banco recusar uma gravação | A tela atualiza mesmo quando a gravação falha |
+| Média | A fazer | Gestão | Número do pedido gerado pelo banco | Hoje é a quantidade de pedidos + 1, e pode repetir |
+| Média | A fazer | Gestão | Instalar o Tailwind no build e tirar o `importmap` do esm.sh do `index.html` | O Tailwind pelo CDN não é para produção (o próprio aviso no console diz isso) |
+| Média | A fazer | Gestão | Fazer funcionar a busca do dashboard e o botão "Recolher" do menu | Hoje os dois não fazem nada |
+| Média | A fazer | Gestão | Trocar os "+12%" e "+8% vs mês anterior" por números reais | São textos fixos no código |
+| Média | A fazer | Gestão | Publicar a gestão (Netlify ou similar) | Hoje só roda na máquina |
+| Baixa | A fazer | Loja | Título da aba e idioma da página: "Tenda Ervas" e `pt-BR` | Hoje aparece "My Google AI Studio App", em inglês |
+| Baixa | A fazer | Loja | Apagar a foto do Storage ao excluir o produto | As fotos ficam ocupando espaço |
+| Baixa | A fazer | Gestão | Alterar estoque pelo id da erva, não pelo nome | Duas ervas com o mesmo nome mudam juntas |
+| Baixa | A fazer | Loja | Política de privacidade (LGPD) | A loja guarda CPF e endereço dos clientes |
+| Baixa | A fazer | Loja e gestão | Levar os pedidos da loja para a gestão | Hoje os dois sistemas não se falam |

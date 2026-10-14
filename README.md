@@ -20,3 +20,7 @@ View your app in AI Studio: https://ai.studio/apps/43632240-6692-412b-9d38-f853e
 4. Crie o administrador em Authentication > Users e libere com o `insert into public.admin` que está no começo do `schema.sql`
 5. Run the app:
    `npm run dev`
+
+## Documentação
+
+Análise, segurança, configuração do Supabase e melhorias: [DOCUMENTACAO.md](DOCUMENTACAO.md).
