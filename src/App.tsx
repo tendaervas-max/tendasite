@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from "react";
 import { BrowserRouter as Router, Routes, Route, Link, useNavigate, useLocation } from "react-router-dom";
 import { motion, AnimatePresence } from "motion/react";
-import { ShoppingCart, User, LogOut, Plus, Trash2, Instagram, Phone, MapPin, Menu, X, ChevronRight, Leaf, Check, Database } from "lucide-react";
+import { ShoppingCart, User, LogOut, Plus, Trash2, Instagram, Phone, MapPin, Menu, X, ChevronRight, Leaf, Check, Database, Eye, EyeOff } from "lucide-react";
 import type { Session } from "@supabase/supabase-js";
 import { supabase, definirManterConectado } from "./lib/supabase";
 import { Product, CartItem } from "./types";
@@ -632,9 +632,7 @@ const Admin = ({ isAdmin }: { isAdmin: boolean }) => {
             </div>
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-2">Senha</label>
-              <input 
-                type="password" 
-                value={password} 
+              <CampoSenha value={password} 
                 onChange={e => setPassword(e.target.value)}
                 className="w-full px-4 py-3 rounded-xl border border-brand-beige/30 focus:ring-2 focus:ring-brand-olive outline-none"
               />
@@ -1163,6 +1161,24 @@ const MyOrders = ({ user }: { user: any }) => {
   );
 };
 
+// Campo de senha com o olho para mostrar ou esconder o que foi digitado
+const CampoSenha = (props: React.InputHTMLAttributes<HTMLInputElement>) => {
+  const [visivel, setVisivel] = useState(false);
+  return (
+    <div className="relative">
+      <input {...props} type={visivel ? "text" : "password"} className={`${props.className || ""} pr-12`} />
+      <button
+        type="button"
+        onClick={() => setVisivel(!visivel)}
+        aria-label={visivel ? "Esconder senha" : "Mostrar senha"}
+        className="absolute right-3 top-1/2 -translate-y-1/2 p-1 text-gray-500 hover:text-brand-olive"
+      >
+        {visivel ? <EyeOff size={18} /> : <Eye size={18} />}
+      </button>
+    </div>
+  );
+};
+
 // Método que traduz as mensagens de erro do Supabase Auth, mantendo o original em inglês embaixo
 const traduzirErroAuth = (error: any) => {
   const codigo = error?.code || "";
@@ -1418,9 +1434,9 @@ const Checkout = ({ user, onCadastroAtualizado }: { user: any, onCadastroAtualiz
         <form onSubmit={handleSubmit} className="space-y-4">
           {isRegistering && <CamposCliente dados={dados} setDados={setDados} />}
           <input type="email" name="email" autoComplete="email" placeholder="Login (Seu melhor e-mail)" value={acesso.email} onChange={e => setAcesso({ ...acesso, email: e.target.value })} className={campo} required />
-          <input type="password" name="password" autoComplete={isRegistering ? "new-password" : "current-password"} placeholder="Senha" value={acesso.password} onChange={e => setAcesso({ ...acesso, password: e.target.value })} className={campo} required />
+          <CampoSenha name="password" autoComplete={isRegistering ? "new-password" : "current-password"} placeholder="Senha" value={acesso.password} onChange={e => setAcesso({ ...acesso, password: e.target.value })} className={campo} required />
           {isRegistering && (
-            <input type="password" name="confirmacao" autoComplete="new-password" placeholder="Confirme a senha" value={acesso.confirmacao} onChange={e => setAcesso({ ...acesso, confirmacao: e.target.value })} className={campo} required />
+            <CampoSenha name="confirmacao" autoComplete="new-password" placeholder="Confirme a senha" value={acesso.confirmacao} onChange={e => setAcesso({ ...acesso, confirmacao: e.target.value })} className={campo} required />
           )}
           {!isRegistering && (
             <label className="flex items-center gap-2 text-sm text-gray-600 px-1">
@@ -1482,17 +1498,13 @@ const NovaSenha = ({ user }: { user: any }) => {
           </p>
         ) : (
           <form onSubmit={salvar} className="space-y-4">
-            <input
-              type="password"
-              placeholder="Senha nova"
+            <CampoSenha placeholder="Senha nova"
               value={senha}
               onChange={e => setSenha(e.target.value)}
               className="w-full px-4 py-3 rounded-xl border border-brand-beige/30"
               required
             />
-            <input
-              type="password"
-              placeholder="Repita a senha nova"
+            <CampoSenha placeholder="Repita a senha nova"
               value={confirmacao}
               onChange={e => setConfirmacao(e.target.value)}
               className="w-full px-4 py-3 rounded-xl border border-brand-beige/30"
@@ -1624,9 +1636,9 @@ const MinhaConta = ({ user, onCadastroAtualizado }: { user: any, onCadastroAtual
       <form onSubmit={trocarSenha} className={`${cartao} space-y-4`}>
         <h3 className="text-2xl font-serif text-brand-olive">Acesso</h3>
         <p className="text-sm text-gray-600">E-mail de login: {user.email}</p>
-        <input type="password" name="senha-atual" autoComplete="current-password" placeholder="Senha atual" value={senha.atual} onChange={e => setSenha({ ...senha, atual: e.target.value })} className={campo} required />
-        <input type="password" name="nova-senha" autoComplete="new-password" placeholder="Senha nova" value={senha.nova} onChange={e => setSenha({ ...senha, nova: e.target.value })} className={campo} required />
-        <input type="password" name="confirmacao-senha" autoComplete="new-password" placeholder="Confirme a senha nova" value={senha.confirmacao} onChange={e => setSenha({ ...senha, confirmacao: e.target.value })} className={campo} required />
+        <CampoSenha name="senha-atual" autoComplete="current-password" placeholder="Senha atual" value={senha.atual} onChange={e => setSenha({ ...senha, atual: e.target.value })} className={campo} required />
+        <CampoSenha name="nova-senha" autoComplete="new-password" placeholder="Senha nova" value={senha.nova} onChange={e => setSenha({ ...senha, nova: e.target.value })} className={campo} required />
+        <CampoSenha name="confirmacao-senha" autoComplete="new-password" placeholder="Confirme a senha nova" value={senha.confirmacao} onChange={e => setSenha({ ...senha, confirmacao: e.target.value })} className={campo} required />
         <button className="w-full border-2 border-brand-olive text-brand-olive py-3 rounded-full font-bold hover:bg-brand-olive hover:text-white transition-all">
           Trocar senha
         </button>
