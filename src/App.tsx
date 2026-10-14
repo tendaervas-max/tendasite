@@ -359,6 +359,12 @@ const JanelaProduto = ({ product, onFechar, onAddToCart }: { product: Product, o
           </div>
           {product.description && <p className="text-sm text-gray-600 leading-relaxed">{product.description}</p>}
           {product.adult && <p className="text-xs text-red-700 bg-red-50 rounded-xl p-3">Venda só para maiores de 18 anos. Conferimos pela data de nascimento do cadastro.</p>}
+          {product.category === "Kits" && (
+            <p className="text-xs text-gray-700 bg-brand-mint/20 rounded-xl p-3">
+              As cores dos itens do kit são aleatórias. Para escolher a cor de cada item,{" "}
+              <a href={linkWhatsApp(`Olá! Quero o ${product.name} e gostaria de escolher a cor dos itens.`)} target="_blank" rel="noreferrer" className="font-bold text-green-700 underline">chame no WhatsApp</a>.
+            </p>
+          )}
           {opcoes.length > 0 && (
             <div>
               <div className="text-sm font-medium text-brand-olive mb-2">Escolha {tipoOpcao(product) === "cor" ? "a cor" : `o ${tipoOpcao(product)}`}</div>
@@ -488,16 +494,26 @@ const Products = ({ onAddToCart, isAdmin }: { onAddToCart: (p: Product, qty: num
   );
 };
 
-const Cart = ({ cart, onUpdateQuantity, onRemove, user, onClearCart }: { 
+// Pedido que o cliente está editando: o estoque que ele segura conta como disponível até o pedido ser refeito
+type EdicaoPedido = { id: number, entrega: "Correios" | "Retirada", reservado: { [produto: number]: number } };
+
+const Cart = ({ cart, onUpdateQuantity, onRemove, user, edicao, onDesistirEdicao }: { 
   cart: CartItem[], 
   onUpdateQuantity: (chave: string, delta: number) => void,
   onRemove: (chave: string) => void,
   user: any,
-  onClearCart: () => void
+  edicao: EdicaoPedido | null,
+  onDesistirEdicao: () => void
 }) => {
   const navigate = useNavigate();
   const total = cart.reduce((acc, item) => acc + item.price * item.cartQuantity, 0);
   
+  // Método que desiste da edição: o pedido continua como estava
+  const desistirEdicao = () => {
+    onDesistirEdicao();
+    navigate("/meus-pedidos");
+  };
+
   const handleGoToPayment = () => {
     if (!user) {
       navigate("/checkout", { state: { entrar: true, voltarPara: "/carrinho" } });
@@ -509,6 +525,19 @@ const Cart = ({ cart, onUpdateQuantity, onRemove, user, onClearCart }: {
   return (
     <div className="max-w-4xl mx-auto px-4 py-20 min-h-screen">
       <h2 className="text-4xl font-serif text-brand-olive mb-12">Seu Carrinho</h2>
+
+      {edicao && (
+        <div className="mb-8 bg-brand-mint/20 border border-brand-mint rounded-2xl p-5 text-sm text-gray-700 space-y-3">
+          <p>
+            Editando o pedido <strong>#{edicao.id}</strong>. Mude as quantidades, tire ou inclua produtos. Ao finalizar, o pedido #{edicao.id} é cancelado
+            e um pedido novo é feito com os valores recalculados.
+          </p>
+          <div className="flex flex-wrap gap-x-6 gap-y-2">
+            <Link to="/produtos" className="text-brand-olive font-medium underline underline-offset-4">Incluir produtos</Link>
+            <button onClick={desistirEdicao} className="text-brand-olive font-medium underline underline-offset-4">Desistir da edição</button>
+          </div>
+        </div>
+      )}
       
       {cart.length === 0 ? (
         <div className="text-center py-20 bg-white rounded-3xl border border-dashed border-brand-beige/40">
@@ -529,6 +558,12 @@ const Cart = ({ cart, onUpdateQuantity, onRemove, user, onClearCart }: {
                 <div className="flex-1">
                   <h3 className="font-serif text-lg text-brand-olive">{item.name}</h3>
                   {item.opcao && <p className="text-sm text-gray-600">{item.opcao}</p>}
+                  {item.category === "Kits" && (
+                    <p className="text-xs text-gray-500">
+                      Cores dos itens aleatórias.{" "}
+                      <a href={linkWhatsApp(`Olá! Quero o ${item.name} e gostaria de escolher a cor dos itens.`)} target="_blank" rel="noreferrer" className="text-green-700 underline">Escolher pelo WhatsApp</a>
+                    </p>
+                  )}
                   <p className="text-sm text-gray-400">{reais(item.price)}</p>
                 </div>
                 <div className="flex items-center gap-4">
@@ -938,7 +973,7 @@ const Admin = ({ isAdmin }: { isAdmin: boolean }) => {
                   <span className={`px-3 py-1 rounded-full text-[10px] font-bold uppercase ${order.delivery_method === "Retirada" ? "bg-amber-100 text-amber-700" : "bg-blue-100 text-blue-600"}`}>
                     {order.delivery_method}
                   </span>
-                  <div className="text-[10px] text-gray-500 mt-2">Pedido #{order.id} · {order.payment_method}</div>
+                  <div className="text-[10px] text-gray-500 mt-2">Pedido #{order.id} · {order.payment_method}{order.pedido_anterior ? ` · substitui o #${order.pedido_anterior}` : ""}</div>
                 </div>
                 <div className="col-span-2 flex justify-between items-center">
                   <div className="text-sm text-gray-600 flex-1">
@@ -1082,9 +1117,9 @@ const BotaoCombinarEntrega = ({ pedido }: { pedido: { id: number, delivery_metho
   </a>
 );
 
-const PaymentPage = ({ cart, user, onClearCart }: { cart: CartItem[], user: any, onClearCart: () => void }) => {
-  const [pedido, setPedido] = useState<{ id: number, description: string, total_price: number, delivery_method: string } | null>(null);
-  const [entrega, setEntrega] = useState<"Correios" | "Retirada">("Correios");
+const PaymentPage = ({ cart, user, edicao, onPedidoFeito }: { cart: CartItem[], user: any, edicao: EdicaoPedido | null, onPedidoFeito: () => void }) => {
+  const [pedido, setPedido] = useState<{ id: number, description: string, total_price: number, delivery_method: string, anterior?: number } | null>(null);
+  const [entrega, setEntrega] = useState<"Correios" | "Retirada">(edicao?.entrega || "Correios");
   const [loading, setLoading] = useState(false);
   const navigate = useNavigate();
   const total = cart.reduce((acc, item) => acc + item.price * item.cartQuantity, 0);
@@ -1098,12 +1133,16 @@ const PaymentPage = ({ cart, user, onClearCart }: { cart: CartItem[], user: any,
     setLoading(true);
 
     try {
-      // O banco confere o estoque, calcula o total pelos preços cadastrados e grava o pedido no nome do cliente logado
-      const { data, error } = await supabase.rpc('criar_pedido', {
+      // O banco confere o estoque, calcula o total pelos preços cadastrados e grava o pedido no nome do cliente logado;
+      // na edição, cancela o pedido anterior e grava o novo na mesma transação
+      const dados = {
         p_itens: cart.map(item => ({ id: item.id, quantidade: item.cartQuantity, opcao: item.opcao })),
         p_forma_pagamento: "PIX",
         p_entrega: entrega
-      });
+      };
+      const { data, error } = edicao
+        ? await supabase.rpc('refazer_pedido', { p_pedido: edicao.id, ...dados })
+        : await supabase.rpc('criar_pedido', dados);
 
       if (error) throw error;
 
@@ -1111,9 +1150,10 @@ const PaymentPage = ({ cart, user, onClearCart }: { cart: CartItem[], user: any,
         id: data,
         description: cart.map(item => `${item.cartQuantity}x ${item.name}${item.opcao ? ` (${item.opcao})` : ""}`).join(", "),
         total_price: total,
-        delivery_method: entrega
+        delivery_method: entrega,
+        anterior: edicao?.id
       });
-      onClearCart();
+      onPedidoFeito();
     } catch (error: any) {
       console.error("Erro ao salvar pedido:", error);
       alert("Erro ao finalizar pedido: " + error.message);
@@ -1134,6 +1174,7 @@ const PaymentPage = ({ cart, user, onClearCart }: { cart: CartItem[], user: any,
             <Leaf size={40} />
           </div>
           <h2 className="text-4xl font-serif text-brand-olive">Pedido #{pedido.id} recebido!</h2>
+          {pedido.anterior && <p className="text-sm text-gray-600">Ele substitui o pedido #{pedido.anterior}, que foi cancelado.</p>}
           <InstrucoesPagamento pedido={pedido} />
           <div className="pt-2">
             <Link to="/meus-pedidos" className="text-brand-olive font-medium underline underline-offset-4">
@@ -1149,6 +1190,11 @@ const PaymentPage = ({ cart, user, onClearCart }: { cart: CartItem[], user: any,
     <div className="max-w-2xl mx-auto px-4 py-20 min-h-screen">
       <div className="bg-white p-10 rounded-[2.5rem] shadow-2xl border border-brand-beige/20">
         <h2 className="text-3xl font-serif text-brand-olive mb-8 text-center">Resumo do Pedido</h2>
+        {edicao && (
+          <p className="-mt-4 mb-8 text-sm text-gray-600 text-center">
+            Ao finalizar, o pedido #{edicao.id} é cancelado e este entra no lugar dele.
+          </p>
+        )}
         
         <div className="space-y-4 mb-8">
           {cart.map(item => (
@@ -1235,8 +1281,9 @@ const PaymentPage = ({ cart, user, onClearCart }: { cart: CartItem[], user: any,
   );
 };
 
-const MyOrders = ({ user }: { user: any }) => {
+const MyOrders = ({ user, onEditar }: { user: any, onEditar: (pedido: any) => Promise<boolean> }) => {
   const [orders, setOrders] = useState<any[]>([]);
+  const [processando, setProcessando] = useState<number | null>(null);
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -1269,6 +1316,27 @@ const MyOrders = ({ user }: { user: any }) => {
     }
   };
 
+  // Método que leva os itens do pedido para o carrinho, onde o cliente muda e refaz o pedido
+  const editar = async (order: any) => {
+    setProcessando(order.id);
+    const carregado = await onEditar(order);
+    setProcessando(null);
+    if (carregado) navigate("/carrinho");
+  };
+
+  // Método que cancela o pedido que ainda aguarda o pagamento; o estoque volta para a loja
+  const cancelar = async (order: any) => {
+    if (!confirm(`Cancelar o pedido #${order.id}?`)) return;
+    setProcessando(order.id);
+    const { error } = await supabase.rpc('cancelar_pedido', { p_pedido: order.id });
+    setProcessando(null);
+    if (error) {
+      alert("Não foi possível cancelar: " + error.message);
+      return;
+    }
+    setOrders(orders.map(o => o.id === order.id ? { ...o, status: "pedido cancelado" } : o));
+  };
+
   return (
     <div className="max-w-4xl mx-auto px-4 py-20 min-h-screen">
       <h2 className="text-4xl font-serif text-brand-olive mb-12">Meus Pedidos</h2>
@@ -1279,7 +1347,10 @@ const MyOrders = ({ user }: { user: any }) => {
               <div>
                 <span className="text-xs text-gray-400 uppercase tracking-widest">Status</span>
                 <div className="font-serif text-xl text-brand-olive">{STATUS_PEDIDO[order.status] || order.status}</div>
-                <div className="text-sm text-gray-600 mt-1">Pedido #{order.id} · {order.delivery_method === "Retirada" ? "Retirada" : "Correios"}</div>
+                <div className="text-sm text-gray-600 mt-1">
+                  Pedido #{order.id} · {order.delivery_method === "Retirada" ? "Retirada" : "Correios"}
+                  {order.pedido_anterior && <> · substitui o #{order.pedido_anterior}</>}
+                </div>
               </div>
               <div className="text-right">
                 <span className="text-xs text-gray-400 uppercase tracking-widest">Data</span>
@@ -1291,7 +1362,28 @@ const MyOrders = ({ user }: { user: any }) => {
               <p className="text-sm font-bold text-brand-olive mt-2">Total: {reais(order.total_price)}</p>
             </div>
             {order.status === "aguardando pagamento" && (
-              <InstrucoesPagamento pedido={order} />
+              <>
+                <InstrucoesPagamento pedido={order} />
+                <div className="grid grid-cols-2 gap-3 mt-3">
+                  <button
+                    onClick={() => editar(order)}
+                    disabled={processando === order.id}
+                    className="py-3 rounded-full border-2 border-brand-olive text-brand-olive font-bold hover:bg-brand-olive hover:text-white transition-all disabled:opacity-50"
+                  >
+                    Editar pedido
+                  </button>
+                  <button
+                    onClick={() => cancelar(order)}
+                    disabled={processando === order.id}
+                    className="py-3 rounded-full border-2 border-red-300 text-red-600 font-bold hover:bg-red-50 transition-all disabled:opacity-50"
+                  >
+                    Cancelar pedido
+                  </button>
+                </div>
+                <p className="text-xs text-gray-500 mt-3 text-center">
+                  Dá para editar ou cancelar enquanto o pagamento não é confirmado. Na edição, o pedido é refeito com os valores recalculados.
+                </p>
+              </>
             )}
             {["pagamento confirmado", "pedido sendo separado", "pronto para retirada", "pedido enviado para entrega"].includes(order.status) && (
               <div className="mb-4">
@@ -1871,10 +1963,58 @@ export default function App() {
     setTimeout(() => setAviso(atual => (atual?.id === id ? null : atual)), 3000);
   };
 
+  const [edicao, setEdicao] = useState<EdicaoPedido | null>(null);
+
+  // Método que diz quanto do produto o cliente pode levar (na edição, soma o que o pedido já segurava)
+  const estoque = (product: Product) => product.quantity + (edicao?.reservado[product.id] || 0);
+
+  // Método que põe no carrinho os itens do pedido que o cliente vai editar
+  const editarPedido = async (pedido: { id: number, delivery_method: string, items: { id: number, nome: string, opcao?: string | null, quantidade: number }[] }) => {
+    const itens = pedido.items || [];
+    if (itens.length === 0) {
+      alert("Este pedido não tem os itens gravados para editar. Cancele e faça um novo, ou fale com a gente pelo WhatsApp.");
+      return false;
+    }
+    if (cart.length > 0 && !confirm("Os produtos que estão no carrinho serão trocados pelos itens do pedido. Continuar?")) return false;
+
+    const { data: produtos, error } = await supabase.from('products').select('*').in('id', itens.map(item => item.id));
+    if (error) {
+      alert("Não foi possível carregar os produtos do pedido: " + error.message);
+      return false;
+    }
+
+    const reservado: { [produto: number]: number } = {};
+    itens.forEach(item => { reservado[item.id] = (reservado[item.id] || 0) + item.quantidade; });
+
+    const fora: string[] = [];
+    const novoCarrinho: CartItem[] = [];
+    itens.forEach(item => {
+      const produto = (produtos || []).find(p => p.id === item.id) as Product | undefined;
+      const opcoes = produto?.options || [];
+      const opcao = opcoes.length === 0 ? undefined : item.opcao || undefined;
+      if (!produto || (opcoes.length > 0 && opcao !== "Aleatório" && !opcoes.some(o => o.nome === opcao))) {
+        fora.push(item.opcao ? `${item.nome} (${item.opcao})` : item.nome);
+        return;
+      }
+      novoCarrinho.push({ ...produto, opcao, cartQuantity: item.quantidade });
+    });
+
+    setCart(novoCarrinho);
+    setEdicao({ id: pedido.id, entrega: pedido.delivery_method === "Retirada" ? "Retirada" : "Correios", reservado });
+    if (fora.length > 0) alert(`Estes itens não estão mais à venda e ficaram fora do carrinho: ${fora.join(", ")}`);
+    return true;
+  };
+
+  // Método que encerra a edição (pedido refeito ou desistência) e esvazia o carrinho
+  const encerrarEdicao = () => {
+    setEdicao(null);
+    setCart([]);
+  };
+
   // O estoque é do produto: as cores e aromas do mesmo produto somam juntos
   const addToCart = (product: Product, qty: number, opcao?: string) => {
     const noCarrinho = cart.filter(item => item.id === product.id).reduce((total, item) => total + item.cartQuantity, 0);
-    const quantidade = Math.min(qty, product.quantity - noCarrinho);
+    const quantidade = Math.min(qty, estoque(product) - noCarrinho);
     if (quantidade <= 0) {
       mostrarAviso(`Você já tem todo o estoque de ${product.name} no carrinho`);
       return;
@@ -1897,7 +2037,7 @@ export default function App() {
     setCart(prev => prev.map(item => {
       if (chaveCarrinho(item.id, item.opcao) === chave) {
         const outros = prev.filter(i => i.id === item.id && chaveCarrinho(i.id, i.opcao) !== chave).reduce((total, i) => total + i.cartQuantity, 0);
-        const newQty = Math.min(Math.max(1, item.quantity - outros), Math.max(1, item.cartQuantity + delta));
+        const newQty = Math.min(Math.max(1, estoque(item) - outros), Math.max(1, item.cartQuantity + delta));
         return { ...item, cartQuantity: newQty };
       }
       return item;
@@ -1924,14 +2064,14 @@ export default function App() {
             <Routes>
               <Route path="/" element={<Home />} />
               <Route path="/produtos" element={<Products onAddToCart={addToCart} isAdmin={isAdmin} />} />
-              <Route path="/carrinho" element={<Cart cart={cart} onUpdateQuantity={updateCartQuantity} onRemove={removeFromCart} user={user} onClearCart={() => setCart([])} />} />
+              <Route path="/carrinho" element={<Cart cart={cart} onUpdateQuantity={updateCartQuantity} onRemove={removeFromCart} user={user} edicao={edicao} onDesistirEdicao={encerrarEdicao} />} />
               <Route path="/checkout" element={<Checkout user={user} onCadastroAtualizado={dados => setUser((u: any) => ({ ...u, ...dados }))} />} />
               <Route path="/nova-senha" element={<NovaSenha user={user} />} />
               <Route path="/privacidade" element={<Privacidade />} />
               <Route path="/trocas" element={<Trocas />} />
-              <Route path="/meus-pedidos" element={<MyOrders user={user} />} />
+              <Route path="/meus-pedidos" element={<MyOrders user={user} onEditar={editarPedido} />} />
               <Route path="/minha-conta" element={<MinhaConta user={user} onCadastroAtualizado={dados => setUser((u: any) => ({ ...u, ...dados }))} />} />
-              <Route path="/pagamento" element={<PaymentPage cart={cart} user={user} onClearCart={() => setCart([])} />} />
+              <Route path="/pagamento" element={<PaymentPage cart={cart} user={user} edicao={edicao} onPedidoFeito={encerrarEdicao} />} />
               <Route path="/admin" element={<Admin isAdmin={isAdmin} />} />
             </Routes>
           )}
