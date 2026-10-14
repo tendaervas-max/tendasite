@@ -17,7 +17,7 @@ Os dois sistemas não conversam entre si: um pedido feito na loja não aparece n
 
 ## Situação em 14/10/2026 e próximos passos
 
-O código está pronto e os dois projetos Supabase foram retomados. Em 14/10 a loja e a gestão ficaram ligadas ao banco novo, com admin e equipe liberados. Falta publicar a branch e testar com o banco de verdade. Para continuar com o Claude numa conversa nova, abra a pasta do projeto e peça para ele ler o `DOCUMENTACAO.md`.
+O código está pronto e os dois projetos Supabase foram retomados. Em 14/10 a loja e a gestão ficaram ligadas ao banco novo, com admin e equipe liberados. A loja também ganhou a compra com PIX e WhatsApp, o catálogo do Canva e os avisos por e-mail. Falta a senha de app do Gmail, publicar na Netlify e testar uma compra de ponta a ponta. Para continuar com o Claude numa conversa nova, abra a pasta do projeto e peça para ele ler o `DOCUMENTACAO.md`.
 
 - [x] Ajustes de segurança com commit na branch `ajustes-nathalia` dos dois repositórios
 - [x] Site Tenda (loja) e Tenda Ervas (gestão) retomados no Supabase; o projeto tenda continua pausado
@@ -29,6 +29,12 @@ O código está pronto e os dois projetos Supabase foram retomados. Em 14/10 a l
 - [x] Gestão: no SQL Editor do Tenda Ervas, rodar `supabase/schema.sql`
 - [x] Gestão: liberar com o `insert into public.equipe` o usuário que já existia no Auth e desligar "Allow new users to sign up" (feito em 14/10/2026; ele nunca entrou, então talvez precise de Send password recovery)
 - [x] Gestão: preencher `VITE_SUPABASE_URL` e `VITE_SUPABASE_ANON_KEY` no `.env.local` com o endereço e a chave publishable do Tenda Ervas
+- [x] Loja: compra com PIX e WhatsApp, entrega pelos Correios ou retirada em Guarulhos, baixa de estoque, WhatsApp no cadastro, "Esqueci minha senha" e páginas de privacidade e de trocas
+- [x] Loja: banco atualizado com `supabase/atualizacao-2026-10-14.sql` e as 9 ervas do catálogo do Canva cadastradas com foto (`supabase/produtos-catalogo.sql`)
+- [x] Loja: serviço de e-mails `avisos-pedido` publicado no Supabase, com o gatilho de `supabase/avisos-email.sql`, e os e-mails de confirmação e de senha nova em português
+- [ ] Gmail: ligar a verificação em duas etapas da conta da loja, criar uma senha de app e colar no Supabase em Authentication > Emails > SMTP Settings (smtp.gmail.com, porta 465) e no secret `GMAIL_SENHA_APP` da função
+- [ ] Netlify: com o endereço do site, cadastrar o secret `SITE_URL` da função e, no Supabase, o Site URL e as Redirect URLs (com `/nova-senha`)
+- [ ] Revisar os textos de privacidade e de trocas e preencher razão social e endereço em `src/loja.ts`
 - [ ] Testar loja e gestão rodando local com `npm run dev`
 - [ ] Abrir pull request de `ajustes-nathalia` para a `main` e, depois do merge, cadastrar as variáveis na Netlify e publicar
 - [ ] Apagar o esquema `backup` da loja com `drop schema backup cascade;`: conferido em 14/10/2026, ele só guarda os 2 logins antigos de admin, sem nada a recuperar
@@ -142,34 +148,34 @@ O autor dos commits vem do `~/.gitconfig` global da máquina, que hoje está com
 
 ## Melhorias a serem feitas
 
-Antes de publicar: tirar as dependências com falha de segurança e corrigir o erro 404 da Netlify. O resto melhora o uso, sem risco de segurança.
+Os itens de segurança e os que impediam a venda foram feitos em 14/10/2026. O resto melhora o uso, sem risco de segurança.
 
 | Prioridade | Status | Sistema | Melhoria | Por quê |
 | --- | --- | --- | --- | --- |
 | Alta | Feito | Loja e gestão | Configurar os bancos retomados, rodar os scripts e preencher os `.env.local` (feito em 14/10/2026) | Sem isso nada é salvo |
-| Alta | A fazer | Loja | Remover pacotes sem uso (`express`, `better-sqlite3`, `multer`, `jsonwebtoken`, `bcryptjs`, `mercadopago`, `dotenv`, `@google/genai`) e atualizar `vite` e `react-router-dom` | O `npm audit` aponta 22 vulnerabilidades (2 críticas, 12 altas); as críticas vêm de pacotes sem uso |
-| Alta | A fazer | Loja | Criar `public/_redirects` com `/* /index.html 200` | Abrir `/produtos` ou `/admin` direto por link dá 404 na Netlify |
-| Alta | A fazer | Loja | Baixar o estoque ao finalizar o pedido e recusar compra acima do estoque | Hoje a quantidade em estoque nunca muda |
+| Alta | Feito | Loja | Remover pacotes sem uso (`express`, `better-sqlite3`, `multer`, `jsonwebtoken`, `bcryptjs`, `mercadopago`, `dotenv`, `@google/genai`) e atualizar `vite` e `react-router-dom` | O `npm audit` aponta 22 vulnerabilidades (2 críticas, 12 altas); as críticas vêm de pacotes sem uso |
+| Alta | Feito | Loja | Criar `public/_redirects` com `/* /index.html 200` | Abrir `/produtos` ou `/admin` direto por link dá 404 na Netlify |
+| Alta | Feito | Loja | Baixar o estoque ao finalizar o pedido e recusar compra acima do estoque | Hoje a quantidade em estoque nunca muda |
 | Alta | A fazer | Loja e gestão | Testar com o Supabase real: cadastro com confirmação de e-mail, login do admin, envio de foto, login da equipe | Só foi testado num banco local que imita o Supabase |
-| Média | A fazer | Loja | Opção "Esqueci minha senha" | Hoje o cliente não consegue recuperar a senha sozinho |
+| Média | Feito | Loja | Opção "Esqueci minha senha" | Hoje o cliente não consegue recuperar a senha sozinho |
 | Média | A fazer | Loja | Tela para o cliente alterar endereço e dados | O banco já permite; falta a tela |
 | Média | A fazer | Loja | Editar produto no admin (preço, estoque, foto) | Hoje só cadastra e exclui |
 | Média | A fazer | Loja | Guardar o carrinho no navegador | O carrinho some ao recarregar a página |
-| Média | A fazer | Loja | Esconder o botão "+ Novo Produto" de visitantes | Aparece para todo mundo e leva ao login do admin |
-| Média | A fazer | Loja | Traduzir as mensagens de erro do cadastro | O Supabase responde em inglês (ex.: senha curta, e-mail já usado) |
+| Média | Feito | Loja | Esconder o botão "+ Novo Produto" de visitantes | Aparece para todo mundo e leva ao login do admin |
+| Média | Feito | Loja | Traduzir as mensagens de erro do cadastro | O Supabase responde em inglês (ex.: senha curta, e-mail já usado) |
 | Média | A fazer | Loja | Pagamento online (PIX e cartão) | Hoje só registra a forma escolhida; há sobra de código de retorno do Mercado Pago no carrinho |
-| Média | A fazer | Loja | Avisar na página de produtos quando o banco não responde | Hoje aparece "Nenhum produto cadastrado no momento" mesmo quando a consulta falha |
+| Média | Feito | Loja | Avisar na página de produtos quando o banco não responde | Hoje aparece "Nenhum produto cadastrado no momento" mesmo quando a consulta falha |
 | Média | A fazer | Gestão | Avisar quando o banco recusar uma gravação | A tela atualiza mesmo quando a gravação falha |
 | Média | A fazer | Gestão | Número do pedido gerado pelo banco | Hoje é a quantidade de pedidos + 1, e pode repetir |
 | Média | A fazer | Gestão | Instalar o Tailwind no build e tirar o `importmap` do esm.sh do `index.html` | O Tailwind pelo CDN não é para produção (o próprio aviso no console diz isso) |
 | Média | A fazer | Gestão | Fazer funcionar a busca do dashboard e o botão "Recolher" do menu | Hoje os dois não fazem nada |
 | Média | A fazer | Gestão | Trocar os "+12%" e "+8% vs mês anterior" por números reais | São textos fixos no código |
 | Média | A fazer | Gestão | Publicar a gestão (Netlify ou similar) | Hoje só roda na máquina |
-| Baixa | A fazer | Loja | Título da aba e idioma da página: "Tenda Ervas" e `pt-BR` | Hoje aparece "My Google AI Studio App", em inglês |
+| Baixa | Feito | Loja | Título da aba e idioma da página: "Tenda Ervas" e `pt-BR` | Hoje aparece "My Google AI Studio App", em inglês |
 | Baixa | A fazer | Loja | Apagar a foto do Storage ao excluir o produto | As fotos ficam ocupando espaço |
 | Baixa | A fazer | Gestão | Alterar estoque pelo id da erva, não pelo nome | Duas ervas com o mesmo nome mudam juntas |
 | Baixa | A fazer | Gestão | Arrumar o campo de busca da tela Estoque em janela estreita | Numa janela de 800 px ele fica espremido ao lado dos filtros de peso |
-| Baixa | A fazer | Loja | Política de privacidade (LGPD) | A loja guarda CPF e endereço dos clientes |
+| Baixa | Feito | Loja | Política de privacidade (LGPD) | A loja guarda CPF e endereço dos clientes |
 | Baixa | A fazer | Loja e gestão | Levar os pedidos da loja para a gestão | Hoje os dois sistemas não se falam |
 
 ## Consultas úteis
