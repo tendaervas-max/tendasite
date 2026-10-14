@@ -264,9 +264,9 @@ const ProductCard = ({ product, onAddToCart, onAbrir }: { product: Product, onAd
       layout
       initial={{ opacity: 0, scale: 0.9 }}
       animate={{ opacity: 1, scale: 1 }}
-      className="group bg-white rounded-2xl overflow-hidden shadow-sm hover:shadow-xl transition-all border border-brand-beige/10"
+      className="group h-full flex flex-col bg-white rounded-2xl overflow-hidden shadow-sm hover:shadow-xl transition-all border border-brand-beige/10"
     >
-      <button type="button" onClick={() => onAbrir(product)} className="block w-full aspect-square overflow-hidden relative">
+      <button type="button" onClick={() => onAbrir(product)} className="block w-full aspect-square overflow-hidden relative shrink-0">
         <img 
           src={product.image_url || `https://picsum.photos/seed/${product.id}/600/600`} 
           className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500"
@@ -280,12 +280,12 @@ const ProductCard = ({ product, onAddToCart, onAbrir }: { product: Product, onAd
           <div className="absolute top-4 left-4 bg-red-600 text-white px-2.5 py-1 rounded-full text-xs font-bold shadow-sm">18+</div>
         )}
       </button>
-      <div className="p-6 space-y-3">
+      <div className="p-6 flex flex-col flex-1 gap-3">
         <button type="button" onClick={() => onAbrir(product)} className="text-left">
-          <h3 className="text-xl font-serif text-brand-olive hover:underline">{product.name}</h3>
+          <h3 className="text-xl font-serif text-brand-olive hover:underline line-clamp-2 min-h-[3.5rem]">{product.name}</h3>
         </button>
-        <p className="text-sm text-gray-500 line-clamp-2 leading-relaxed">{product.description}</p>
-        <div className="flex flex-col gap-4 pt-4">
+        <p className="text-sm text-gray-500 line-clamp-2 leading-relaxed min-h-[2.875rem]">{product.description}</p>
+        <div className="flex flex-col gap-4 pt-2 mt-auto">
           {temOpcoes ? (
             <>
               <span className="text-xs text-gray-400 uppercase tracking-widest">{product.options.length} opções · Estoque: {product.quantity}</span>
@@ -325,7 +325,7 @@ const ProductCard = ({ product, onAddToCart, onAbrir }: { product: Product, onAd
 // Janela do produto: foto grande, descrição, escolha da opção (a foto muda quando a opção tem foto própria) e quantidade
 const JanelaProduto = ({ product, onFechar, onAddToCart }: { product: Product, onFechar: () => void, onAddToCart: (p: Product, qty: number, opcao?: string) => void }) => {
   const opcoes = product.options || [];
-  const [opcao, setOpcao] = useState<string | undefined>(undefined);
+  const [opcao, setOpcao] = useState<string | undefined>(opcoes.length === 1 ? opcoes[0].nome : undefined);
   const [qty, setQty] = useState(1);
   const esgotado = product.quantity <= 0;
   const foto = opcoes.find(o => o.nome === opcao)?.imagem || product.image_url || `https://picsum.photos/seed/${product.id}/600/600`;
@@ -463,7 +463,7 @@ const Products = ({ onAddToCart, isAdmin }: { onAddToCart: (p: Product, qty: num
       
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-8">
         {visiveis.map(product => (
-          <div key={product.id}>
+          <div key={product.id} className="h-full">
             <ProductCard product={product} onAddToCart={onAddToCart} onAbrir={setAberto} />
           </div>
         ))}
