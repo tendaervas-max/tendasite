@@ -1568,6 +1568,7 @@ const MinhaConta = ({ user, onCadastroAtualizado }: { user: any, onCadastroAtual
   const navigate = useNavigate();
   const [dados, setDados] = useState<DadosCliente>({ ...dadosClienteVazios, full_name: user?.full_name || "", cpf: user?.cpf || "", cep: user?.cep || "", number: user?.number || "", phone: user?.phone || "" });
   const [senha, setSenha] = useState({ atual: "", nova: "", confirmacao: "" });
+  const [senhaAtualLiberada, setSenhaAtualLiberada] = useState(false);
   const [salvando, setSalvando] = useState(false);
 
   useEffect(() => {
@@ -1636,7 +1637,7 @@ const MinhaConta = ({ user, onCadastroAtualizado }: { user: any, onCadastroAtual
       <form onSubmit={trocarSenha} className={`${cartao} space-y-4`}>
         <h3 className="text-2xl font-serif text-brand-olive">Acesso</h3>
         <p className="text-sm text-gray-600">E-mail de login: {user.email}</p>
-        <CampoSenha name="senha-atual" autoComplete="current-password" placeholder="Senha atual" value={senha.atual} onChange={e => setSenha({ ...senha, atual: e.target.value })} className={campo} required />
+        <CampoSenha name="conferencia-senha-atual" autoComplete="off" readOnly={!senhaAtualLiberada} onFocus={() => setSenhaAtualLiberada(true)} placeholder="Senha atual" value={senha.atual} onChange={e => setSenha({ ...senha, atual: e.target.value })} className={campo} required />
         <CampoSenha name="nova-senha" autoComplete="new-password" placeholder="Senha nova" value={senha.nova} onChange={e => setSenha({ ...senha, nova: e.target.value })} className={campo} required />
         <CampoSenha name="confirmacao-senha" autoComplete="new-password" placeholder="Confirme a senha nova" value={senha.confirmacao} onChange={e => setSenha({ ...senha, confirmacao: e.target.value })} className={campo} required />
         <button className="w-full border-2 border-brand-olive text-brand-olive py-3 rounded-full font-bold hover:bg-brand-olive hover:text-white transition-all">
