@@ -4,7 +4,8 @@
 -- As senhas ficam só no Supabase Auth (criptografadas com bcrypt pelo próprio Supabase);
 -- nenhuma tabela do sistema guarda senha.
 --
--- Para tornar um usuário administrador, crie o usuário em Authentication > Users > Add user
+-- Depois do primeiro administrador, os outros logins são criados e liberados pela aba Usuários do painel
+-- (Edge Function criar-usuario). Para o primeiro, crie o usuário em Authentication > Users > Add user
 -- e depois rode:
 --   insert into public.admin (user_id) select id from auth.users where email = 'email-do-admin@exemplo.com';
 
@@ -13,6 +14,7 @@ create table if not exists public.admin (
   user_id uuid primary key references auth.users (id) on delete cascade,
   email text,
   nome text,
+  dono boolean not null default false,
   created_at timestamptz not null default now()
 );
 
@@ -30,6 +32,33 @@ as $$
 $$;
 
 grant execute on function public.is_admin() to anon, authenticated;
+
+create policy "administrador vê os administradores"
+  on public.admin for select
+  using (public.is_admin());
+
+create policy "administrador libera administrador"
+  on public.admin for insert
+  with check (public.is_admin());
+
+-- Ninguém retira o próprio acesso nem o do dono, para a loja nunca ficar sem administrador
+create policy "administrador retira administrador"
+  on public.admin for delete
+  using (public.is_admin() and user_id <> auth.uid() and not dono);
+
+-- Função que diz se o usuário logado é o dono da loja
+create or replace function public.eh_dono()
+returns boolean
+language sql
+stable
+security definer
+set search_path = public
+as $$
+  select exists (select 1 from public.admin where user_id = auth.uid() and dono);
+$$;
+
+revoke execute on function public.eh_dono() from public, anon;
+grant execute on function public.eh_dono() to authenticated;
 
 -- Cadastro do cliente (dados de entrega), ligado ao usuário do Supabase Auth
 create table if not exists public.users (
@@ -150,6 +179,49 @@ drop trigger if exists ao_liberar_admin on public.admin;
 create trigger ao_liberar_admin
   before insert or update of user_id on public.admin
   for each row execute function public.preencher_admin();
+
+-- Quem acessa a gestão (sistematenda.netlify.app), escolhido pelo dono no painel Admin da loja
+create table if not exists public.equipe (
+  user_id uuid primary key references auth.users (id) on delete cascade,
+  email text,
+  nome text,
+  created_at timestamptz not null default now()
+);
+
+alter table public.equipe enable row level security;
+revoke all on public.equipe from anon;
+
+create policy "administrador vê a equipe da gestão"
+  on public.equipe for select
+  using (public.is_admin() or user_id = auth.uid());
+
+create policy "dono libera a gestão"
+  on public.equipe for insert
+  with check (public.eh_dono());
+
+create policy "dono retira a gestão"
+  on public.equipe for delete
+  using (public.eh_dono());
+
+-- O e-mail e o nome de quem entra na equipe vêm do login e do cadastro, como na tabela admin
+drop trigger if exists ao_liberar_gestao on public.equipe;
+create trigger ao_liberar_gestao
+  before insert or update of user_id on public.equipe
+  for each row execute function public.preencher_admin();
+
+-- Função que diz se o usuário logado pode entrar na gestão
+create or replace function public.eh_da_equipe()
+returns boolean
+language sql
+stable
+security definer
+set search_path = public
+as $$
+  select exists (select 1 from public.equipe where user_id = auth.uid());
+$$;
+
+revoke execute on function public.eh_da_equipe() from public, anon;
+grant execute on function public.eh_da_equipe() to authenticated;
 
 -- Função que cria o cadastro do cliente quando ele se registra
 create or replace function public.criar_cadastro_cliente()

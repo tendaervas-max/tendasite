@@ -9,7 +9,7 @@ import { LOJA, linkWhatsApp, STATUS_PEDIDO, mensagemPedido, mensagemEntrega, rea
 
 // --- Components ---
 
-const Navbar = ({ cartCount, isAdmin, user }: { cartCount: number, isAdmin: boolean, user: any }) => {
+const Navbar = ({ cartCount, isAdmin, acessoGestao, user }: { cartCount: number, isAdmin: boolean, acessoGestao: boolean, user: any }) => {
   const [isOpen, setIsOpen] = useState(false);
   const navigate = useNavigate();
 
@@ -54,6 +54,7 @@ const Navbar = ({ cartCount, isAdmin, user }: { cartCount: number, isAdmin: bool
               )}
             </Link>
             {!user && <Link to="/checkout" state={{ entrar: true }} className="text-sm font-medium hover:text-brand-olive transition-colors">Login</Link>}
+            {acessoGestao && <a href={LOJA.urlGestao} target="_blank" rel="noreferrer" className="text-sm font-medium hover:text-brand-olive transition-colors">Gestão</a>}
             {isAdmin && (
               <Link to="/admin" className="flex items-center gap-1 text-sm font-medium text-brand-olive hover:opacity-80 transition-colors">
                 <User size={18} /> Admin
@@ -94,6 +95,7 @@ const Navbar = ({ cartCount, isAdmin, user }: { cartCount: number, isAdmin: bool
               {user && <Link to="/meus-pedidos" onClick={() => setIsOpen(false)} className="block text-lg font-medium">Meus Pedidos</Link>}
               {user && <Link to="/minha-conta" onClick={() => setIsOpen(false)} className="block text-lg font-medium">Minha conta</Link>}
               {user && <button onClick={sair} className="block text-lg font-medium">Sair</button>}
+              {acessoGestao && <a href={LOJA.urlGestao} target="_blank" rel="noreferrer" className="block text-lg font-medium">Gestão</a>}
               {isAdmin && (
                 <Link to="/admin" onClick={() => setIsOpen(false)} className="block text-lg font-medium text-brand-olive">Admin</Link>
               )}
@@ -448,7 +450,7 @@ const Products = ({ onAddToCart, isAdmin }: { onAddToCart: (p: Product, qty: num
               onClick={() => navigate("/admin", { state: { tab: "add" } })}
               className="inline-flex items-center gap-2 bg-brand-olive text-white px-8 py-3 rounded-full font-bold shadow-lg hover:shadow-xl transition-all transform hover:-translate-y-1"
             >
-              <Plus size={20} /> + Novo Produto
+              <Plus size={20} /> Novo Produto
             </button>
           </div>
         )}
@@ -601,11 +603,22 @@ const Cart = ({ cart, onUpdateQuantity, onRemove, user, edicao, onDesistirEdicao
   );
 };
 
-const Admin = ({ isAdmin }: { isAdmin: boolean }) => {
+// Método que lista as colunas de todos os registros da grade, na ordem em que aparecem
+const colunasRegistros = (registros: any[]) => Array.from(new Set(registros.flatMap(r => Object.keys(r))));
+
+// Método que mostra o valor de uma coluna na grade de registros
+const valorCelula = (valor: any) =>
+  valor === null || valor === undefined ? "—"
+  : typeof valor === "boolean" ? (valor ? "sim" : "não")
+  : typeof valor === "object" ? JSON.stringify(valor)
+  : /^\d{4}-\d{2}-\d{2}T/.test(String(valor)) ? new Date(valor).toLocaleString("pt-BR")
+  : String(valor);
+
+const Admin = ({ isAdmin, ehDono }: { isAdmin: boolean, ehDono: boolean }) => {
   const location = useLocation();
   const navigate = useNavigate();
   const isLoggedIn = isAdmin;
-  const [activeTab, setActiveTab] = useState<"products" | "add" | "orders" | "supabase">("products");
+  const [activeTab, setActiveTab] = useState<"products" | "add" | "orders" | "usuarios" | "supabase">("products");
 
   useEffect(() => {
     const state = location.state as { tab?: string };
@@ -620,11 +633,25 @@ const Admin = ({ isAdmin }: { isAdmin: boolean }) => {
   const [erroBanco, setErroBanco] = useState("");
   const [newProduct, setNewProduct] = useState({ name: "", description: "", price: "", quantity: "", category: "Ervas", opcoes: "", adult: false });
   const [image, setImage] = useState<File | null>(null);
+  const [categoriaNova, setCategoriaNova] = useState(false);
+  const [tabelaAberta, setTabelaAberta] = useState("");
+  const [registros, setRegistros] = useState<any[]>([]);
+  const [carregandoRegistros, setCarregandoRegistros] = useState(false);
+  const [usuarios, setUsuarios] = useState<any[]>([]);
+  const [idsAdmin, setIdsAdmin] = useState<string[]>([]);
+  const [idsDono, setIdsDono] = useState<string[]>([]);
+  const [idsGestao, setIdsGestao] = useState<string[]>([]);
+  const [meuId, setMeuId] = useState("");
+  const [novoUsuario, setNovoUsuario] = useState({ nome: "", email: "", senha: "", administrador: false });
+  const [salvandoUsuario, setSalvandoUsuario] = useState(false);
+  // Categorias fixas mais as criadas no cadastro de produtos
+  const categoriasCadastro = CATEGORIAS.concat(Array.from(new Set<string>(products.map(p => p.category))).filter(c => c && !CATEGORIAS.includes(c)));
   const [supabaseStatus, setSupabaseStatus] = useState<{ [key: string]: string }>({
     products: "Checking...",
     admin: "Checking...",
     users: "Checking...",
-    orders: "Checking..."
+    orders: "Checking...",
+    equipe: "Checking..."
   });
 
   useEffect(() => {
@@ -645,7 +672,7 @@ const Admin = ({ isAdmin }: { isAdmin: boolean }) => {
   }, [isLoggedIn]);
 
   const testSupabase = async () => {
-    const tables = ['products', 'admin', 'users', 'orders'];
+    const tables = ['products', 'admin', 'users', 'orders', 'equipe'];
     const newStatus: { [key: string]: string } = {};
 
     for (const table of tables) {
@@ -665,6 +692,89 @@ const Admin = ({ isAdmin }: { isAdmin: boolean }) => {
       }
     }
     setSupabaseStatus(newStatus);
+  };
+
+  // Método que abre os registros de uma tabela na aba Supabase (clicar de novo fecha)
+  const verRegistros = async (tabela: string) => {
+    if (tabelaAberta === tabela) {
+      setTabelaAberta("");
+      return;
+    }
+    setTabelaAberta(tabela);
+    setRegistros([]);
+    setCarregandoRegistros(true);
+    const { data, error } = await supabase.from(tabela).select('*').order('created_at', { ascending: false }).limit(200);
+    setCarregandoRegistros(false);
+    if (error) {
+      alert(`Erro ao ler ${tabela}: ${error.message}`);
+      return;
+    }
+    setRegistros(data || []);
+  };
+
+  // Método que carrega os usuários, quem deles é administrador e quem acessa a gestão
+  const carregarUsuarios = async () => {
+    const [{ data: lista, error }, { data: admins }, { data: equipe }, { data: { user } }] = await Promise.all([
+      supabase.from('users').select('id, email, full_name, created_at').order('created_at', { ascending: false }),
+      supabase.from('admin').select('user_id, dono'),
+      supabase.from('equipe').select('user_id'),
+      supabase.auth.getUser()
+    ]);
+    if (error) {
+      alert(`Erro ao carregar os usuários: ${error.message}`);
+      return;
+    }
+    setUsuarios(lista || []);
+    setIdsAdmin((admins || []).map(a => a.user_id));
+    setIdsDono((admins || []).filter(a => a.dono).map(a => a.user_id));
+    setIdsGestao((equipe || []).map(e => e.user_id));
+    setMeuId(user?.id || "");
+  };
+
+  useEffect(() => {
+    if (isLoggedIn && activeTab === "usuarios") carregarUsuarios();
+  }, [isLoggedIn, activeTab]);
+
+  // Método que libera ou retira o acesso ao painel administrativo
+  const alternarAdmin = async (id: string, ehAdmin: boolean, email: string) => {
+    if (ehAdmin && !window.confirm(`Retirar o acesso administrativo de ${email}?`)) return;
+    const { error } = ehAdmin
+      ? await supabase.from('admin').delete().eq('user_id', id)
+      : await supabase.from('admin').insert({ user_id: id });
+    if (error) {
+      alert(`Erro ao alterar o acesso: ${error.message}`);
+      return;
+    }
+    carregarUsuarios();
+  };
+
+  // Método que libera ou retira o acesso à gestão (só o dono consegue; o banco confere)
+  const alternarGestao = async (id: string, temAcesso: boolean, email: string) => {
+    if (temAcesso && !window.confirm(`Retirar o acesso de ${email} à gestão?`)) return;
+    const { error } = temAcesso
+      ? await supabase.from('equipe').delete().eq('user_id', id)
+      : await supabase.from('equipe').insert({ user_id: id });
+    if (error) {
+      alert(`Erro ao alterar o acesso à gestão: ${error.message}`);
+      return;
+    }
+    carregarUsuarios();
+  };
+
+  // Método que cria o login pela Edge Function criar-usuario
+  const handleAddUsuario = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setSalvandoUsuario(true);
+    const { error } = await supabase.functions.invoke('criar-usuario', { body: novoUsuario });
+    setSalvandoUsuario(false);
+    if (error) {
+      const corpo = await (error as any).context?.json?.().catch(() => null);
+      alert(`Erro ao cadastrar usuário: ${corpo?.erro || error.message}`);
+      return;
+    }
+    setNovoUsuario({ nome: "", email: "", senha: "", administrador: false });
+    alert("Usuário cadastrado!");
+    carregarUsuarios();
   };
 
   const handleLogin = async (e: React.FormEvent) => {
@@ -721,7 +831,7 @@ const Admin = ({ isAdmin }: { isAdmin: boolean }) => {
           price: parseFloat(newProduct.price),
           quantity: parseInt(newProduct.quantity),
           image_url: imageUrl,
-          category: newProduct.category,
+          category: categoriasCadastro.find(c => c.toLowerCase() === newProduct.category.trim().toLowerCase()) ?? newProduct.category.trim(),
           options: newProduct.opcoes.split(",").map(o => o.trim()).filter(Boolean).map(nome => ({ nome })),
           adult: newProduct.adult
         }])
@@ -732,6 +842,7 @@ const Admin = ({ isAdmin }: { isAdmin: boolean }) => {
 
       setProducts([...products, data]);
       setNewProduct({ name: "", description: "", price: "", quantity: "", category: "Ervas", opcoes: "", adult: false });
+      setCategoriaNova(false);
       setImage(null);
       alert("Produto cadastrado com sucesso!");
     } catch (err: any) {
@@ -826,7 +937,13 @@ const Admin = ({ isAdmin }: { isAdmin: boolean }) => {
             >
               Pedidos
             </button>
-            <button 
+            <button
+              onClick={() => setActiveTab("usuarios")}
+              className={`px-6 py-2 rounded-lg text-sm font-medium transition-all ${activeTab === "usuarios" ? "bg-brand-olive text-white shadow-md" : "text-gray-500 hover:text-brand-olive"}`}
+            >
+              Usuários
+            </button>
+            <button
               onClick={() => setActiveTab("supabase")}
               className={`px-6 py-2 rounded-lg text-sm font-medium transition-all flex items-center gap-2 ${activeTab === "supabase" ? "bg-brand-olive text-white shadow-md" : "text-gray-500 hover:text-brand-olive"}`}
             >
@@ -862,16 +979,20 @@ const Admin = ({ isAdmin }: { isAdmin: boolean }) => {
               />
               <div className="grid grid-cols-2 gap-4">
                 <input 
-                  type="number" 
-                  placeholder="Preço (R$)" 
+                  type="number"
+                  min="0"
+                  step="0.01"
+                  placeholder="Preço (R$)"
                   value={newProduct.price} 
                   onChange={e => setNewProduct({...newProduct, price: e.target.value})}
                   className="w-full px-4 py-2 rounded-lg border border-brand-beige/30"
                   required
                 />
                 <input 
-                  type="number" 
-                  placeholder="Qtd em estoque" 
+                  type="number"
+                  min="0"
+                  step="1"
+                  placeholder="Qtd em estoque"
                   value={newProduct.quantity} 
                   onChange={e => setNewProduct({...newProduct, quantity: e.target.value})}
                   className="w-full px-4 py-2 rounded-lg border border-brand-beige/30"
@@ -879,12 +1000,27 @@ const Admin = ({ isAdmin }: { isAdmin: boolean }) => {
                 />
               </div>
               <select
-                value={newProduct.category}
-                onChange={e => setNewProduct({...newProduct, category: e.target.value})}
+                value={categoriaNova ? "__nova__" : newProduct.category}
+                onChange={e => {
+                  const nova = e.target.value === "__nova__";
+                  setCategoriaNova(nova);
+                  setNewProduct({...newProduct, category: nova ? "" : e.target.value});
+                }}
                 className="w-full px-4 py-2 rounded-lg border border-brand-beige/30 bg-white"
               >
-                {CATEGORIAS.map(c => <option key={c} value={c}>{c}</option>)}
+                {categoriasCadastro.map(c => <option key={c} value={c}>{c}</option>)}
+                <option value="__nova__">+ Nova categoria</option>
               </select>
+              {categoriaNova && (
+                <input
+                  placeholder="Nome da nova categoria"
+                  value={newProduct.category}
+                  onChange={e => setNewProduct({...newProduct, category: e.target.value})}
+                  className="w-full px-4 py-2 rounded-lg border border-brand-beige/30"
+                  autoFocus
+                  required
+                />
+              )}
               <input 
                 placeholder="Opções separadas por vírgula (ex.: Azul, Rosa, Verde) — deixe vazio se não tiver" 
                 value={newProduct.opcoes} 
@@ -1000,24 +1136,151 @@ const Admin = ({ isAdmin }: { isAdmin: boolean }) => {
             )}
           </div>
         </div>
+      ) : activeTab === "usuarios" ? (
+        <div className="space-y-6">
+          <h3 className="text-2xl font-serif text-brand-olive">Usuários</h3>
+          <div className="bg-brand-mint/10 border border-brand-mint/30 rounded-2xl p-5 text-sm text-gray-700 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+            <p>
+              Quem tem o selo <strong>Gestão</strong> entra no sistema de gestão com o mesmo e-mail e senha da loja.
+              {ehDono ? " Você é o dono: só você libera ou retira esse acesso." : " Só o dono da loja libera ou retira esse acesso."}
+            </p>
+            <a href={LOJA.urlGestao} target="_blank" rel="noreferrer" className="shrink-0 text-brand-olive font-bold underline underline-offset-4">Abrir a gestão</a>
+          </div>
+          <div className="bg-white p-8 rounded-3xl shadow-sm border border-brand-beige/20">
+            <h4 className="text-lg font-serif text-brand-olive mb-4">Cadastrar usuário</h4>
+            <form onSubmit={handleAddUsuario} className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <input
+                placeholder="Nome"
+                value={novoUsuario.nome}
+                onChange={e => setNovoUsuario({...novoUsuario, nome: e.target.value})}
+                className="w-full px-4 py-2 rounded-lg border border-brand-beige/30"
+                required
+              />
+              <input
+                type="email"
+                placeholder="E-mail"
+                value={novoUsuario.email}
+                onChange={e => setNovoUsuario({...novoUsuario, email: e.target.value})}
+                className="w-full px-4 py-2 rounded-lg border border-brand-beige/30"
+                required
+              />
+              <input
+                type="password"
+                placeholder="Senha (mínimo 6 caracteres)"
+                value={novoUsuario.senha}
+                onChange={e => setNovoUsuario({...novoUsuario, senha: e.target.value})}
+                className="w-full px-4 py-2 rounded-lg border border-brand-beige/30"
+                autoComplete="new-password"
+                minLength={6}
+                required
+              />
+              <label className="flex items-center gap-2 text-sm text-gray-600">
+                <input type="checkbox" checked={novoUsuario.administrador} onChange={e => setNovoUsuario({...novoUsuario, administrador: e.target.checked})} className="accent-brand-olive" />
+                Administrador (acessa este painel)
+              </label>
+              <button disabled={salvandoUsuario} className="md:col-span-2 w-full bg-brand-olive text-white py-3 rounded-full font-bold shadow-md hover:shadow-lg transition-all disabled:opacity-60">
+                {salvandoUsuario ? "Cadastrando..." : "Cadastrar Usuário"}
+              </button>
+            </form>
+            <p className="text-xs text-gray-400 mt-3">O login já sai confirmado. Depois a pessoa pode trocar a senha em "Esqueci minha senha".</p>
+          </div>
+          <div className="bg-white rounded-3xl shadow-sm border border-brand-beige/20 overflow-hidden">
+            {usuarios.map(u => {
+              const ehAdmin = idsAdmin.includes(u.id);
+              const ehDonoDaLoja = idsDono.includes(u.id);
+              const temGestao = idsGestao.includes(u.id);
+              return (
+                <div key={u.id} className="flex items-center justify-between gap-4 p-6 border-b border-brand-beige/10 last:border-0">
+                  <div>
+                    <p className="font-medium text-gray-800">
+                      {u.full_name || "Sem nome"}
+                      {ehDonoDaLoja && <span className="ml-2 text-xs font-bold text-white bg-brand-olive px-2 py-0.5 rounded-full">Dono</span>}
+                      {ehAdmin && <span className="ml-2 text-xs font-bold text-brand-olive bg-brand-mint/30 px-2 py-0.5 rounded-full">Admin</span>}
+                      {temGestao && <span className="ml-2 text-xs font-bold text-amber-700 bg-amber-100 px-2 py-0.5 rounded-full">Gestão</span>}
+                    </p>
+                    <p className="text-xs text-gray-400">{u.email} • desde {new Date(u.created_at).toLocaleDateString("pt-BR")}</p>
+                  </div>
+                  <div className="flex flex-wrap justify-end gap-2">
+                    <button
+                      onClick={() => alternarGestao(u.id, temGestao, u.email)}
+                      disabled={!ehDono}
+                      title={ehDono ? "" : "Só o dono libera ou retira o acesso à gestão"}
+                      className={`px-4 py-2 rounded-full text-sm font-medium border transition-all disabled:opacity-40 disabled:cursor-not-allowed ${temGestao ? "border-red-200 text-red-500 hover:bg-red-50" : "border-amber-300 text-amber-700 hover:bg-amber-50"}`}
+                    >
+                      {temGestao ? "Retirar gestão" : "Liberar gestão"}
+                    </button>
+                    <button
+                      onClick={() => alternarAdmin(u.id, ehAdmin, u.email)}
+                      disabled={u.id === meuId || ehDonoDaLoja}
+                      title={u.id === meuId ? "Você não pode retirar o próprio acesso" : ehDonoDaLoja ? "O dono continua sempre administrador" : ""}
+                      className={`px-4 py-2 rounded-full text-sm font-medium border transition-all disabled:opacity-40 disabled:cursor-not-allowed ${ehAdmin ? "border-red-200 text-red-500 hover:bg-red-50" : "border-brand-olive/30 text-brand-olive hover:bg-brand-mint/20"}`}
+                    >
+                      {ehAdmin ? "Retirar admin" : "Tornar admin"}
+                    </button>
+                  </div>
+                </div>
+              );
+            })}
+            {usuarios.length === 0 && (
+              <div className="p-12 text-center text-gray-400">Nenhum usuário cadastrado.</div>
+            )}
+          </div>
+        </div>
       ) : (
         <div className="space-y-6">
           <h3 className="text-2xl font-serif text-brand-olive">Integração Supabase</h3>
           <div className="bg-white p-8 rounded-3xl shadow-sm border border-brand-beige/20 space-y-6">
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               {(Object.entries(supabaseStatus) as [string, string][]).map(([table, status]) => (
-                <div key={table} className="flex items-center justify-between p-4 bg-gray-50 rounded-2xl border border-gray-100">
+                <button
+                  key={table}
+                  onClick={() => verRegistros(table)}
+                  className={`flex items-center justify-between p-4 rounded-2xl border text-left transition-all ${tabelaAberta === table ? "bg-brand-mint/10 border-brand-olive/40" : "bg-gray-50 border-gray-100 hover:border-brand-olive/30"}`}
+                >
                   <div className="flex items-center gap-3">
                     <Database size={16} className="text-brand-olive" />
                     <span className="text-sm font-medium text-gray-700 capitalize">{table}</span>
+                    <span className="text-xs text-gray-400">{tabelaAberta === table ? "ocultar registros" : "ver registros"}</span>
                   </div>
                   <span className={`text-xs font-bold ${status.includes("✅") ? "text-green-600" : "text-red-500"}`}>
                     {status}
                   </span>
-                </div>
+                </button>
               ))}
             </div>
-            
+
+            {tabelaAberta && (
+              <div className="space-y-2">
+                <p className="text-sm text-gray-600">
+                  {carregandoRegistros
+                    ? `Carregando ${tabelaAberta}...`
+                    : `${registros.length} registro(s) em ${tabelaAberta}${registros.length === 200 ? " (os 200 mais recentes)" : ""}`}
+                </p>
+                {registros.length > 0 && (
+                  <div className="overflow-auto max-h-[28rem] rounded-xl border border-gray-100">
+                    <table className="min-w-full text-xs">
+                      <thead className="bg-gray-50 sticky top-0">
+                        <tr>
+                          {colunasRegistros(registros).map(c => (
+                            <th key={c} className="px-3 py-2 text-left font-semibold text-gray-500 whitespace-nowrap">{c}</th>
+                          ))}
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {registros.map((r, i) => (
+                          <tr key={i} className="border-t border-gray-100">
+                            {colunasRegistros(registros).map(c => (
+                              <td key={c} className="px-3 py-2 text-gray-700 whitespace-nowrap max-w-xs truncate" title={valorCelula(r[c])}>{valorCelula(r[c])}</td>
+                            ))}
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+              </div>
+            )}
+
             <div className="space-y-4">
               <p className="text-sm text-gray-600">
                 Abaixo está o status de cada tabela necessária para o funcionamento completo da Tenda Ervas no Supabase.
@@ -1027,6 +1290,7 @@ const Admin = ({ isAdmin }: { isAdmin: boolean }) => {
                   // Tabelas verificadas:<br/>
                   - products (Estoque)<br/>
                   - admin (Acesso administrativo)<br/>
+                  - equipe (Acesso à gestão)<br/>
                   - users (Clientes)<br/>
                   - orders (Vendas)
                 </code>
@@ -1605,7 +1869,7 @@ const Checkout = ({ user, onCadastroAtualizado }: { user: any, onCadastroAtualiz
 
   // O link "Login" do menu abre direto o formulário de entrar
   useEffect(() => {
-    setIsRegistering(!(location.state as any)?.entrar);
+    setIsRegistering(!(location.state as any)?.entrar && !new URLSearchParams(location.search).has("entrar"));
   }, [location.key]);
 
   // Com o cadastro completo segue para o carrinho; quem entrou pelo Google completa o cadastro antes
@@ -1957,6 +2221,8 @@ const MinhaConta = ({ user, onCadastroAtualizado }: { user: any, onCadastroAtual
 export default function App() {
   const [cart, setCart] = useState<CartItem[]>([]);
   const [isAdmin, setIsAdmin] = useState(false);
+  const [acessoGestao, setAcessoGestao] = useState(false);
+  const [ehDono, setEhDono] = useState(false);
   const [user, setUser] = useState<any>(null);
   const [sessaoCarregada, setSessaoCarregada] = useState(false);
 
@@ -1969,11 +2235,17 @@ export default function App() {
       if (!session) {
         setUser(null);
         setIsAdmin(false);
+        setAcessoGestao(false);
+        setEhDono(false);
       } else {
         const { data: cadastro } = await supabase.from('users').select('*').eq('id', session.user.id).maybeSingle();
-        const { data: ehAdmin } = await supabase.rpc('is_admin');
+        const [{ data: ehAdmin }, { data: daEquipe }, { data: dono }] = await Promise.all([
+          supabase.rpc('is_admin'), supabase.rpc('eh_da_equipe'), supabase.rpc('eh_dono')
+        ]);
         setUser(cadastro ?? { id: session.user.id, email: session.user.email });
         setIsAdmin(!!ehAdmin);
+        setAcessoGestao(!!daEquipe);
+        setEhDono(!!dono);
       }
       setSessaoCarregada(true);
     };
@@ -2104,6 +2376,7 @@ export default function App() {
         <Navbar 
           cartCount={cart.reduce((acc, item) => acc + item.cartQuantity, 0)} 
           isAdmin={isAdmin}
+          acessoGestao={acessoGestao}
           user={user}
         />
         
@@ -2122,7 +2395,7 @@ export default function App() {
               <Route path="/meus-pedidos" element={<MyOrders user={user} onCarregar={carregarPedido} />} />
               <Route path="/minha-conta" element={<MinhaConta user={user} onCadastroAtualizado={dados => setUser((u: any) => ({ ...u, ...dados }))} />} />
               <Route path="/pagamento" element={<PaymentPage cart={cart} user={user} edicao={edicao} onPedidoFeito={encerrarEdicao} />} />
-              <Route path="/admin" element={<Admin isAdmin={isAdmin} />} />
+              <Route path="/admin" element={<Admin isAdmin={isAdmin} ehDono={ehDono} />} />
             </Routes>
           )}
         </main>

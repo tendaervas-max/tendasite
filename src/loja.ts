@@ -12,7 +12,8 @@ export const LOJA = {
   instagram: "tendaervas",
   chavePix: "63.097.835/0001-21",
   favorecidoPix: "",
-  localRetirada: "Guarulhos, SP"
+  localRetirada: "Guarulhos, SP",
+  urlGestao: "https://sistematenda.netlify.app"
 };
 
 // Método que formata o valor em reais no padrão brasileiro (R$ 48,93)
