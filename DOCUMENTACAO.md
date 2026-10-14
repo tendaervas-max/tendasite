@@ -37,7 +37,7 @@ O código está pronto e os dois projetos Supabase foram retomados. Em 14/10 a l
 - [ ] Revisar os textos de privacidade e de trocas e preencher razão social e endereço em `src/loja.ts`
 - [ ] Testar loja e gestão rodando local com `npm run dev`
 - [ ] Abrir pull request de `ajustes-nathalia` para a `main` e, depois do merge, cadastrar as variáveis na Netlify e publicar
-- [ ] Apagar o esquema `backup` da loja com `drop schema backup cascade;`: conferido em 14/10/2026, ele só guarda os 2 logins antigos de admin, sem nada a recuperar
+- [x] Apagar o esquema `backup` da loja com `drop schema backup cascade;`: apagado em 14/10/2026; só guardava os 2 logins antigos de admin
 - [ ] Decidir o autor do git: o `~/.gitconfig` global está como `tendaervas-max`, e isso vale para todos os repositórios da máquina
 
 Se a versão antiga da loja estiver no ar na Netlify, ela para de funcionar com as regras novas do banco. Isso se resolve publicando a nova versão.
@@ -98,7 +98,7 @@ São dois projetos Supabase separados, um para a loja e outro para a gestão, po
 
 Os projetos antigos não foram apagados: estavam pausados na organização `tendaervas-max's Org` (plano Free) e foram retomados em 14/10/2026. Site Tenda (`hbkywvztwhdccznwuuex`) é a loja, Tenda Ervas (`msbofqngdoqvuxfpodjd`) é a gestão, e tenda (`parmnfeapncnvhnespwz`) não é usado por nenhum dos dois. Nenhum dos três tinha arquivos no Storage.
 
-O banco da gestão estava sem tabelas, então leva só o `schema.sql`. O da loja tinha `products` e `orders` vazios, 2 logins antigos em `admin` e os clientes em `users` com senha sem criptografia. Nele, rode antes o `supabase/migracao-banco-antigo.sql`, que move essas tabelas para o esquema `backup` sem apagar nada, e depois o `schema.sql`. Depois de conferir que nada falta, apague o esquema `backup`, que ainda guarda as senhas antigas. Nos passos abaixo, pule a criação do projeto.
+O banco da gestão estava sem tabelas, então leva só o `schema.sql`. O da loja tinha `products` e `orders` vazios, 2 logins antigos em `admin` e os clientes em `users` com senha sem criptografia. Nele, rode antes o `supabase/migracao-banco-antigo.sql`, que move essas tabelas para o esquema `backup` sem apagar nada, e depois o `schema.sql`. O esquema `backup` foi apagado em 14/10/2026, depois de conferir que só guardava os 2 logins antigos de admin. Nos passos abaixo, pule a criação do projeto.
 
 | O que o `schema.sql` cria | Loja | Gestão |
 | --- | --- | --- |
