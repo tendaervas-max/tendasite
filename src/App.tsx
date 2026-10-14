@@ -1,11 +1,11 @@
 import React, { useState, useEffect } from "react";
-import { BrowserRouter as Router, Routes, Route, Link, useNavigate, useLocation } from "react-router-dom";
+import { BrowserRouter as Router, Routes, Route, Link, useNavigate, useLocation, useSearchParams } from "react-router-dom";
 import { motion, AnimatePresence } from "motion/react";
 import { ShoppingCart, User, LogOut, Plus, Trash2, Instagram, Phone, MapPin, Menu, X, ChevronRight, Leaf, Check, Database, Eye, EyeOff } from "lucide-react";
 import type { Session } from "@supabase/supabase-js";
 import { supabase, definirManterConectado } from "./lib/supabase";
 import { Product, CartItem } from "./types";
-import { LOJA, linkWhatsApp, STATUS_PEDIDO, mensagemPedido, mensagemEntrega, reais } from "./loja";
+import { LOJA, linkWhatsApp, STATUS_PEDIDO, mensagemPedido, mensagemEntrega, reais, CATEGORIAS, maiorDeIdade, chaveCarrinho } from "./loja";
 
 // --- Components ---
 
@@ -242,10 +242,15 @@ const Home = () => (
   </div>
 );
 
-const ProductCard = ({ product, onAddToCart }: { product: Product, onAddToCart: (p: Product, qty: number) => void }) => {
+// Método que diz o que o cliente escolhe no produto: aroma, sabor ou cor
+const tipoOpcao = (product: Product) =>
+  ["Incensos", "Defumadores"].includes(product.category) ? "aroma" : product.category === "Fumo" ? "sabor" : "cor";
+
+const ProductCard = ({ product, onAddToCart, onAbrir }: { product: Product, onAddToCart: (p: Product, qty: number, opcao?: string) => void, onAbrir: (p: Product) => void }) => {
   const [qty, setQty] = useState(1);
   const [adicionado, setAdicionado] = useState(false);
   const esgotado = product.quantity <= 0;
+  const temOpcoes = (product.options || []).length > 0;
 
   // Método que adiciona ao carrinho e mostra "Adicionado" no botão por um instante
   const adicionar = () => {
@@ -261,7 +266,7 @@ const ProductCard = ({ product, onAddToCart }: { product: Product, onAddToCart: 
       animate={{ opacity: 1, scale: 1 }}
       className="group bg-white rounded-2xl overflow-hidden shadow-sm hover:shadow-xl transition-all border border-brand-beige/10"
     >
-      <div className="aspect-square overflow-hidden relative">
+      <button type="button" onClick={() => onAbrir(product)} className="block w-full aspect-square overflow-hidden relative">
         <img 
           src={product.image_url || `https://picsum.photos/seed/${product.id}/600/600`} 
           className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500"
@@ -271,13 +276,107 @@ const ProductCard = ({ product, onAddToCart }: { product: Product, onAddToCart: 
         <div className="absolute top-4 right-4 bg-white/90 backdrop-blur-sm px-3 py-1 rounded-full text-xs font-bold text-brand-olive shadow-sm">
           {reais(product.price)}
         </div>
-      </div>
+        {product.adult && (
+          <div className="absolute top-4 left-4 bg-red-600 text-white px-2.5 py-1 rounded-full text-xs font-bold shadow-sm">18+</div>
+        )}
+      </button>
       <div className="p-6 space-y-3">
-        <h3 className="text-xl font-serif text-brand-olive">{product.name}</h3>
+        <button type="button" onClick={() => onAbrir(product)} className="text-left">
+          <h3 className="text-xl font-serif text-brand-olive hover:underline">{product.name}</h3>
+        </button>
         <p className="text-sm text-gray-500 line-clamp-2 leading-relaxed">{product.description}</p>
         <div className="flex flex-col gap-4 pt-4">
+          {temOpcoes ? (
+            <>
+              <span className="text-xs text-gray-400 uppercase tracking-widest">{product.options.length} opções · Estoque: {product.quantity}</span>
+              <button 
+                onClick={() => onAbrir(product)}
+                disabled={esgotado}
+                className="w-full bg-brand-olive text-white py-2 rounded-full hover:bg-brand-olive/90 transition-colors shadow-md flex items-center justify-center gap-2 text-sm font-medium disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {esgotado ? "Esgotado" : `Escolher ${tipoOpcao(product)}`}
+              </button>
+            </>
+          ) : (
+            <>
+              <div className="flex items-center justify-between">
+                <span className="text-xs text-gray-400 uppercase tracking-widest">Estoque: {product.quantity}</span>
+                <div className="flex items-center border border-brand-beige/30 rounded-full px-2 py-0.5">
+                  <button onClick={() => setQty(Math.max(1, qty - 1))} className="px-2 text-brand-olive">-</button>
+                  <span className="mx-2 text-sm font-medium">{qty}</span>
+                  <button onClick={() => setQty(Math.min(Math.max(1, product.quantity), qty + 1))} className="px-2 text-brand-olive">+</button>
+                </div>
+              </div>
+              <button 
+                onClick={adicionar}
+                disabled={esgotado}
+                className="w-full bg-brand-olive text-white py-2 rounded-full hover:bg-brand-olive/90 transition-colors shadow-md flex items-center justify-center gap-2 text-sm font-medium disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {esgotado ? "Esgotado" : adicionado ? <><Check size={16} /> Adicionado</> : <><Plus size={16} /> Adicionar {reais(product.price * qty)}</>}
+              </button>
+            </>
+          )}
+        </div>
+      </div>
+    </motion.div>
+  );
+};
+
+// Janela do produto: foto grande, descrição, escolha da opção (a foto muda quando a opção tem foto própria) e quantidade
+const JanelaProduto = ({ product, onFechar, onAddToCart }: { product: Product, onFechar: () => void, onAddToCart: (p: Product, qty: number, opcao?: string) => void }) => {
+  const opcoes = product.options || [];
+  const [opcao, setOpcao] = useState<string | undefined>(undefined);
+  const [qty, setQty] = useState(1);
+  const esgotado = product.quantity <= 0;
+  const foto = opcoes.find(o => o.nome === opcao)?.imagem || product.image_url || `https://picsum.photos/seed/${product.id}/600/600`;
+  const falta = opcoes.length > 0 && !opcao;
+
+  // Método que adiciona a opção escolhida ao carrinho e fecha a janela
+  const adicionar = () => {
+    onAddToCart(product, qty, opcao);
+    onFechar();
+  };
+
+  return (
+    <div className="fixed inset-0 z-[60] bg-black/50 flex items-end sm:items-center justify-center p-0 sm:p-4" onClick={onFechar}>
+      <motion.div
+        initial={{ opacity: 0, y: 40 }}
+        animate={{ opacity: 1, y: 0 }}
+        onClick={e => e.stopPropagation()}
+        className="bg-white w-full sm:max-w-3xl max-h-[92vh] overflow-y-auto rounded-t-3xl sm:rounded-3xl shadow-2xl grid grid-cols-1 sm:grid-cols-2"
+      >
+        <div className="relative bg-white">
+          <img src={foto} alt={opcao ? `${product.name} - ${opcao}` : product.name} className="w-full aspect-square object-cover" referrerPolicy="no-referrer" />
+          {product.adult && <div className="absolute top-4 left-4 bg-red-600 text-white px-2.5 py-1 rounded-full text-xs font-bold">18+</div>}
+        </div>
+        <div className="p-6 sm:p-8 space-y-5 relative">
+          <button onClick={onFechar} aria-label="Fechar" className="absolute top-4 right-4 p-1 text-gray-500 hover:text-brand-olive"><X size={22} /></button>
+          <div>
+            <div className="text-xs text-gray-500 uppercase tracking-widest">{product.category}</div>
+            <h3 className="text-3xl font-serif text-brand-olive pr-8">{product.name}</h3>
+            <div className="text-xl font-bold text-brand-olive mt-1">{reais(product.price)}</div>
+          </div>
+          {product.description && <p className="text-sm text-gray-600 leading-relaxed">{product.description}</p>}
+          {product.adult && <p className="text-xs text-red-700 bg-red-50 rounded-xl p-3">Venda só para maiores de 18 anos. Conferimos pela data de nascimento do cadastro.</p>}
+          {opcoes.length > 0 && (
+            <div>
+              <div className="text-sm font-medium text-brand-olive mb-2">Escolha {tipoOpcao(product) === "cor" ? "a cor" : `o ${tipoOpcao(product)}`}</div>
+              <div className="flex flex-wrap gap-2">
+                {opcoes.map(o => (
+                  <button
+                    key={o.nome}
+                    type="button"
+                    onClick={() => setOpcao(o.nome)}
+                    className={`px-3 py-1.5 rounded-full text-sm border transition-all ${opcao === o.nome ? "bg-brand-olive text-white border-brand-olive" : "border-brand-beige/50 text-gray-700 hover:border-brand-olive"}`}
+                  >
+                    {o.nome}
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
           <div className="flex items-center justify-between">
-            <span className="text-xs text-gray-400 uppercase tracking-widest">Estoque: {product.quantity}</span>
+            <span className="text-xs text-gray-500 uppercase tracking-widest">Estoque: {product.quantity}</span>
             <div className="flex items-center border border-brand-beige/30 rounded-full px-2 py-0.5">
               <button onClick={() => setQty(Math.max(1, qty - 1))} className="px-2 text-brand-olive">-</button>
               <span className="mx-2 text-sm font-medium">{qty}</span>
@@ -286,21 +385,24 @@ const ProductCard = ({ product, onAddToCart }: { product: Product, onAddToCart: 
           </div>
           <button
             onClick={adicionar}
-            disabled={esgotado}
-            className="w-full bg-brand-olive text-white py-2 rounded-full hover:bg-brand-olive/90 transition-colors shadow-md flex items-center justify-center gap-2 text-sm font-medium disabled:opacity-50 disabled:cursor-not-allowed"
+            disabled={esgotado || falta}
+            className="w-full bg-brand-olive text-white py-3 rounded-full font-bold shadow-md flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
           >
-            {esgotado ? "Esgotado" : adicionado ? <><Check size={16} /> Adicionado</> : <><Plus size={16} /> Adicionar {reais((product.price * qty))}</>}
+            {esgotado ? "Esgotado" : falta ? `Escolha ${tipoOpcao(product) === "cor" ? "a cor" : `o ${tipoOpcao(product)}`}` : <><Plus size={16} /> Adicionar {reais(product.price * qty)}</>}
           </button>
         </div>
-      </div>
-    </motion.div>
+      </motion.div>
+    </div>
   );
 };
 
-const Products = ({ onAddToCart, isAdmin }: { onAddToCart: (p: Product, qty: number) => void, isAdmin: boolean }) => {
+const Products = ({ onAddToCart, isAdmin }: { onAddToCart: (p: Product, qty: number, opcao?: string) => void, isAdmin: boolean }) => {
   const [products, setProducts] = useState<Product[]>([]);
   const [loading, setLoading] = useState(true);
   const [erro, setErro] = useState("");
+  const [aberto, setAberto] = useState<Product | null>(null);
+  const [busca, setBusca] = useSearchParams();
+  const categoria = busca.get("categoria") || "";
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -308,9 +410,8 @@ const Products = ({ onAddToCart, isAdmin }: { onAddToCart: (p: Product, qty: num
       const { data, error } = await supabase
         .from('products')
         .select('*')
-        .order('created_at', { ascending: false })
         .order('name');
-
+      
       if (error) {
         console.error("Error fetching products:", error);
         setErro(error.message || "sem resposta");
@@ -324,15 +425,19 @@ const Products = ({ onAddToCart, isAdmin }: { onAddToCart: (p: Product, qty: num
 
   if (loading) return <div className="min-h-screen flex items-center justify-center">Carregando...</div>;
 
+  const categorias = CATEGORIAS.filter(c => products.some(p => p.category === c))
+    .concat(Array.from(new Set<string>(products.map(p => p.category))).filter(c => c && !CATEGORIAS.includes(c)));
+  const visiveis = categoria ? products.filter(p => p.category === categoria) : products;
+
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-20">
-      <div className="text-center mb-16 space-y-4">
+      <div className="text-center mb-10 space-y-4">
         <h2 className="text-5xl font-serif text-brand-olive">Nossa Coleção</h2>
         <p className="text-gray-500 max-w-xl mx-auto">Escolha os elementos que farão parte do seu próximo ritual.</p>
-
+        
         {isAdmin && (
           <div className="pt-4">
-            <button
+            <button 
               onClick={() => navigate("/admin", { state: { tab: "add" } })}
               className="inline-flex items-center gap-2 bg-brand-olive text-white px-8 py-3 rounded-full font-bold shadow-lg hover:shadow-xl transition-all transform hover:-translate-y-1"
             >
@@ -341,16 +446,30 @@ const Products = ({ onAddToCart, isAdmin }: { onAddToCart: (p: Product, qty: num
           </div>
         )}
       </div>
+
+      {categorias.length > 1 && (
+        <div className="flex gap-2 overflow-x-auto pb-4 mb-8 -mx-4 px-4 sm:flex-wrap sm:justify-center">
+          {["", ...categorias].map(c => (
+            <button
+              key={c || "todos"}
+              onClick={() => setBusca(c ? { categoria: c } : {})}
+              className={`shrink-0 px-4 py-2 rounded-full text-sm font-medium border transition-all ${categoria === c ? "bg-brand-olive text-white border-brand-olive" : "bg-white/70 border-brand-beige/40 text-gray-700 hover:border-brand-olive"}`}
+            >
+              {c || "Todos"}
+            </button>
+          ))}
+        </div>
+      )}
       
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-8">
-        {products.map(product => (
+        {visiveis.map(product => (
           <div key={product.id}>
-            <ProductCard product={product} onAddToCart={onAddToCart} />
+            <ProductCard product={product} onAddToCart={onAddToCart} onAbrir={setAberto} />
           </div>
         ))}
       </div>
       
-      {products.length === 0 && (
+      {visiveis.length === 0 && (
         <div className="text-center py-20 space-y-6">
           <p className="text-gray-500">
             {erro ? "Não foi possível carregar os produtos. Tente de novo em alguns instantes." : "Nenhum produto cadastrado no momento."}
@@ -360,26 +479,18 @@ const Products = ({ onAddToCart, isAdmin }: { onAddToCart: (p: Product, qty: num
               Aviso para o admin: o banco não respondeu ({erro}). Confira se o projeto Supabase está ativo.
             </p>
           )}
-          {isAdmin && !erro && (
-            <div className="pt-4">
-              <button
-                onClick={() => navigate("/admin", { state: { tab: "add" } })}
-                className="inline-flex items-center gap-2 bg-brand-olive text-white px-8 py-3 rounded-full font-bold shadow-lg hover:shadow-xl transition-all"
-              >
-                <Plus size={20} /> Cadastrar Primeiro Produto
-              </button>
-            </div>
-          )}
         </div>
       )}
+
+      {aberto && <JanelaProduto product={aberto} onFechar={() => setAberto(null)} onAddToCart={onAddToCart} />}
     </div>
   );
 };
 
 const Cart = ({ cart, onUpdateQuantity, onRemove, user, onClearCart }: { 
   cart: CartItem[], 
-  onUpdateQuantity: (id: number, delta: number) => void,
-  onRemove: (id: number) => void,
+  onUpdateQuantity: (chave: string, delta: number) => void,
+  onRemove: (chave: string) => void,
   user: any,
   onClearCart: () => void
 }) => {
@@ -407,7 +518,7 @@ const Cart = ({ cart, onUpdateQuantity, onRemove, user, onClearCart }: {
         <div className="space-y-8">
           <div className="bg-white rounded-3xl shadow-sm overflow-hidden border border-brand-beige/10">
             {cart.map(item => (
-              <div key={item.id} className="flex items-center gap-6 p-6 border-b border-brand-beige/10 last:border-0">
+              <div key={chaveCarrinho(item.id, item.opcao)} className="flex items-center gap-6 p-6 border-b border-brand-beige/10 last:border-0">
                 <img 
                   src={item.image_url || `https://picsum.photos/seed/${item.id}/200/200`} 
                   className="w-20 h-20 object-cover rounded-xl"
@@ -416,15 +527,16 @@ const Cart = ({ cart, onUpdateQuantity, onRemove, user, onClearCart }: {
                 />
                 <div className="flex-1">
                   <h3 className="font-serif text-lg text-brand-olive">{item.name}</h3>
+                  {item.opcao && <p className="text-sm text-gray-600">{item.opcao}</p>}
                   <p className="text-sm text-gray-400">{reais(item.price)}</p>
                 </div>
                 <div className="flex items-center gap-4">
                   <div className="flex items-center border border-brand-beige/30 rounded-full px-3 py-1">
-                    <button onClick={() => onUpdateQuantity(item.id, -1)} className="text-brand-olive hover:opacity-50">-</button>
+                    <button onClick={() => onUpdateQuantity(chaveCarrinho(item.id, item.opcao), -1)} className="text-brand-olive hover:opacity-50">-</button>
                     <span className="mx-4 text-sm font-medium">{item.cartQuantity}</span>
-                    <button onClick={() => onUpdateQuantity(item.id, 1)} className="text-brand-olive hover:opacity-50">+</button>
+                    <button onClick={() => onUpdateQuantity(chaveCarrinho(item.id, item.opcao), 1)} className="text-brand-olive hover:opacity-50">+</button>
                   </div>
-                  <button onClick={() => onRemove(item.id)} className="text-red-400 hover:text-red-600 transition-colors">
+                  <button onClick={() => onRemove(chaveCarrinho(item.id, item.opcao))} className="text-red-400 hover:text-red-600 transition-colors">
                     <Trash2 size={20} />
                   </button>
                 </div>
@@ -470,7 +582,7 @@ const Admin = ({ isAdmin }: { isAdmin: boolean }) => {
   const [products, setProducts] = useState<Product[]>([]);
   const [orders, setOrders] = useState<any[]>([]);
   const [erroBanco, setErroBanco] = useState("");
-  const [newProduct, setNewProduct] = useState({ name: "", description: "", price: "", quantity: "" });
+  const [newProduct, setNewProduct] = useState({ name: "", description: "", price: "", quantity: "", category: "Ervas", opcoes: "", adult: false });
   const [image, setImage] = useState<File | null>(null);
   const [supabaseStatus, setSupabaseStatus] = useState<{ [key: string]: string }>({
     products: "Checking...",
@@ -572,7 +684,10 @@ const Admin = ({ isAdmin }: { isAdmin: boolean }) => {
           description: newProduct.description,
           price: parseFloat(newProduct.price),
           quantity: parseInt(newProduct.quantity),
-          image_url: imageUrl
+          image_url: imageUrl,
+          category: newProduct.category,
+          options: newProduct.opcoes.split(",").map(o => o.trim()).filter(Boolean).map(nome => ({ nome })),
+          adult: newProduct.adult
         }])
         .select()
         .single();
@@ -580,7 +695,7 @@ const Admin = ({ isAdmin }: { isAdmin: boolean }) => {
       if (error) throw error;
 
       setProducts([...products, data]);
-      setNewProduct({ name: "", description: "", price: "", quantity: "" });
+      setNewProduct({ name: "", description: "", price: "", quantity: "", category: "Ervas", opcoes: "", adult: false });
       setImage(null);
       alert("Produto cadastrado com sucesso!");
     } catch (err: any) {
@@ -727,6 +842,23 @@ const Admin = ({ isAdmin }: { isAdmin: boolean }) => {
                   required
                 />
               </div>
+              <select
+                value={newProduct.category}
+                onChange={e => setNewProduct({...newProduct, category: e.target.value})}
+                className="w-full px-4 py-2 rounded-lg border border-brand-beige/30 bg-white"
+              >
+                {CATEGORIAS.map(c => <option key={c} value={c}>{c}</option>)}
+              </select>
+              <input 
+                placeholder="Opções separadas por vírgula (ex.: Azul, Rosa, Verde) — deixe vazio se não tiver" 
+                value={newProduct.opcoes} 
+                onChange={e => setNewProduct({...newProduct, opcoes: e.target.value})}
+                className="w-full px-4 py-2 rounded-lg border border-brand-beige/30"
+              />
+              <label className="flex items-center gap-2 text-sm text-gray-600">
+                <input type="checkbox" checked={newProduct.adult} onChange={e => setNewProduct({...newProduct, adult: e.target.checked})} className="accent-brand-olive" />
+                Só para maiores de 18 anos (fumo)
+              </label>
               <div className="space-y-2">
                 <label className="text-xs text-gray-400 uppercase tracking-widest">Foto do Produto</label>
                 <input 
@@ -763,7 +895,7 @@ const Admin = ({ isAdmin }: { isAdmin: boolean }) => {
                 />
                 <div className="flex-1">
                   <h4 className="font-medium text-brand-olive">{p.name}</h4>
-                  <p className="text-xs text-gray-400">{reais(p.price)} • Est: {p.quantity}</p>
+                  <p className="text-xs text-gray-400">{p.category} • {reais(p.price)} • Est: {p.quantity}{(p.options || []).length > 0 ? ` • ${p.options.length} opções` : ""}{p.adult ? " • 18+" : ""}</p>
                 </div>
                 <button onClick={() => handleDelete(p.id)} className="text-red-400 hover:text-red-600">
                   <Trash2 size={20} />
@@ -967,7 +1099,7 @@ const PaymentPage = ({ cart, user, onClearCart }: { cart: CartItem[], user: any,
     try {
       // O banco confere o estoque, calcula o total pelos preços cadastrados e grava o pedido no nome do cliente logado
       const { data, error } = await supabase.rpc('criar_pedido', {
-        p_itens: cart.map(item => ({ id: item.id, quantidade: item.cartQuantity })),
+        p_itens: cart.map(item => ({ id: item.id, quantidade: item.cartQuantity, opcao: item.opcao })),
         p_forma_pagamento: "PIX",
         p_entrega: entrega
       });
@@ -976,7 +1108,7 @@ const PaymentPage = ({ cart, user, onClearCart }: { cart: CartItem[], user: any,
 
       setPedido({
         id: data,
-        description: cart.map(item => `${item.cartQuantity}x ${item.name}`).join(", "),
+        description: cart.map(item => `${item.cartQuantity}x ${item.name}${item.opcao ? ` (${item.opcao})` : ""}`).join(", "),
         total_price: total,
         delivery_method: entrega
       });
@@ -1019,8 +1151,8 @@ const PaymentPage = ({ cart, user, onClearCart }: { cart: CartItem[], user: any,
         
         <div className="space-y-4 mb-8">
           {cart.map(item => (
-            <div key={item.id} className="flex justify-between text-sm border-b border-brand-beige/10 pb-2">
-              <span className="text-gray-600">{item.cartQuantity}x {item.name}</span>
+            <div key={chaveCarrinho(item.id, item.opcao)} className="flex justify-between text-sm border-b border-brand-beige/10 pb-2">
+              <span className="text-gray-600">{item.cartQuantity}x {item.name}{item.opcao ? ` (${item.opcao})` : ""}</span>
               <span className="font-medium text-brand-olive">{reais((item.price * item.cartQuantity))}</span>
             </div>
           ))}
@@ -1085,9 +1217,14 @@ const PaymentPage = ({ cart, user, onClearCart }: { cart: CartItem[], user: any,
           <p className="text-sm text-gray-600">PIX. Depois de finalizar, mostramos a chave e o botão para enviar o comprovante pelo WhatsApp.</p>
         </div>
 
+        {cart.some(item => item.adult) && !maiorDeIdade(user?.birth_date) && (
+          <p className="mb-4 text-sm text-red-700 bg-red-50 border border-red-200 rounded-xl p-4">
+            Seu carrinho tem itens só para maiores de 18 anos. {user?.birth_date ? "Pela data de nascimento do cadastro, a compra não é permitida." : <>Informe sua data de nascimento em <Link to="/minha-conta" className="underline">Minha conta</Link> para continuar.</>}
+          </p>
+        )}
         <button 
           onClick={handleFinalize}
-          disabled={loading}
+          disabled={loading || (cart.some(item => item.adult) && !maiorDeIdade(user?.birth_date))}
           className="w-full bg-brand-olive text-white font-bold py-5 rounded-full hover:opacity-90 transition-all shadow-xl flex items-center justify-center gap-3 text-lg disabled:opacity-50"
         >
           {loading ? "Processando..." : "Finalizar Pedido"}
@@ -1220,12 +1357,12 @@ const traduzirErroAuth = (error: any) => {
   return mensagem ? `${traducao}\n\n(${mensagem})` : traducao;
 };
 
-type DadosCliente = { full_name: string, cpf: string, cep: string, rua: string, bairro: string, cidade: string, uf: string, number: string, complemento: string, phone: string };
+type DadosCliente = { full_name: string, cpf: string, birth_date: string, cep: string, rua: string, bairro: string, cidade: string, uf: string, number: string, complemento: string, phone: string };
 
-const dadosClienteVazios: DadosCliente = { full_name: "", cpf: "", cep: "", rua: "", bairro: "", cidade: "", uf: "", number: "", complemento: "", phone: "" };
+const dadosClienteVazios: DadosCliente = { full_name: "", cpf: "", birth_date: "", cep: "", rua: "", bairro: "", cidade: "", uf: "", number: "", complemento: "", phone: "" };
 
 // Método que diz se o cadastro tem o que a loja precisa para entregar (quem entra pelo Google chega sem isso)
-const cadastroCompleto = (user: any) => !!(user?.cpf && user?.address && user?.cep && user?.phone);
+const cadastroCompleto = (user: any) => !!(user?.cpf && user?.birth_date && user?.address && user?.cep && user?.phone);
 
 // Método que monta o endereço numa linha: rua, número, complemento - bairro, cidade/UF
 const montarEndereco = (d: DadosCliente) =>
@@ -1271,13 +1408,20 @@ const CamposCliente = ({ dados, setDados, travarNomeCpf = false }: { dados: Dado
         <div className="text-sm text-gray-700 bg-gray-50 rounded-xl px-4 py-3 space-y-1">
           <div>{dados.full_name}</div>
           <div>CPF {dados.cpf}</div>
-          <div className="text-xs text-gray-500">Nome e CPF não podem ser alterados depois do cadastro.</div>
+          {dados.birth_date && <div>Nascimento {dados.birth_date.split("-").reverse().join("/")}</div>}
+          <div className="text-xs text-gray-500">Nome, CPF e data de nascimento não podem ser alterados depois do cadastro.</div>
         </div>
       ) : (
         <>
           <input placeholder="Nome Completo" value={dados.full_name} onChange={e => setDados({ ...dados, full_name: e.target.value })} className={campo} required />
           <input placeholder="CPF" inputMode="numeric" value={dados.cpf} onChange={e => setDados({ ...dados, cpf: e.target.value })} className={campo} required />
         </>
+      )}
+      {(!travarNomeCpf || !dados.birth_date) && (
+        <label className="block">
+          <span className="block text-xs text-gray-500 mb-1 px-1">Data de nascimento</span>
+          <input type="date" value={dados.birth_date} max={new Date().toISOString().slice(0, 10)} onChange={e => setDados({ ...dados, birth_date: e.target.value })} className={campo} required />
+        </label>
       )}
       <div>
         <input placeholder="CEP" inputMode="numeric" maxLength={9} value={dados.cep} onChange={e => buscarCep(e.target.value)} className={campo} required />
@@ -1368,6 +1512,7 @@ const Checkout = ({ user, onCadastroAtualizado }: { user: any, onCadastroAtualiz
             data: {
               full_name: dados.full_name,
               cpf: dados.cpf,
+              birth_date: dados.birth_date,
               address: montarEndereco(dados),
               cep: dados.cep,
               number: dados.number,
@@ -1404,7 +1549,7 @@ const Checkout = ({ user, onCadastroAtualizado }: { user: any, onCadastroAtualiz
       return;
     }
     setSalvando(true);
-    const novos = { full_name: dados.full_name, cpf: dados.cpf, address: montarEndereco(dados), cep: dados.cep, number: dados.number, phone: dados.phone };
+    const novos = { full_name: dados.full_name, cpf: dados.cpf, birth_date: dados.birth_date, address: montarEndereco(dados), cep: dados.cep, number: dados.number, phone: dados.phone };
     const { error } = await supabase.from('users').update(novos).eq('id', user.id);
     setSalvando(false);
     if (error) {
@@ -1590,7 +1735,7 @@ const Trocas = () => (
 
 const MinhaConta = ({ user, onCadastroAtualizado }: { user: any, onCadastroAtualizado: (dados: any) => void }) => {
   const navigate = useNavigate();
-  const [dados, setDados] = useState<DadosCliente>({ ...dadosClienteVazios, full_name: user?.full_name || "", cpf: user?.cpf || "", cep: user?.cep || "", number: user?.number || "", phone: user?.phone || "" });
+  const [dados, setDados] = useState<DadosCliente>({ ...dadosClienteVazios, full_name: user?.full_name || "", cpf: user?.cpf || "", birth_date: user?.birth_date || "", cep: user?.cep || "", number: user?.number || "", phone: user?.phone || "" });
   const [senha, setSenha] = useState({ atual: "", nova: "", confirmacao: "" });
   const [senhaAtualLiberada, setSenhaAtualLiberada] = useState(false);
   const [salvando, setSalvando] = useState(false);
@@ -1609,6 +1754,7 @@ const MinhaConta = ({ user, onCadastroAtualizado }: { user: any, onCadastroAtual
     setSalvando(true);
     const novos: any = { address: montarEndereco(dados), cep: dados.cep, number: dados.number, phone: dados.phone };
     if (!user.cpf) Object.assign(novos, { full_name: dados.full_name, cpf: dados.cpf });
+    if (!user.birth_date) Object.assign(novos, { birth_date: dados.birth_date });
     const { error } = await supabase.from('users').update(novos).eq('id', user.id);
     setSalvando(false);
     if (error) {
@@ -1724,37 +1870,41 @@ export default function App() {
     setTimeout(() => setAviso(atual => (atual?.id === id ? null : atual)), 3000);
   };
 
-  const addToCart = (product: Product, qty: number) => {
-    const noCarrinho = cart.find(item => item.id === product.id)?.cartQuantity ?? 0;
+  // O estoque é do produto: as cores e aromas do mesmo produto somam juntos
+  const addToCart = (product: Product, qty: number, opcao?: string) => {
+    const noCarrinho = cart.filter(item => item.id === product.id).reduce((total, item) => total + item.cartQuantity, 0);
     const quantidade = Math.min(qty, product.quantity - noCarrinho);
     if (quantidade <= 0) {
       mostrarAviso(`Você já tem todo o estoque de ${product.name} no carrinho`);
       return;
     }
+    const chave = chaveCarrinho(product.id, opcao);
     setCart(prev => {
-      const existing = prev.find(item => item.id === product.id);
+      const existing = prev.find(item => chaveCarrinho(item.id, item.opcao) === chave);
       if (existing) {
         return prev.map(item => 
-          item.id === product.id ? { ...item, cartQuantity: item.cartQuantity + quantidade } : item
+          chaveCarrinho(item.id, item.opcao) === chave ? { ...item, cartQuantity: item.cartQuantity + quantidade } : item
         );
       }
-      return [...prev, { ...product, cartQuantity: quantidade }];
+      return [...prev, { ...product, opcao, cartQuantity: quantidade }];
     });
-    mostrarAviso(`${quantidade}x ${product.name} ${quantidade > 1 ? "adicionados" : "adicionado"} ao carrinho`);
+    const nome = opcao ? `${product.name} (${opcao})` : product.name;
+    mostrarAviso(`${quantidade}x ${nome} ${quantidade > 1 ? "adicionados" : "adicionado"} ao carrinho`);
   };
 
-  const updateCartQuantity = (id: number, delta: number) => {
+  const updateCartQuantity = (chave: string, delta: number) => {
     setCart(prev => prev.map(item => {
-      if (item.id === id) {
-        const newQty = Math.min(Math.max(1, item.quantity), Math.max(1, item.cartQuantity + delta));
+      if (chaveCarrinho(item.id, item.opcao) === chave) {
+        const outros = prev.filter(i => i.id === item.id && chaveCarrinho(i.id, i.opcao) !== chave).reduce((total, i) => total + i.cartQuantity, 0);
+        const newQty = Math.min(Math.max(1, item.quantity - outros), Math.max(1, item.cartQuantity + delta));
         return { ...item, cartQuantity: newQty };
       }
       return item;
     }));
   };
 
-  const removeFromCart = (id: number) => {
-    setCart(prev => prev.filter(item => item.id !== id));
+  const removeFromCart = (chave: string) => {
+    setCart(prev => prev.filter(item => chaveCarrinho(item.id, item.opcao) !== chave));
   };
 
   return (

@@ -43,3 +43,20 @@ export const mensagemPedido = (pedido: { id: number, description: string, total_
 // Método que monta a mensagem do WhatsApp para combinar a entrega do pedido
 export const mensagemEntrega = (pedido: { id: number, delivery_method: string }) =>
   `Olá! Fiz o pedido #${pedido.id} no site. Podemos combinar a ${pedido.delivery_method === "Retirada" ? "retirada" : "entrega"}?`;
+
+// Ordem das abas de categoria na vitrine
+export const CATEGORIAS = [
+  "Ervas", "Incensos", "Porta Incenso", "Defumadores", "Colares e Pulseiras", "HeadShop",
+  "Fumo", "Potes de Vidro", "Bags e Bolsas", "Enfeites e Decoração", "Acessórios", "Kits"
+];
+
+// Método que diz se a pessoa tem 18 anos ou mais pela data de nascimento (aaaa-mm-dd)
+export const maiorDeIdade = (nascimento?: string | null) => {
+  if (!nascimento) return false;
+  const limite = new Date();
+  limite.setFullYear(limite.getFullYear() - 18);
+  return new Date(`${nascimento}T00:00:00`) <= limite;
+};
+
+// Método que monta a chave do item no carrinho (o mesmo produto em cores diferentes vira itens separados)
+export const chaveCarrinho = (id: number, opcao?: string) => `${id}|${opcao || ""}`;

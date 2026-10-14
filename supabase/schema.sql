@@ -39,6 +39,7 @@ create table if not exists public.users (
   cep text,
   number text,
   phone text,
+  birth_date date,
   created_at timestamptz not null default now()
 );
 
@@ -55,6 +56,29 @@ create policy "cliente altera o próprio cadastro"
 
 revoke insert, delete on public.users from anon, authenticated;
 
+-- Função que impede o cliente de trocar nome e CPF depois do cadastro (o admin e o painel do Supabase podem)
+create or replace function public.travar_nome_cpf()
+returns trigger
+language plpgsql
+security definer
+set search_path = public
+as $$
+begin
+  if old.cpf is not null
+     and (new.cpf is distinct from old.cpf or new.full_name is distinct from old.full_name or (old.birth_date is not null and new.birth_date is distinct from old.birth_date))
+     and coalesce(auth.role(), '') = 'authenticated'
+     and not public.is_admin() then
+    raise exception 'Nome, CPF e data de nascimento não podem ser alterados depois do cadastro';
+  end if;
+  return new;
+end;
+$$;
+
+drop trigger if exists ao_alterar_cadastro on public.users;
+create trigger ao_alterar_cadastro
+  before update on public.users
+  for each row execute function public.travar_nome_cpf();
+
 -- Função que cria o cadastro do cliente quando ele se registra
 create or replace function public.criar_cadastro_cliente()
 returns trigger
@@ -63,7 +87,7 @@ security definer
 set search_path = public
 as $$
 begin
-  insert into public.users (id, email, full_name, cpf, address, cep, number, phone)
+  insert into public.users (id, email, full_name, cpf, address, cep, number, phone, birth_date)
   values (
     new.id,
     new.email,
@@ -72,7 +96,8 @@ begin
     new.raw_user_meta_data ->> 'address',
     new.raw_user_meta_data ->> 'cep',
     new.raw_user_meta_data ->> 'number',
-    new.raw_user_meta_data ->> 'phone'
+    new.raw_user_meta_data ->> 'phone',
+    nullif(new.raw_user_meta_data ->> 'birth_date', '')::date
   );
   return new;
 end;
@@ -91,6 +116,9 @@ create table if not exists public.products (
   price numeric(10, 2) not null check (price >= 0),
   quantity integer not null default 0 check (quantity >= 0),
   image_url text,
+  category text not null default 'Ervas',
+  options jsonb not null default '[]',
+  adult boolean not null default false,
   created_at timestamptz not null default now()
 );
 
@@ -164,6 +192,7 @@ declare
   v_total numeric(10, 2) := 0;
   v_descricao text[] := '{}';
   v_itens jsonb := '[]';
+  v_opcao text;
   v_id bigint;
 begin
   select * into v_cliente from public.users where id = auth.uid();
@@ -194,6 +223,18 @@ begin
       raise exception 'Produto não encontrado';
     end if;
 
+    -- Produto com opções (cor, aroma) exige uma opção que exista no cadastro
+    v_opcao := nullif(trim(v_item ->> 'opcao'), '');
+    if jsonb_array_length(v_produto.options) = 0 then
+      v_opcao := null;
+    elsif v_opcao is null or not exists (select 1 from jsonb_array_elements(v_produto.options) o where o ->> 'nome' = v_opcao) then
+      raise exception 'Escolha uma opção válida para %', v_produto.name;
+    end if;
+
+    if v_produto.adult and (v_cliente.birth_date is null or v_cliente.birth_date > current_date - interval '18 years') then
+      raise exception 'Só maiores de 18 anos podem comprar %. Confira a data de nascimento em Minha conta.', v_produto.name;
+    end if;
+
     if v_produto.quantity < v_quantidade then
       raise exception 'Estoque insuficiente para %: restam %', v_produto.name, v_produto.quantity;
     end if;
@@ -201,8 +242,8 @@ begin
     update public.products set quantity = quantity - v_quantidade where id = v_produto.id;
 
     v_total := v_total + v_produto.price * v_quantidade;
-    v_descricao := v_descricao || (v_quantidade || 'x ' || v_produto.name);
-    v_itens := v_itens || jsonb_build_object('id', v_produto.id, 'nome', v_produto.name, 'quantidade', v_quantidade, 'preco', v_produto.price);
+    v_descricao := v_descricao || (v_quantidade || 'x ' || v_produto.name || coalesce(' (' || v_opcao || ')', ''));
+    v_itens := v_itens || jsonb_build_object('id', v_produto.id, 'nome', v_produto.name, 'opcao', v_opcao, 'quantidade', v_quantidade, 'preco', v_produto.price);
   end loop;
 
   insert into public.orders (user_id, customer_name, payment_method, delivery_method, description, items, total_price)
