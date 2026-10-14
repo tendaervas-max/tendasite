@@ -28,7 +28,7 @@ O código está pronto e os dois projetos Supabase foram retomados. Em 14/10 a l
 - [x] Loja: `.env.local` preenchido com o endereço e a chave publishable do Site Tenda; o site rodando local já conecta no banco novo
 - [ ] Gestão: no SQL Editor do Tenda Ervas, rodar `supabase/schema.sql`
 - [ ] Gestão: ver quem é o único usuário em Authentication > Users, liberar com o `insert into public.equipe` e desligar "Allow new users to sign up"
-- [ ] Gestão: preencher `VITE_SUPABASE_URL` e `VITE_SUPABASE_ANON_KEY` no `.env.local` (Project Settings > API Keys do Tenda Ervas); o endereço já está preenchido e falta só a chave publishable
+- [x] Gestão: preencher `VITE_SUPABASE_URL` e `VITE_SUPABASE_ANON_KEY` no `.env.local` com o endereço e a chave publishable do Tenda Ervas; o banco ainda está sem tabelas
 - [ ] Testar loja e gestão rodando local com `npm run dev`
 - [ ] Abrir pull request de `ajustes-nathalia` para a `main` e, depois do merge, cadastrar as variáveis na Netlify e publicar
 - [ ] Apagar o esquema `backup` da loja depois de conferir que nada falta, porque ele guarda as senhas antigas sem criptografia
@@ -53,7 +53,7 @@ O problema mais grave era o banco sem nenhuma regra de acesso. Qualquer pessoa c
 | Sem `.gitignore` | Loja | `node_modules` e `.env.local` irem para o GitHub | Corrigido |
 | `index.html` sem a linha que carrega o app | Gestão | Página abria em branco | Corrigido |
 | Chave do Supabase lida por `process.env`, que não chega ao navegador | Gestão | Sistema sempre em modo local, sem salvar nada | Corrigido |
-| Projetos Supabase `hbkywvztwhdccznwuuex` (loja) e `msbofqngdoqvuxfpodjd` (gestão) estavam pausados (o endereço deles não respondia) | Loja e gestão | Nenhum dado aparece nem é salvo | Loja resolvida em 14/10/2026; na gestão falta configurar o banco e a chave (seção Configuração do Supabase) |
+| Projetos Supabase `hbkywvztwhdccznwuuex` (loja) e `msbofqngdoqvuxfpodjd` (gestão) estavam pausados (o endereço deles não respondia) | Loja e gestão | Nenhum dado aparece nem é salvo | Loja resolvida em 14/10/2026; na gestão falta rodar o schema.sql (seção Configuração do Supabase) |
 
 ## O que foi feito na branch `ajustes-nathalia`
 
@@ -88,7 +88,7 @@ As senhas passaram a ficar só no Supabase Auth, que as guarda criptografadas (b
 
 ## Configuração do Supabase
 
-São dois projetos Supabase separados, um para a loja e outro para a gestão, porque os dois têm uma tabela `orders`. Criar os projetos exige entrar na conta Supabase da Tenda Ervas, então essa parte fica com você. Os arquivos `.env.local` já têm o endereço de cada projeto; o da loja também tem a chave, e o da gestão ainda espera a chave publishable.
+São dois projetos Supabase separados, um para a loja e outro para a gestão, porque os dois têm uma tabela `orders`. Criar os projetos exige entrar na conta Supabase da Tenda Ervas, então essa parte fica com você. Os arquivos `.env.local` já têm o endereço de cada projeto e a chave publishable.
 
 Os projetos antigos não foram apagados: estavam pausados na organização `tendaervas-max's Org` (plano Free) e foram retomados em 14/10/2026. Site Tenda (`hbkywvztwhdccznwuuex`) é a loja, Tenda Ervas (`msbofqngdoqvuxfpodjd`) é a gestão, e tenda (`parmnfeapncnvhnespwz`) não é usado por nenhum dos dois. Nenhum dos três tinha arquivos no Storage.
 
@@ -146,7 +146,7 @@ Antes de publicar: terminar de configurar os bancos no Supabase, tirar as depend
 
 | Prioridade | Status | Sistema | Melhoria | Por quê |
 | --- | --- | --- | --- | --- |
-| Alta | Fazendo | Loja e gestão | Configurar os bancos retomados: loja feita em 14/10/2026; na gestão falta rodar o schema.sql e colar a chave no `.env.local` | Sem isso nada é salvo |
+| Alta | Fazendo | Loja e gestão | Configurar os bancos retomados: loja feita em 14/10/2026; na gestão falta rodar o `schema.sql` (os dois `.env.local` já estão preenchidos) | Sem isso nada é salvo |
 | Alta | A fazer | Loja | Remover pacotes sem uso (`express`, `better-sqlite3`, `multer`, `jsonwebtoken`, `bcryptjs`, `mercadopago`, `dotenv`, `@google/genai`) e atualizar `vite` e `react-router-dom` | O `npm audit` aponta 22 vulnerabilidades (2 críticas, 12 altas); as críticas vêm de pacotes sem uso |
 | Alta | A fazer | Loja | Criar `public/_redirects` com `/* /index.html 200` | Abrir `/produtos` ou `/admin` direto por link dá 404 na Netlify |
 | Alta | A fazer | Loja | Baixar o estoque ao finalizar o pedido e recusar compra acima do estoque | Hoje a quantidade em estoque nunca muda |
