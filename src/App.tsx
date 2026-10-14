@@ -1281,7 +1281,7 @@ const PaymentPage = ({ cart, user, edicao, onPedidoFeito }: { cart: CartItem[], 
   );
 };
 
-const MyOrders = ({ user, onEditar }: { user: any, onEditar: (pedido: any) => Promise<boolean> }) => {
+const MyOrders = ({ user, onCarregar }: { user: any, onCarregar: (pedido: any, editar: boolean) => Promise<boolean> }) => {
   const [orders, setOrders] = useState<any[]>([]);
   const [processando, setProcessando] = useState<number | null>(null);
   const navigate = useNavigate();
@@ -1316,10 +1316,10 @@ const MyOrders = ({ user, onEditar }: { user: any, onEditar: (pedido: any) => Pr
     }
   };
 
-  // Método que leva os itens do pedido para o carrinho, onde o cliente muda e refaz o pedido
-  const editar = async (order: any) => {
+  // Método que leva os itens do pedido para o carrinho: para editar (refaz o pedido) ou para fazer um pedido igual
+  const levarParaCarrinho = async (order: any, editar: boolean) => {
     setProcessando(order.id);
-    const carregado = await onEditar(order);
+    const carregado = await onCarregar(order, editar);
     setProcessando(null);
     if (carregado) navigate("/carrinho");
   };
@@ -1366,7 +1366,7 @@ const MyOrders = ({ user, onEditar }: { user: any, onEditar: (pedido: any) => Pr
                 <InstrucoesPagamento pedido={order} />
                 <div className="grid grid-cols-2 gap-3 mt-3">
                   <button
-                    onClick={() => editar(order)}
+                    onClick={() => levarParaCarrinho(order, true)}
                     disabled={processando === order.id}
                     className="py-3 rounded-full border-2 border-brand-olive text-brand-olive font-bold hover:bg-brand-olive hover:text-white transition-all disabled:opacity-50"
                   >
@@ -1399,9 +1399,27 @@ const MyOrders = ({ user, onEditar }: { user: any, onEditar: (pedido: any) => Pr
               </button>
             )}
             {order.status === "pedido entregue" && (
-              <div className="text-center text-brand-olive font-medium flex items-center justify-center gap-2">
+              <div className="text-center text-brand-olive font-medium flex items-center justify-center gap-2 mb-4">
                 <Check size={20} /> Pedido Entregue
               </div>
+            )}
+            {["pedido cancelado", "pedido entregue"].includes(order.status) && (
+              orders.some(o => o.pedido_anterior === order.id) ? (
+                <p className="text-sm text-gray-500 text-center">Substituído pelo pedido #{orders.find(o => o.pedido_anterior === order.id).id}.</p>
+              ) : (
+                <>
+                  <button
+                    onClick={() => levarParaCarrinho(order, false)}
+                    disabled={processando === order.id}
+                    className="w-full py-3 rounded-full border-2 border-brand-olive text-brand-olive font-bold hover:bg-brand-olive hover:text-white transition-all disabled:opacity-50"
+                  >
+                    Fazer pedido igual
+                  </button>
+                  <p className="text-xs text-gray-500 mt-3 text-center">
+                    Os mesmos produtos e quantidades vão para o carrinho, com o preço e o estoque de hoje.
+                  </p>
+                </>
+              )
             )}
           </div>
         ))}
@@ -1968,11 +1986,11 @@ export default function App() {
   // Método que diz quanto do produto o cliente pode levar (na edição, soma o que o pedido já segurava)
   const estoque = (product: Product) => product.quantity + (edicao?.reservado[product.id] || 0);
 
-  // Método que põe no carrinho os itens do pedido que o cliente vai editar
-  const editarPedido = async (pedido: { id: number, delivery_method: string, items: { id: number, nome: string, opcao?: string | null, quantidade: number }[] }) => {
+  // Método que põe no carrinho os itens de um pedido: para editar (o pedido é refeito) ou para fazer um pedido igual
+  const carregarPedido = async (pedido: { id: number, delivery_method: string, items: { id: number, nome: string, opcao?: string | null, quantidade: number }[] }, editar: boolean) => {
     const itens = pedido.items || [];
     if (itens.length === 0) {
-      alert("Este pedido não tem os itens gravados para editar. Cancele e faça um novo, ou fale com a gente pelo WhatsApp.");
+      alert("Este pedido não tem os itens gravados. Escolha os produtos de novo na loja, ou fale com a gente pelo WhatsApp.");
       return false;
     }
     if (cart.length > 0 && !confirm("Os produtos que estão no carrinho serão trocados pelos itens do pedido. Continuar?")) return false;
@@ -1983,25 +2001,43 @@ export default function App() {
       return false;
     }
 
+    // Na edição, o estoque que o próprio pedido segura conta como disponível
     const reservado: { [produto: number]: number } = {};
-    itens.forEach(item => { reservado[item.id] = (reservado[item.id] || 0) + item.quantidade; });
+    if (editar) itens.forEach(item => { reservado[item.id] = (reservado[item.id] || 0) + item.quantidade; });
 
     const fora: string[] = [];
+    const avisos: string[] = [];
+    const usado: { [produto: number]: number } = {};
     const novoCarrinho: CartItem[] = [];
     itens.forEach(item => {
       const produto = (produtos || []).find(p => p.id === item.id) as Product | undefined;
       const opcoes = produto?.options || [];
       const opcao = opcoes.length === 0 ? undefined : item.opcao || undefined;
+      const nome = item.opcao ? `${item.nome} (${item.opcao})` : item.nome;
       if (!produto || (opcoes.length > 0 && opcao !== "Aleatório" && !opcoes.some(o => o.nome === opcao))) {
-        fora.push(item.opcao ? `${item.nome} (${item.opcao})` : item.nome);
+        fora.push(nome);
         return;
       }
-      novoCarrinho.push({ ...produto, opcao, cartQuantity: item.quantidade });
+      const disponivel = produto.quantity + (reservado[produto.id] || 0) - (usado[produto.id] || 0);
+      const quantidade = Math.min(item.quantidade, disponivel);
+      if (quantidade <= 0) {
+        avisos.push(`${nome}: esgotado`);
+        return;
+      }
+      if (quantidade < item.quantidade) avisos.push(`${nome}: só ${quantidade} em estoque`);
+      usado[produto.id] = (usado[produto.id] || 0) + quantidade;
+      novoCarrinho.push({ ...produto, opcao, cartQuantity: quantidade });
     });
 
+    if (novoCarrinho.length === 0) {
+      alert(`Nenhum produto deste pedido está disponível agora. ${[...fora.map(f => `${f}: fora de venda`), ...avisos].join(", ")}`);
+      return false;
+    }
+
     setCart(novoCarrinho);
-    setEdicao({ id: pedido.id, entrega: pedido.delivery_method === "Retirada" ? "Retirada" : "Correios", reservado });
-    if (fora.length > 0) alert(`Estes itens não estão mais à venda e ficaram fora do carrinho: ${fora.join(", ")}`);
+    setEdicao(editar ? { id: pedido.id, entrega: pedido.delivery_method === "Retirada" ? "Retirada" : "Correios", reservado } : null);
+    const mensagens = [...fora.map(f => `${f}: fora de venda`), ...avisos];
+    if (mensagens.length > 0) alert(`Alguns itens mudaram desde o pedido: ${mensagens.join(", ")}`);
     return true;
   };
 
@@ -2069,7 +2105,7 @@ export default function App() {
               <Route path="/nova-senha" element={<NovaSenha user={user} />} />
               <Route path="/privacidade" element={<Privacidade />} />
               <Route path="/trocas" element={<Trocas />} />
-              <Route path="/meus-pedidos" element={<MyOrders user={user} onEditar={editarPedido} />} />
+              <Route path="/meus-pedidos" element={<MyOrders user={user} onCarregar={carregarPedido} />} />
               <Route path="/minha-conta" element={<MinhaConta user={user} onCadastroAtualizado={dados => setUser((u: any) => ({ ...u, ...dados }))} />} />
               <Route path="/pagamento" element={<PaymentPage cart={cart} user={user} edicao={edicao} onPedidoFeito={encerrarEdicao} />} />
               <Route path="/admin" element={<Admin isAdmin={isAdmin} />} />
