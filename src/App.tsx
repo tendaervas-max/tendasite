@@ -439,6 +439,7 @@ const Products = ({ onAddToCart, isAdmin }: { onAddToCart: (p: Product, qty: num
       const { data, error } = await supabase
         .from('products')
         .select('*')
+        .eq('ativo',true)
         .order('name');
       
       if (error) {
@@ -679,7 +680,7 @@ const Admin = ({ isAdmin, ehDono }: { isAdmin: boolean, ehDono: boolean }) => {
   useEffect(() => {
     if (isLoggedIn) {
       const fetchData = async () => {
-        const { data: productsData, error: erroProdutos } = await supabase.from('products').select('*');
+        const { data: productsData, error: erroProdutos } = await supabase.from('products').select('*').eq('ativo',true);
         setProducts(comEstoqueDosKits(productsData || []));
         
         const { data: ordersData, error: erroPedidos } = await supabase.from('orders').select('*, users(email, phone, cpf, address, cep, number)').order('created_at', { ascending: false });
