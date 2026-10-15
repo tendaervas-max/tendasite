@@ -23,7 +23,7 @@ test.beforeEach(async ({page})=>{
 test('navega, pesquisa e limpa o filtro do catálogo',async ({page})=>{
  await expect(page.getByText('5 produtos encontrados')).toBeVisible();
  await page.getByRole('searchbox',{name:'Buscar produtos'}).fill('alecrim');
- await expect(page.getByText('1 produto encontrado')).toBeVisible();
+ await expect(page.getByText('2 produtos encontrados')).toBeVisible(); // Erva e kit cuja descrição menciona Alecrim
  await page.getByRole('searchbox',{name:'Buscar produtos'}).fill('produto inexistente');
  await expect(page.getByText('0 produtos encontrados')).toBeVisible();
  await page.getByRole('button',{name:'Limpar filtros'}).click();
