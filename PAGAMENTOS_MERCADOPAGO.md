@@ -1,6 +1,6 @@
 # Pagamentos Tenda Ervas — preparação segura
 
-**Situação:** integração preparada no código, NÃO ATIVADA em produção.
+**Situação:** banco e Edge Functions implantados no projeto Site Tenda, mas a cobrança NÃO está habilitada na loja. Faltam credenciais, configuração de webhook e testes em sandbox.
 O checkout manual por PIX continua disponível até existir ambiente de testes homologado.
 
 ## Arquitetura
@@ -35,9 +35,9 @@ rejeita pedidos de entrega até existir cálculo e aprovação de frete no total
   `SITE_URL=https://<dominio-da-loja>`,
   `MP_WEBHOOK_URL=https://<supabase-ref>.supabase.co/functions/v1/webhook-mercadopago`.
   Nunca colocar tokens secretos em `VITE_*` nem fazer commit de `.env`.
-- Aplicar o SQL `supabase/pagamentos_mercadopago_preparacao.sql` em uma migração controlada.
-- Implantar `criar-preferencia-mercadopago` com validação de JWT ativada.
-- Implantar `webhook-mercadopago` com `verify_jwt=false`: a autenticação dessa
+- A migração `supabase/pagamentos_mercadopago_preparacao.sql` já foi aplicada ao projeto Site Tenda; confirmar permissões após atualizações.
+- A Edge Function `criar-preferencia-mercadopago` já foi implantada com validação de JWT ativada; configurações faltantes resultam em recusa do fluxo.
+- A Edge Function `webhook-mercadopago` já foi implantada com `verify_jwt=false`: a autenticação dessa
   rota pública é feita **internamente** pela assinatura HMAC do provedor.
 - Cadastrar exatamente a URL de webhook no Mercado Pago e configurar
   a assinatura secreta da integração.
@@ -66,11 +66,12 @@ rejeita pedidos de entrega até existir cálculo e aprovação de frete no total
 
 ## Pendências de homologação
 
-As credenciais Mercado Pago, a assinatura, a configuração de domínio e o
+As credenciais Mercado Pago, a assinatura do webhook, a configuração de domínio e o
 acesso à simulação real ainda não foram fornecidos nem usados. O SQL e as
-Edge Functions **não foram implantados no Supabase** por esse motivo.
-A presença destes arquivos no GitHub **não significa** que Pix automático
-ou cartão estejam funcionando.
+Edge Functions foram implantados, mas **não há cobrança ativa**: o navegador continua
+com `VITE_MERCADOPAGO_ATIVO` desativado e as funções só operam depois de configuradas.
+A presença desses arquivos e das funções no Supabase **não significa** que Pix automático
+ou cartão estejam funcionando. É obrigatório homologar o fluxo antes de habilitá-lo.
 
 Referências: documentação oficial de Checkout Pro (preferências) e webhooks do Mercado Pago,
 segredos e autenticação de Edge Functions do Supabase.
