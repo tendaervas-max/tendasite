@@ -78,3 +78,23 @@ test('modal de produto fecha com Escape e mantém foco acessível',async ({page}
  await page.keyboard.press('Escape');
  await expect(dialog).toHaveCount(0);
 });
+
+test('página inicial explica a loja e direciona ao catálogo',async ({page})=>{
+ await page.goto('/');
+ await expect(page.getByRole('heading',{name:'Tenda Ervas'})).toBeVisible();
+ await expect(page.getByText(/Ervas, incensos, acessórios e kits/)).toBeVisible();
+ await expect(page.getByText('3. Combine a entrega')).toBeVisible();
+ await page.getByRole('link',{name:/Explorar Produtos/}).click();
+ await expect(page).toHaveURL(/\/produtos/);
+ await expect(page.getByRole('heading',{name:'Nossa Coleção'})).toBeVisible();
+});
+
+test('falha na API mostra mensagem e botão para tentar novamente',async ({page})=>{
+ await page.route('**/rest/v1/products**',route=>route.fulfill({
+  status:503,contentType:'application/json',
+  body:JSON.stringify({code:'PGRST999',message:'Serviço indisponível'})
+ }));
+ await page.reload();
+ await expect(page.getByText('Não foi possível carregar os produtos. Verifique a conexão e tente novamente.')).toBeVisible();
+ await expect(page.getByRole('button',{name:'Tentar novamente'})).toBeVisible();
+});
