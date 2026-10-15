@@ -25,7 +25,7 @@ async function tokenCorreios() {
   const cartao = Deno.env.get("CORREIOS_CARTAO_POSTAGEM");
   if (!usuario || !codigo || (!contrato && !cartao)) throw new Error("Credenciais contratuais dos Correios não configuradas");
   const dr = Deno.env.get("CORREIOS_DR");
-  const regiao = dr && /^\\d+$/.test(dr) ? { dr: Number(dr) } : {};
+  const regiao = dr && /^\d+$/.test(dr) ? { dr: Number(dr) } : {};
   const corpo = cartao ? { numero: cartao, ...(contrato ? { contrato } : {}), ...regiao } : { numero: contrato, ...regiao };
   const path = cartao ? "cartaopostagem" : "contrato";
   const resposta = await fetch("https://api.correios.com.br/token/v1/autentica/" + path, {
@@ -85,7 +85,7 @@ Deno.serve(async req => {
       });
       const contrato = Deno.env.get("CORREIOS_CONTRATO");
       const dr = Deno.env.get("CORREIOS_DR");
-      if (contrato && dr && /^\\d+$/.test(dr)) {
+      if (contrato && dr && /^\d+$/.test(dr)) {
         query.set("nuContrato", contrato);
         query.set("nuDR", dr);
       }
