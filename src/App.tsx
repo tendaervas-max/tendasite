@@ -4,6 +4,7 @@ import { motion, AnimatePresence } from "motion/react";
 import { ShoppingCart, User, LogOut, Plus, Pencil, Trash2, Instagram, Phone, MapPin, Menu, X, ChevronRight, Leaf, Check, Database, Eye, EyeOff } from "lucide-react";
 import type { Session } from "@supabase/supabase-js";
 import { supabase, definirManterConectado } from "./lib/supabase";
+import { CotacaoCorreios } from "./components/CotacaoCorreios";
 import { Product, CartItem } from "./types";
 import { LOJA, linkWhatsApp, STATUS_PEDIDO, mensagemPedido, mensagemEntrega, reais, CATEGORIAS, maiorDeIdade, chaveCarrinho, cpfValido, formatarCpf, comPromocao } from "./loja";
 
@@ -1580,6 +1581,7 @@ const PaymentPage = ({ cart, user, edicao, onPedidoFeito }: { cart: CartItem[], 
                 CEP: {user?.cep}
               </p>
               <p className="text-sm text-gray-600 mt-3">O frete dos Correios é combinado pelo WhatsApp depois de finalizar.</p>
+              <CotacaoCorreios cep={user?.cep} />
               <a href={linkWhatsApp("Olá! Estou fazendo um pedido no site e queria combinar a entrega pelos Correios.")} target="_blank" rel="noreferrer" className="inline-flex items-center gap-2 mt-3 text-sm font-bold text-green-700 hover:underline">
                 <Phone size={16} /> Combinar a entrega pelo WhatsApp
               </a>
