@@ -1,0 +1,49 @@
+name: UX E2E Chromium
+
+on:
+  pull_request:
+    paths:
+      - 'src/**'
+      - 'tests/e2e/**'
+      - 'playwright.config.ts'
+      - '.github/workflows/ux-e2e.yml'
+      - 'package.json'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  loja:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - run: npm ci
+      - name: Instalar runner de testes isolado
+        run: npm install --no-save --package-lock=false @playwright/test@1.56.1
+      - name: Instalar Chromium de testes
+        run: npx playwright install --with-deps chromium
+      - name: Validar TypeScript e build
+        run: |
+          npm run lint
+          npm run build
+        env:
+          VITE_SUPABASE_URL: https://mock.supabase.local
+          VITE_SUPABASE_ANON_KEY: mock-anon-key-long-enough-for-local-e2e-test-only
+          VITE_MERCADOPAGO_ATIVO: 'false'
+      - name: Testar desktop e mobile (dados simulados)
+        run: npx playwright test
+      - name: Armazenar screenshots e relatório
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: relatorio-ux-playwright
+          path: |
+            test-results/
+            playwright-report/
+          retention-days: 7

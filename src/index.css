@@ -25,3 +25,16 @@
 .script-font {
   font-family: "Dancing Script", cursive;
 }
+
+/* Navegação por teclado e preferência por redução de movimento (WCAG). */
+:where(a,button,input,select,textarea):focus-visible {
+  outline: 3px solid #1a3a2a;
+  outline-offset: 3px;
+}
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}

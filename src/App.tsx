@@ -5,6 +5,7 @@ import { ShoppingCart, User, LogOut, Plus, Pencil, Trash2, Instagram, Phone, Map
 import type { Session } from "@supabase/supabase-js";
 import { supabase, definirManterConectado } from "./lib/supabase";
 import { Product, CartItem } from "./types";
+import { abrirCheckoutMercadoPago, mercadoPagoHabilitado } from "./lib/mercadopago";
 import { LOJA, linkWhatsApp, STATUS_PEDIDO, mensagemPedido, mensagemEntrega, reais, CATEGORIAS, maiorDeIdade, chaveCarrinho, cpfValido, formatarCpf, comPromocao, comEstoqueDosKits } from "./loja";
 
 // --- Components ---
@@ -45,7 +46,7 @@ const Navbar = ({ cartCount, isAdmin, acessoGestao, user }: { cartCount: number,
             {user && <Link to="/meus-pedidos" className="text-sm font-medium hover:text-brand-olive transition-colors">Meus Pedidos</Link>}
             {user && <Link to="/minha-conta" className="text-sm font-medium hover:text-brand-olive transition-colors">Minha conta</Link>}
             {user && <button onClick={sair} className="text-sm font-medium hover:text-brand-olive transition-colors">Sair</button>}
-            <Link to="/carrinho" className="relative p-2 text-gray-700 hover:text-brand-olive transition-colors">
+            <Link to="/carrinho" aria-label="Abrir carrinho" className="relative p-2 text-gray-700 hover:text-brand-olive transition-colors">
               <ShoppingCart size={20} />
               {cartCount > 0 && (
                 <span className="absolute top-0 right-0 bg-brand-olive text-white text-[10px] font-bold px-1.5 py-0.5 rounded-full">
@@ -63,7 +64,7 @@ const Navbar = ({ cartCount, isAdmin, acessoGestao, user }: { cartCount: number,
           </div>
 
           <div className="md:hidden flex items-center space-x-4">
-            <Link to="/carrinho" className="relative p-2 text-gray-700">
+            <Link to="/carrinho" aria-label="Abrir carrinho" className="relative p-2 text-gray-700">
               <ShoppingCart size={20} />
               {cartCount > 0 && (
                 <span className="absolute top-0 right-0 bg-brand-olive text-white text-[10px] font-bold px-1.5 py-0.5 rounded-full">
@@ -71,7 +72,7 @@ const Navbar = ({ cartCount, isAdmin, acessoGestao, user }: { cartCount: number,
                 </span>
               )}
             </Link>
-            <button onClick={() => setIsOpen(!isOpen)} className="p-2 text-gray-700">
+            <button type="button" aria-label={isOpen ? "Fechar menu" : "Abrir menu"} aria-expanded={isOpen} aria-controls="navegacao-mobile" onClick={() => setIsOpen(!isOpen)} className="p-2 text-gray-700">
               {isOpen ? <X size={24} /> : <Menu size={24} />}
             </button>
           </div>
@@ -85,7 +86,7 @@ const Navbar = ({ cartCount, isAdmin, acessoGestao, user }: { cartCount: number,
             initial={{ opacity: 0, height: 0 }}
             animate={{ opacity: 1, height: "auto" }}
             exit={{ opacity: 0, height: 0 }}
-            className="md:hidden bg-brand-paper border-b border-brand-beige/20 overflow-hidden"
+            id="navegacao-mobile" className="md:hidden bg-brand-paper border-b border-brand-beige/20 overflow-hidden"
           >
             <div className="px-4 pt-2 pb-6 space-y-4">
               <Link to="/" onClick={() => setIsOpen(false)} className="block text-lg font-medium">Início</Link>
@@ -108,21 +109,21 @@ const Navbar = ({ cartCount, isAdmin, acessoGestao, user }: { cartCount: number,
 };
 
 const Footer = () => (
-  <footer className="bg-brand-olive text-brand-paper py-12">
+  <footer className="bg-brand-olive text-white py-12">
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
       <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-10">
         <div>
           <h3 className="text-2xl font-serif mb-4">Tenda Ervas</h3>
-          <p className="text-brand-paper/70 text-sm leading-relaxed">
+          <p className="text-white/90 text-sm leading-relaxed">
             Conectando você à sabedoria ancestral das ervas. 
           </p>
         </div>
         <div>
           <h4 className="text-lg font-medium mb-4">Contato</h4>
-          <ul className="space-y-3 text-sm text-brand-paper/70">
+          <ul className="space-y-3 text-sm text-white/90">
             <li className="flex items-center gap-2">
               <Phone size={16} />
-              <a href={linkWhatsApp("Olá! Vim pelo site da Tenda Ervas.")} target="_blank" rel="noreferrer" className="hover:text-brand-paper">{LOJA.whatsappExibicao}</a>
+              <a href={linkWhatsApp("Olá! Vim pelo site da Tenda Ervas.")} target="_blank" rel="noreferrer" className="hover:text-white">{LOJA.whatsappExibicao}</a>
             </li>
             <li className="flex items-center gap-2">
               <Phone size={16} /> {LOJA.whatsappOutroExibicao}
@@ -137,24 +138,24 @@ const Footer = () => (
         </div>
         <div>
           <h4 className="text-lg font-medium mb-4">Informações</h4>
-          <ul className="space-y-3 text-sm text-brand-paper/70">
+          <ul className="space-y-3 text-sm text-white/90">
             {LOJA.razaoSocial && <li>{LOJA.razaoSocial}</li>}
             <li>CNPJ {LOJA.cnpj}</li>
             {LOJA.endereco && <li>{LOJA.endereco}</li>}
             <li>
-              <a href={`mailto:${LOJA.email}`} className="hover:text-brand-paper transition-colors">{LOJA.email}</a>
+              <a href={`mailto:${LOJA.email}`} className="hover:text-white transition-colors">{LOJA.email}</a>
             </li>
           </ul>
         </div>
         <div>
           <h4 className="text-lg font-medium mb-4">Ajuda</h4>
-          <ul className="space-y-3 text-sm text-brand-paper/70">
-            <li><Link to="/privacidade" className="hover:text-brand-paper transition-colors">Política de privacidade</Link></li>
-            <li><Link to="/trocas" className="hover:text-brand-paper transition-colors">Trocas e devoluções</Link></li>
+          <ul className="space-y-3 text-sm text-white/90">
+            <li><Link to="/privacidade" className="hover:text-white transition-colors">Política de privacidade</Link></li>
+            <li><Link to="/trocas" className="hover:text-white transition-colors">Trocas e devoluções</Link></li>
           </ul>
         </div>
       </div>
-      <div className="mt-10 pt-6 border-t border-brand-paper/20 text-center text-xs text-brand-paper/60">
+      <div className="mt-10 pt-6 border-t border-brand-paper/20 text-center text-xs text-white/85">
         © {new Date().getFullYear()} {LOJA.nome}. Todos os direitos reservados.
       </div>
     </div>
@@ -164,15 +165,15 @@ const Footer = () => (
 const Home = () => (
   <div className="space-y-20 pb-20">
     {/* Hero Section */}
-    <section className="relative h-screen flex items-start justify-center overflow-hidden">
+    <section className="relative min-h-[68vh] md:min-h-[78vh] flex items-start justify-center overflow-hidden">
       {/* Background Image */}
-      <div className="absolute inset-0 z-0">
+      <div className="absolute inset-0 z-0 bg-gradient-to-br from-[#284934] to-brand-olive">
         <img 
           src="/hero.png.png" 
           className="w-full h-full object-cover"
           alt="Tenda Ervas Hero"
           onError={(e) => {
-            (e.target as HTMLImageElement).src = 'https://images.unsplash.com/photo-1540324155974-7523202daa3f?q=80&w=1920&auto=format&fit=crop';
+            (e.target as HTMLImageElement).style.display = 'none';
           }}
         />
         <div className="absolute inset-0 bg-black/30 backdrop-blur-[1px]"></div>
@@ -191,7 +192,7 @@ const Home = () => (
           </h1>
 
           <p className="text-xl md:text-2xl text-white/90 mb-8 max-w-2xl mx-auto leading-relaxed font-light drop-shadow-lg">
-            Sabedoria ancestral e equilíbrio natural para o seu dia a dia.
+            Ervas, incensos, acessórios e kits para quem valoriza tradição, cuidado e rituais.
           </p>
 
           <Link 
@@ -205,6 +206,23 @@ const Home = () => (
       </div>
     </section>
 
+    <section aria-label="Como comprar" className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        <div className="bg-white/85 rounded-2xl border border-brand-beige/30 p-5">
+          <p className="text-sm font-bold text-brand-olive mb-2">1. Escolha com clareza</p>
+          <p className="text-sm text-gray-700">Pesquise produtos, veja os detalhes, variações, valores e disponibilidade.</p>
+        </div>
+        <div className="bg-white/85 rounded-2xl border border-brand-beige/30 p-5">
+          <p className="text-sm font-bold text-brand-olive mb-2">2. Revise seu pedido</p>
+          <p className="text-sm text-gray-700">Ajuste as quantidades no carrinho e confira o total dos produtos.</p>
+        </div>
+        <div className="bg-white/85 rounded-2xl border border-brand-beige/30 p-5">
+          <p className="text-sm font-bold text-brand-olive mb-2">3. Combine a entrega</p>
+          <p className="text-sm text-gray-700">Escolha retirada ou combine o frete com a loja antes de pagar o envio.</p>
+        </div>
+      </div>
+    </section>
+
     {/* About Section */}
     <section className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
       <div className="grid grid-cols-1 md:grid-cols-2 gap-16 items-center">
@@ -215,7 +233,7 @@ const Home = () => (
               className="w-full h-full object-cover"
               alt="Nossa Essência - Tenda Ervas"
               onError={(e) => {
-                (e.target as HTMLImageElement).src = 'https://images.unsplash.com/photo-1602928321679-560bb453f190?q=80&w=800&auto=format&fit=crop';
+                (e.target as HTMLImageElement).style.display = 'none';
               }}
             />
           </div>
@@ -225,8 +243,7 @@ const Home = () => (
           <h2 className="text-4xl md:text-5xl font-serif text-brand-olive">Nossa Essência</h2>
           <div className="w-20 h-1 bg-brand-mint"></div>
           <p className="text-gray-600 leading-relaxed text-lg">
-            Tradição, Axé e Cuidado. Encontre o melhor em artigos religiosos de matriz africana, fitoterapia e itens para rituais. 
-            Das velas que iluminam caminhos aos óleos que renovam o corpo, entregamos a essência do sagrado diretamente na sua casa.
+            Tradição, Axé e Cuidado. Conheça nossa seleção de ervas, incensos, acessórios e kits. Escolha os itens pelo catálogo e confira preços e estoque antes de fazer seu pedido.
           </p>
           <div className="pt-4 grid grid-cols-2 gap-8">
             <div>
@@ -318,11 +335,11 @@ const ProductCard = ({ product, onAddToCart, onAbrir }: { product: Product, onAd
             <>
               <div className="flex items-center justify-between">
                 <span className="text-xs text-gray-400 uppercase tracking-widest">Estoque: {product.quantity}</span>
-                <div className="flex items-center border border-brand-beige/30 rounded-full px-2 py-0.5">
+                {!esgotado && <div className="flex items-center border border-brand-beige/30 rounded-full px-2 py-0.5">
                   <button type="button" aria-label={`Diminuir quantidade de ${product.name}`} onClick={() => setQty(Math.max(1, qty - 1))} className="px-2 text-brand-olive">-</button>
                   <span className="mx-2 text-sm font-medium">{qty}</span>
                   <button type="button" aria-label={`Aumentar quantidade de ${product.name}`} onClick={() => setQty(Math.min(Math.max(1, product.quantity), qty + 1))} className="px-2 text-brand-olive">+</button>
-                </div>
+                </div>}
               </div>
               <button 
                 onClick={adicionar}
@@ -341,6 +358,27 @@ const ProductCard = ({ product, onAddToCart, onAbrir }: { product: Product, onAd
 
 // Janela do produto: foto grande, descrição, escolha da opção (a foto muda quando a opção tem foto própria) e quantidade
 const JanelaProduto = ({ product, onFechar, onAddToCart }: { product: Product, onFechar: () => void, onAddToCart: (p: Product, qty: number, opcao?: string) => void }) => {
+  const dialogRef = React.useRef<HTMLDivElement>(null);
+  const fecharRef = React.useRef<HTMLButtonElement>(null);
+  useEffect(() => {
+    const anterior = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+    fecharRef.current?.focus();
+    const teclado = (evento: KeyboardEvent) => {
+      if(evento.key === 'Escape') { evento.preventDefault(); onFechar(); return; }
+      if(evento.key !== 'Tab') return;
+      const elementos: HTMLElement[] = [];
+      dialogRef.current?.querySelectorAll(
+        'button:not([disabled]),a[href],input:not([disabled]),select:not([disabled]),[tabindex]:not([tabindex="-1"])'
+      ).forEach(elemento => {
+        if (elemento instanceof HTMLElement && elemento.getClientRects().length > 0) elementos.push(elemento);
+      });
+      const primeiro = elementos[0], ultimo = elementos[elementos.length-1];
+      if (evento.shiftKey && document.activeElement === primeiro) {evento.preventDefault(); ultimo?.focus();}
+      else if (!evento.shiftKey && document.activeElement === ultimo) {evento.preventDefault(); primeiro?.focus();}
+    };
+    document.addEventListener('keydown', teclado);
+    return () => {document.removeEventListener('keydown', teclado); anterior?.focus();};
+  }, []);
   // Com duas opções ou mais, o cliente também pode deixar a loja escolher (Aleatório)
   const opcoes = (product.options || []).length >= 2 ? [...product.options, { nome: "Aleatório" }] : (product.options || []);
   const [opcao, setOpcao] = useState<string | undefined>(opcoes.length === 1 ? opcoes[0].nome : undefined);
@@ -361,7 +399,7 @@ const JanelaProduto = ({ product, onFechar, onAddToCart }: { product: Product, o
         initial={{ opacity: 0, y: 40 }}
         animate={{ opacity: 1, y: 0 }}
         onClick={e => e.stopPropagation()}
-        role="dialog" aria-modal="true" aria-label={`Detalhes de ${product.name}`}
+        ref={dialogRef} role="dialog" aria-modal="true" aria-label={`Detalhes de ${product.name}`}
         className="bg-white w-full sm:max-w-3xl max-h-[92vh] overflow-y-auto rounded-t-3xl sm:rounded-3xl shadow-2xl grid grid-cols-1 sm:grid-cols-2"
       >
         <div className="relative bg-white">
@@ -369,7 +407,7 @@ const JanelaProduto = ({ product, onFechar, onAddToCart }: { product: Product, o
           {product.adult && <div className="absolute top-4 left-4 bg-red-600 text-white px-2.5 py-1 rounded-full text-xs font-bold">18+</div>}
         </div>
         <div className="p-6 sm:p-8 space-y-5 relative">
-          <button onClick={onFechar} aria-label="Fechar" className="absolute top-4 right-4 p-1 text-gray-500 hover:text-brand-olive"><X size={22} /></button>
+          <button ref={fecharRef} type="button" onClick={onFechar} aria-label="Fechar detalhes" className="absolute top-4 right-4 p-1 text-gray-500 hover:text-brand-olive"><X size={22} /></button>
           <div>
             <div className="text-xs text-gray-500 uppercase tracking-widest">{product.category}</div>
             <h3 className="text-3xl font-serif text-brand-olive pr-8">{product.name}</h3>
@@ -406,11 +444,11 @@ const JanelaProduto = ({ product, onFechar, onAddToCart }: { product: Product, o
           )}
           <div className="flex items-center justify-between">
             <span className="text-xs text-gray-500 uppercase tracking-widest">Estoque: {product.quantity}</span>
-            <div className="flex items-center border border-brand-beige/30 rounded-full px-2 py-0.5">
-              <button onClick={() => setQty(Math.max(1, qty - 1))} className="px-2 text-brand-olive">-</button>
+            {!esgotado && <div className="flex items-center border border-brand-beige/30 rounded-full px-2 py-0.5">
+              <button type="button" aria-label={`Diminuir quantidade de ${product.name}`} onClick={() => setQty(Math.max(1, qty - 1))} className="px-2 text-brand-olive">-</button>
               <span className="mx-2 text-sm font-medium">{qty}</span>
-              <button onClick={() => setQty(Math.min(Math.max(1, product.quantity), qty + 1))} className="px-2 text-brand-olive">+</button>
-            </div>
+              <button type="button" aria-label={`Aumentar quantidade de ${product.name}`} onClick={() => setQty(Math.min(Math.max(1, product.quantity), qty + 1))} className="px-2 text-brand-olive">+</button>
+            </div>}
           </div>
           <button
             onClick={adicionar}
@@ -1520,6 +1558,8 @@ const PaymentPage = ({ cart, user, edicao, onPedidoFeito }: { cart: CartItem[], 
   const [pedido, setPedido] = useState<{ id: number, description: string, total_price: number, delivery_method: string, anterior?: number } | null>(null);
   const [entrega, setEntrega] = useState<"Correios" | "Retirada">(edicao?.entrega || "Correios");
   const [loading, setLoading] = useState(false);
+  const [redirecionando, setRedirecionando] = useState(false);
+  const [erroPagamento, setErroPagamento] = useState('');
   const navigate = useNavigate();
   const total = cart.reduce((acc, item) => acc + item.price * item.cartQuantity, 0);
 
@@ -1545,11 +1585,21 @@ const PaymentPage = ({ cart, user, edicao, onPedidoFeito }: { cart: CartItem[], 
 
       if (error) throw error;
 
+      // O total definitivo pertence ao banco: promoções e disponibilidade podem
+      // mudar enquanto o carrinho está aberto.
+      const {data:pedidoSalvo,error:erroConsulta} = await supabase.from('orders')
+        .select('id,description,total_price,delivery_method').eq('id',data).single();
+      if(erroConsulta || !pedidoSalvo){
+        onPedidoFeito();
+        alert('Pedido criado, mas não foi possível consultar o valor final. Confira em Meus pedidos antes de pagar.');
+        navigate('/meus-pedidos');
+        return;
+      }
       setPedido({
-        id: data,
-        description: cart.map(item => `${item.cartQuantity}x ${item.name}${item.opcao ? ` (${item.opcao})` : ""}`).join(", "),
-        total_price: total,
-        delivery_method: entrega,
+        id: pedidoSalvo.id,
+        description: pedidoSalvo.description,
+        total_price: Number(pedidoSalvo.total_price),
+        delivery_method: pedidoSalvo.delivery_method,
         anterior: edicao?.id
       });
       onPedidoFeito();
@@ -1574,7 +1624,28 @@ const PaymentPage = ({ cart, user, edicao, onPedidoFeito }: { cart: CartItem[], 
           </div>
           <h2 className="text-4xl font-serif text-brand-olive">Pedido #{pedido.id} recebido!</h2>
           {pedido.anterior && <p className="text-sm text-gray-600">Ele substitui o pedido #{pedido.anterior}, que foi cancelado.</p>}
-          <InstrucoesPagamento pedido={pedido} />
+          {mercadoPagoHabilitado && pedido.delivery_method === 'Retirada' && (
+            <div className="border border-brand-beige/30 rounded-2xl p-4 space-y-3 text-left">
+              <h3 className="font-semibold text-brand-olive">Pagar com PIX ou cartão</h3>
+              <p className="text-sm text-gray-600">Pagamento em ambiente seguro do Mercado Pago. O pedido só será marcado como pago após a confirmação do provedor.</p>
+              {erroPagamento && <p role="alert" className="text-sm text-red-700">{erroPagamento}</p>}
+              <button type="button" disabled={redirecionando} onClick={async()=>{
+                setRedirecionando(true);setErroPagamento('');
+                try {await abrirCheckoutMercadoPago(pedido.id);}
+                catch(e) {setErroPagamento(e instanceof Error?e.message:'Erro ao iniciar pagamento');setRedirecionando(false);}
+              }} className="w-full rounded-full bg-brand-olive text-white py-3 px-4 font-bold disabled:opacity-50">
+                {redirecionando?'Abrindo Mercado Pago…':'Pagar com PIX ou cartão pelo Mercado Pago'}
+              </button>
+              <p className="text-xs text-gray-500">A confirmação pode levar alguns instantes; consulte o status em Meus pedidos.</p>
+            </div>
+          )}
+          {(!mercadoPagoHabilitado || pedido.delivery_method !== 'Retirada') && <InstrucoesPagamento pedido={pedido} />}
+          {mercadoPagoHabilitado && pedido.delivery_method === 'Retirada' && (
+            <p className="text-sm text-gray-600">
+              Se tiver dificuldades para pagar, <a className="text-brand-olive underline" href={linkWhatsApp(`Olá! Preciso de ajuda para pagar o pedido #${pedido.id}.`)} target="_blank" rel="noreferrer">fale com a loja</a>.
+              Não faça outro pagamento antes de verificar o status do pedido.
+            </p>
+          )}
           <div className="pt-2">
             <Link to="/meus-pedidos" className="text-brand-olive font-medium underline underline-offset-4">
               Ver meus pedidos
@@ -1681,6 +1752,7 @@ const PaymentPage = ({ cart, user, edicao, onPedidoFeito }: { cart: CartItem[], 
 };
 
 const MyOrders = ({ user, onCarregar }: { user: any, onCarregar: (pedido: any, editar: boolean) => Promise<boolean> }) => {
+  const retornoPagamento = new URLSearchParams(window.location.search).get('retorno') === 'mercadopago';
   const [orders, setOrders] = useState<any[]>([]);
   const [processando, setProcessando] = useState<number | null>(null);
   const navigate = useNavigate();
@@ -1738,7 +1810,10 @@ const MyOrders = ({ user, onCarregar }: { user: any, onCarregar: (pedido: any, e
 
   return (
     <div className="max-w-4xl mx-auto px-4 py-20 min-h-screen">
-      <h2 className="text-4xl font-serif text-brand-olive mb-12">Meus Pedidos</h2>
+      <h2 className="text-4xl font-serif text-brand-olive mb-6">Meus Pedidos</h2>
+      {retornoPagamento && <p role="status" className="mb-6 rounded-xl bg-brand-mint/20 border border-brand-mint/40 p-4 text-sm text-gray-700">
+        Você voltou do Mercado Pago. Isso não significa que o pagamento já foi confirmado. Confira o status do pedido abaixo; ele será atualizado após validação pelo servidor.
+      </p>}
       <div className="space-y-6">
         {orders.map(order => (
           <div key={order.id} className="bg-white p-8 rounded-3xl shadow-sm border border-brand-beige/20">
@@ -1762,7 +1837,13 @@ const MyOrders = ({ user, onCarregar }: { user: any, onCarregar: (pedido: any, e
             </div>
             {order.status === "aguardando pagamento" && (
               <>
-                <InstrucoesPagamento pedido={order} />
+                {mercadoPagoHabilitado && order.delivery_method === 'Retirada'
+                  ? <button type="button" disabled={processando === order.id} onClick={async()=>{
+                    setProcessando(order.id);
+                    try{await abrirCheckoutMercadoPago(order.id);}
+                    catch(e){alert(e instanceof Error?e.message:'Pagamento indisponível');setProcessando(null);}
+                  }} className="w-full rounded-full bg-brand-olive text-white py-3 font-semibold">Pagar com PIX ou cartão pelo Mercado Pago</button>
+                  : <InstrucoesPagamento pedido={order} />}
                 <div className="grid grid-cols-2 gap-3 mt-3">
                   <button
                     onClick={() => levarParaCarrinho(order, true)}
@@ -2226,11 +2307,13 @@ const Privacidade = () => (
   <PaginaTexto titulo="Política de privacidade">
     <p>Esta política explica como a {LOJA.nome} usa os seus dados pessoais, conforme a Lei Geral de Proteção de Dados (Lei 13.709/2018).</p>
     <h3 className="text-2xl font-serif text-brand-olive pt-2">Quais dados guardamos</h3>
-    <p>No cadastro: nome, CPF, e-mail, WhatsApp, endereço e CEP. Em cada compra: os produtos, o valor, a forma de entrega e o andamento do pedido. A senha fica criptografada e nem a loja tem acesso a ela.</p>
+    <p>No cadastro: nome, CPF, e-mail, WhatsApp, endereço e CEP. Em cada compra: os produtos, o valor, a forma de entrega e o andamento do pedido. A autenticação é gerenciada pelo Supabase Auth; não guardamos senhas em nossas tabelas comerciais.</p>
     <h3 className="text-2xl font-serif text-brand-olive pt-2">Para que usamos</h3>
     <p>Para separar e entregar os pedidos, falar com você sobre a compra, emitir documentos fiscais e cumprir obrigações legais. Não vendemos nem usamos seus dados para propaganda de terceiros.</p>
     <h3 className="text-2xl font-serif text-brand-olive pt-2">Com quem compartilhamos</h3>
-    <p>Só com quem é necessário para a compra acontecer: os Correios ou a transportadora (nome e endereço de entrega) e os serviços que hospedam o site e o banco de dados (Cloudflare e Supabase).</p>
+    <p>Com os prestadores necessários à operação, como os serviços de hospedagem e autenticação (Cloudflare e Supabase) e a transportadora quando houver entrega. Quando o pagamento via Mercado Pago estiver habilitado, dados necessários à cobrança e confirmação serão processados por esse provedor; não armazenamos os dados completos do cartão.</p>
+    <h3 className="text-2xl font-serif text-brand-olive pt-2">Segurança e pagamentos</h3>
+    <p>O acesso aos cadastros e pedidos é controlado por autenticação e permissões no banco. A confirmação de pagamento integrado, quando habilitada, será recebida e validada no servidor. Um retorno do navegador sozinho não confirma pagamento.</p>
     <h3 className="text-2xl font-serif text-brand-olive pt-2">Seus direitos</h3>
     <p>Você pode pedir a qualquer momento para ver, corrigir ou apagar seus dados, ou tirar dúvidas sobre o uso deles. Alguns dados de compras precisam ser guardados pelo prazo que a lei fiscal exige.</p>
     <h3 className="text-2xl font-serif text-brand-olive pt-2">Contato</h3>
@@ -2509,6 +2592,9 @@ export default function App() {
   return (
     <Router>
       <div className="flex flex-col min-h-screen">
+        <a href="#conteudo-principal" className="sr-only focus:not-sr-only focus:fixed focus:top-3 focus:left-3 focus:z-[100] focus:bg-white focus:text-brand-olive focus:px-4 focus:py-3 focus:rounded-lg focus:shadow-lg">
+          Pular para conteúdo principal
+        </a>
         <Navbar 
           cartCount={cart.reduce((acc, item) => acc + item.cartQuantity, 0)} 
           isAdmin={isAdmin}
@@ -2516,7 +2602,7 @@ export default function App() {
           user={user}
         />
         
-        <main className="flex-grow">
+        <main id="conteudo-principal" tabIndex={-1} className="flex-grow">
           {!sessaoCarregada ? (
             <div className="min-h-screen flex items-center justify-center">Carregando...</div>
           ) : (
