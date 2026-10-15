@@ -350,10 +350,12 @@ const JanelaProduto = ({ product, onFechar, onAddToCart }: { product: Product, o
     const teclado = (evento: KeyboardEvent) => {
       if(evento.key === 'Escape') { evento.preventDefault(); onFechar(); return; }
       if(evento.key !== 'Tab') return;
-      const encontrados = dialogRef.current?.querySelectorAll<HTMLElement>(
+      const elementos: HTMLElement[] = [];
+      dialogRef.current?.querySelectorAll(
         'button:not([disabled]),a[href],input:not([disabled]),select:not([disabled]),[tabindex]:not([tabindex="-1"])'
-      );
-      const elementos: HTMLElement[] = encontrados ? Array.from(encontrados).filter(elemento => elemento.getClientRects().length > 0) : [];
+      ).forEach(elemento => {
+        if (elemento instanceof HTMLElement && elemento.getClientRects().length > 0) elementos.push(elemento);
+      });
       const primeiro = elementos[0], ultimo = elementos[elementos.length-1];
       if (evento.shiftKey && document.activeElement === primeiro) {evento.preventDefault(); ultimo?.focus();}
       else if (!evento.shiftKey && document.activeElement === ultimo) {evento.preventDefault(); primeiro?.focus();}
