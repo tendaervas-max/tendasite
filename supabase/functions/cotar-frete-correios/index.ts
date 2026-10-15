@@ -10,7 +10,11 @@ const json = (status: number, payload: unknown) =>
   new Response(JSON.stringify(payload), { status, headers: { ...cors, "Content-Type": "application/json", "Cache-Control": "no-store" } });
 const cepValido = (value: unknown) => typeof value === "string" && /^\d{8}$/.test(value.replace(/\D/g, ""));
 const decimal = (value: unknown) => typeof value === "number" && Number.isFinite(value) ? value : Number.NaN;
-const money = (text: unknown) => Number(String(text ?? "").replace(/\./g, "").replace(",", "."));
+const money = (text: unknown) => {
+  if (typeof text === "number") return text;
+  const s = String(text ?? "").trim();
+  return Number(s.includes(",") ? s.replace(/\./g, "").replace(",", ".") : s);
+};
 
 async function tokenCorreios() {
   const delegated = Deno.env.get("CORREIOS_BEARER_TOKEN");
