@@ -109,21 +109,21 @@ const Navbar = ({ cartCount, isAdmin, acessoGestao, user }: { cartCount: number,
 };
 
 const Footer = () => (
-  <footer className="bg-brand-olive text-brand-paper py-12">
+  <footer className="bg-brand-olive text-white py-12">
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
       <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-10">
         <div>
           <h3 className="text-2xl font-serif mb-4">Tenda Ervas</h3>
-          <p className="text-brand-paper/70 text-sm leading-relaxed">
+          <p className="text-white/90 text-sm leading-relaxed">
             Conectando você à sabedoria ancestral das ervas. 
           </p>
         </div>
         <div>
           <h4 className="text-lg font-medium mb-4">Contato</h4>
-          <ul className="space-y-3 text-sm text-brand-paper/70">
+          <ul className="space-y-3 text-sm text-white/90">
             <li className="flex items-center gap-2">
               <Phone size={16} />
-              <a href={linkWhatsApp("Olá! Vim pelo site da Tenda Ervas.")} target="_blank" rel="noreferrer" className="hover:text-brand-paper">{LOJA.whatsappExibicao}</a>
+              <a href={linkWhatsApp("Olá! Vim pelo site da Tenda Ervas.")} target="_blank" rel="noreferrer" className="hover:text-white">{LOJA.whatsappExibicao}</a>
             </li>
             <li className="flex items-center gap-2">
               <Phone size={16} /> {LOJA.whatsappOutroExibicao}
@@ -138,24 +138,24 @@ const Footer = () => (
         </div>
         <div>
           <h4 className="text-lg font-medium mb-4">Informações</h4>
-          <ul className="space-y-3 text-sm text-brand-paper/70">
+          <ul className="space-y-3 text-sm text-white/90">
             {LOJA.razaoSocial && <li>{LOJA.razaoSocial}</li>}
             <li>CNPJ {LOJA.cnpj}</li>
             {LOJA.endereco && <li>{LOJA.endereco}</li>}
             <li>
-              <a href={`mailto:${LOJA.email}`} className="hover:text-brand-paper transition-colors">{LOJA.email}</a>
+              <a href={`mailto:${LOJA.email}`} className="hover:text-white transition-colors">{LOJA.email}</a>
             </li>
           </ul>
         </div>
         <div>
           <h4 className="text-lg font-medium mb-4">Ajuda</h4>
-          <ul className="space-y-3 text-sm text-brand-paper/70">
-            <li><Link to="/privacidade" className="hover:text-brand-paper transition-colors">Política de privacidade</Link></li>
-            <li><Link to="/trocas" className="hover:text-brand-paper transition-colors">Trocas e devoluções</Link></li>
+          <ul className="space-y-3 text-sm text-white/90">
+            <li><Link to="/privacidade" className="hover:text-white transition-colors">Política de privacidade</Link></li>
+            <li><Link to="/trocas" className="hover:text-white transition-colors">Trocas e devoluções</Link></li>
           </ul>
         </div>
       </div>
-      <div className="mt-10 pt-6 border-t border-brand-paper/20 text-center text-xs text-brand-paper/60">
+      <div className="mt-10 pt-6 border-t border-brand-paper/20 text-center text-xs text-white/85">
         © {new Date().getFullYear()} {LOJA.nome}. Todos os direitos reservados.
       </div>
     </div>
@@ -335,11 +335,11 @@ const ProductCard = ({ product, onAddToCart, onAbrir }: { product: Product, onAd
             <>
               <div className="flex items-center justify-between">
                 <span className="text-xs text-gray-400 uppercase tracking-widest">Estoque: {product.quantity}</span>
-                <div className="flex items-center border border-brand-beige/30 rounded-full px-2 py-0.5">
+                {!esgotado && <div className="flex items-center border border-brand-beige/30 rounded-full px-2 py-0.5">
                   <button type="button" aria-label={`Diminuir quantidade de ${product.name}`} onClick={() => setQty(Math.max(1, qty - 1))} className="px-2 text-brand-olive">-</button>
                   <span className="mx-2 text-sm font-medium">{qty}</span>
                   <button type="button" aria-label={`Aumentar quantidade de ${product.name}`} onClick={() => setQty(Math.min(Math.max(1, product.quantity), qty + 1))} className="px-2 text-brand-olive">+</button>
-                </div>
+                </div>}
               </div>
               <button 
                 onClick={adicionar}
@@ -444,11 +444,11 @@ const JanelaProduto = ({ product, onFechar, onAddToCart }: { product: Product, o
           )}
           <div className="flex items-center justify-between">
             <span className="text-xs text-gray-500 uppercase tracking-widest">Estoque: {product.quantity}</span>
-            <div className="flex items-center border border-brand-beige/30 rounded-full px-2 py-0.5">
-              <button onClick={() => setQty(Math.max(1, qty - 1))} className="px-2 text-brand-olive">-</button>
+            {!esgotado && <div className="flex items-center border border-brand-beige/30 rounded-full px-2 py-0.5">
+              <button type="button" aria-label={`Diminuir quantidade de ${product.name}`} onClick={() => setQty(Math.max(1, qty - 1))} className="px-2 text-brand-olive">-</button>
               <span className="mx-2 text-sm font-medium">{qty}</span>
-              <button onClick={() => setQty(Math.min(Math.max(1, product.quantity), qty + 1))} className="px-2 text-brand-olive">+</button>
-            </div>
+              <button type="button" aria-label={`Aumentar quantidade de ${product.name}`} onClick={() => setQty(Math.min(Math.max(1, product.quantity), qty + 1))} className="px-2 text-brand-olive">+</button>
+            </div>}
           </div>
           <button
             onClick={adicionar}
