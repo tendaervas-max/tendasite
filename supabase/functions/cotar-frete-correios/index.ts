@@ -24,7 +24,9 @@ async function tokenCorreios() {
   const contrato = Deno.env.get("CORREIOS_CONTRATO");
   const cartao = Deno.env.get("CORREIOS_CARTAO_POSTAGEM");
   if (!usuario || !codigo || (!contrato && !cartao)) throw new Error("Credenciais contratuais dos Correios não configuradas");
-  const corpo = cartao ? { numero: cartao, ...(contrato ? { contrato } : {}) } : { numero: contrato };
+  const dr = Deno.env.get("CORREIOS_DR");
+  const regiao = dr && /^\\d+$/.test(dr) ? { dr: Number(dr) } : {};
+  const corpo = cartao ? { numero: cartao, ...(contrato ? { contrato } : {}), ...regiao } : { numero: contrato, ...regiao };
   const path = cartao ? "cartaopostagem" : "contrato";
   const resposta = await fetch("https://api.correios.com.br/token/v1/autentica/" + path, {
     method: "POST",
@@ -81,6 +83,12 @@ Deno.serve(async req => {
         cepOrigem: origem, cepDestino: destino, psObjeto: String(Math.ceil(peso)), tpObjeto: "2",
         comprimento: String(comprimento), largura: String(largura), altura: String(altura),
       });
+      const contrato = Deno.env.get("CORREIOS_CONTRATO");
+      const dr = Deno.env.get("CORREIOS_DR");
+      if (contrato && dr && /^\\d+$/.test(dr)) {
+        query.set("nuContrato", contrato);
+        query.set("nuDR", dr);
+      }
       const headers = { Authorization: "Bearer " + token, Accept: "application/json" };
       const [preco, prazo] = await Promise.all([
         fetch("https://api.correios.com.br/preco/v1/nacional/" + codigo + "?" + query, { headers, signal: AbortSignal.timeout(12000) }),
