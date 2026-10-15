@@ -85,3 +85,22 @@ export const comPromocao = <T extends { price: number, preco_promocional?: numbe
 
 // Método que monta a chave do item no carrinho (o mesmo produto em cores diferentes vira itens separados)
 export const chaveCarrinho = (id: number, opcao?: string) => `${id}|${opcao || ""}`;
+
+
+// Quantidade vendável de cada kit = menor quantidade possível entre os seus componentes.
+// O kit não possui estoque físico independente: somente os componentes são descontados.
+export const comEstoqueDosKits = <T extends { id: number; category: string; quantity: number; kit_itens?: { id: number; quantidade: number }[] }>(produtos: T[]): T[] => {
+  const mapa = new Map(produtos.map(p => [p.id, p]));
+  return produtos.map(produto => {
+    if (produto.category !== 'Kits') return produto;
+    const itens = produto.kit_itens || [];
+    if (!itens.length) return { ...produto, quantity: 0 };
+    const disponiveis = itens.map(item => {
+      const componente = mapa.get(Number(item.id));
+      const qtd = Number(item.quantidade);
+      return componente && componente.category !== 'Kits' && Number.isInteger(qtd) && qtd > 0
+        ? Math.floor(componente.quantity / qtd) : 0;
+    });
+    return { ...produto, quantity: Math.max(0, Math.min(...disponiveis)) };
+  });
+};
