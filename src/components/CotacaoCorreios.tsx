@@ -4,7 +4,11 @@ import { reais } from '../loja';
 
 type Cotacao = { codigo: string; valor: number; prazoDias: number | null };
 
-export const CotacaoCorreios: React.FC<{ cep: string | null | undefined }> = ({ cep }) => {
+export const CotacaoCorreios: React.FC<{
+  cep: string | null | undefined;
+  selecionada: Cotacao | null;
+  aoSelecionar: (opcao: Cotacao | null) => void;
+}> = ({ cep, selecionada, aoSelecionar }) => {
   const [peso, setPeso] = useState('');
   const [comprimento, setComprimento] = useState('');
   const [largura, setLargura] = useState('');
@@ -18,6 +22,7 @@ export const CotacaoCorreios: React.FC<{ cep: string | null | undefined }> = ({ 
     setCarregando(true);
     setErro('');
     setOpcoes([]);
+    aoSelecionar(null);
     const payload = {
       pesoGramas: Number(peso), comprimentoCm: Number(comprimento),
       larguraCm: Number(largura), alturaCm: Number(altura),
@@ -66,10 +71,11 @@ export const CotacaoCorreios: React.FC<{ cep: string | null | undefined }> = ({ 
       {opcoes.length > 0 && (
         <div className="space-y-2">
           {opcoes.map(opcao => (
-            <div key={opcao.codigo} className="flex justify-between items-center bg-brand-mint/15 rounded-xl px-4 py-3 text-sm">
+            <label key={opcao.codigo} className="flex justify-between items-center gap-3 bg-brand-mint/15 rounded-xl px-4 py-3 text-sm cursor-pointer">
+              <input type="radio" name="servico-correios" checked={selecionada?.codigo === opcao.codigo} onChange={() => aoSelecionar(opcao)} aria-label={`Selecionar serviço ${opcao.codigo}`} />
               <div><strong>Correios · Serviço {opcao.codigo}</strong><p className="text-gray-600">{opcao.prazoDias == null ? 'Prazo não disponível' : opcao.prazoDias + ' dia(s) úteis (estimativa)'}</p></div>
               <span className="font-bold text-brand-olive">{reais(opcao.valor)}</span>
-            </div>
+            </label>
           ))}
           <p className="text-xs text-amber-800">Cotação informativa. O pedido continua cobrando apenas os produtos; a entrega é combinada diretamente com a loja.</p>
         </div>
