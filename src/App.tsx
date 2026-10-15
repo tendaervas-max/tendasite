@@ -5,6 +5,7 @@ import { ShoppingCart, User, LogOut, Plus, Pencil, Trash2, Instagram, Phone, Map
 import type { Session } from "@supabase/supabase-js";
 import { supabase, definirManterConectado } from "./lib/supabase";
 import { Product, CartItem } from "./types";
+import { abrirCheckoutMercadoPago, mercadoPagoHabilitado } from "./lib/mercadopago";
 import { LOJA, linkWhatsApp, STATUS_PEDIDO, mensagemPedido, mensagemEntrega, reais, CATEGORIAS, maiorDeIdade, chaveCarrinho, cpfValido, formatarCpf, comPromocao, comEstoqueDosKits } from "./loja";
 
 // --- Components ---
@@ -1520,6 +1521,8 @@ const PaymentPage = ({ cart, user, edicao, onPedidoFeito }: { cart: CartItem[], 
   const [pedido, setPedido] = useState<{ id: number, description: string, total_price: number, delivery_method: string, anterior?: number } | null>(null);
   const [entrega, setEntrega] = useState<"Correios" | "Retirada">(edicao?.entrega || "Correios");
   const [loading, setLoading] = useState(false);
+  const [redirecionando, setRedirecionando] = useState(false);
+  const [erroPagamento, setErroPagamento] = useState('');
   const navigate = useNavigate();
   const total = cart.reduce((acc, item) => acc + item.price * item.cartQuantity, 0);
 
@@ -1574,6 +1577,21 @@ const PaymentPage = ({ cart, user, edicao, onPedidoFeito }: { cart: CartItem[], 
           </div>
           <h2 className="text-4xl font-serif text-brand-olive">Pedido #{pedido.id} recebido!</h2>
           {pedido.anterior && <p className="text-sm text-gray-600">Ele substitui o pedido #{pedido.anterior}, que foi cancelado.</p>}
+          {mercadoPagoHabilitado && pedido.delivery_method === 'Retirada' && (
+            <div className="border border-brand-beige/30 rounded-2xl p-4 space-y-3 text-left">
+              <h3 className="font-semibold text-brand-olive">Pagar com PIX ou cartão</h3>
+              <p className="text-sm text-gray-600">Pagamento em ambiente seguro do Mercado Pago. O pedido só será marcado como pago após a confirmação do provedor.</p>
+              {erroPagamento && <p role="alert" className="text-sm text-red-700">{erroPagamento}</p>}
+              <button type="button" disabled={redirecionando} onClick={async()=>{
+                setRedirecionando(true);setErroPagamento('');
+                try {await abrirCheckoutMercadoPago(pedido.id);}
+                catch(e) {setErroPagamento(e instanceof Error?e.message:'Erro ao iniciar pagamento');setRedirecionando(false);}
+              }} className="w-full rounded-full bg-brand-olive text-white py-3 px-4 font-bold disabled:opacity-50">
+                {redirecionando?'Abrindo Mercado Pago…':'Pagar com PIX ou cartão pelo Mercado Pago'}
+              </button>
+              <p className="text-xs text-gray-500">A confirmação pode levar alguns instantes; consulte o status em Meus pedidos.</p>
+            </div>
+          )}
           <InstrucoesPagamento pedido={pedido} />
           <div className="pt-2">
             <Link to="/meus-pedidos" className="text-brand-olive font-medium underline underline-offset-4">
@@ -1681,6 +1699,7 @@ const PaymentPage = ({ cart, user, edicao, onPedidoFeito }: { cart: CartItem[], 
 };
 
 const MyOrders = ({ user, onCarregar }: { user: any, onCarregar: (pedido: any, editar: boolean) => Promise<boolean> }) => {
+  const retornoPagamento = new URLSearchParams(window.location.search).get('retorno') === 'mercadopago';
   const [orders, setOrders] = useState<any[]>([]);
   const [processando, setProcessando] = useState<number | null>(null);
   const navigate = useNavigate();
@@ -1738,7 +1757,10 @@ const MyOrders = ({ user, onCarregar }: { user: any, onCarregar: (pedido: any, e
 
   return (
     <div className="max-w-4xl mx-auto px-4 py-20 min-h-screen">
-      <h2 className="text-4xl font-serif text-brand-olive mb-12">Meus Pedidos</h2>
+      <h2 className="text-4xl font-serif text-brand-olive mb-6">Meus Pedidos</h2>
+      {retornoPagamento && <p role="status" className="mb-6 rounded-xl bg-brand-mint/20 border border-brand-mint/40 p-4 text-sm text-gray-700">
+        Você voltou do Mercado Pago. Isso não significa que o pagamento já foi confirmado. Confira o status do pedido abaixo; ele será atualizado após validação pelo servidor.
+      </p>}
       <div className="space-y-6">
         {orders.map(order => (
           <div key={order.id} className="bg-white p-8 rounded-3xl shadow-sm border border-brand-beige/20">
