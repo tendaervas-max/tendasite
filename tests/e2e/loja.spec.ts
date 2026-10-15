@@ -69,3 +69,12 @@ test('layout mantém controles operáveis em dispositivos móveis',async ({page,
  expect(excedente).toBeLessThanOrEqual(2);
  await page.screenshot({path:`test-results/mobile-${test.info().project.name}.png`,fullPage:true});
 });
+
+test('modal de produto fecha com Escape e mantém foco acessível',async ({page})=>{
+ await page.getByRole('button',{name:'Escolher aroma'}).click();
+ const dialog=page.getByRole('dialog',{name:'Detalhes de Incenso Satya'});
+ await expect(dialog).toBeVisible();
+ await expect(dialog.getByRole('button',{name:'Fechar detalhes'})).toBeFocused();
+ await page.keyboard.press('Escape');
+ await expect(dialog).toHaveCount(0);
+});
