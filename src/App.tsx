@@ -1602,7 +1602,13 @@ const PaymentPage = ({ cart, user, edicao, onPedidoFeito }: { cart: CartItem[], 
               <p className="text-xs text-gray-500">A confirmação pode levar alguns instantes; consulte o status em Meus pedidos.</p>
             </div>
           )}
-          <InstrucoesPagamento pedido={pedido} />
+          {(!mercadoPagoHabilitado || pedido.delivery_method !== 'Retirada') && <InstrucoesPagamento pedido={pedido} />}
+          {mercadoPagoHabilitado && pedido.delivery_method === 'Retirada' && (
+            <p className="text-sm text-gray-600">
+              Se tiver dificuldades para pagar, <a className="text-brand-olive underline" href={linkWhatsApp(`Olá! Preciso de ajuda para pagar o pedido #${pedido.id}.`)} target="_blank" rel="noreferrer">fale com a loja</a>.
+              Não faça outro pagamento antes de verificar o status do pedido.
+            </p>
+          )}
           <div className="pt-2">
             <Link to="/meus-pedidos" className="text-brand-olive font-medium underline underline-offset-4">
               Ver meus pedidos
@@ -1794,7 +1800,13 @@ const MyOrders = ({ user, onCarregar }: { user: any, onCarregar: (pedido: any, e
             </div>
             {order.status === "aguardando pagamento" && (
               <>
-                <InstrucoesPagamento pedido={order} />
+                {mercadoPagoHabilitado && order.delivery_method === 'Retirada'
+                  ? <button type="button" disabled={processando === order.id} onClick={async()=>{
+                    setProcessando(order.id);
+                    try{await abrirCheckoutMercadoPago(order.id);}
+                    catch(e){alert(e instanceof Error?e.message:'Pagamento indisponível');setProcessando(null);}
+                  }} className="w-full rounded-full bg-brand-olive text-white py-3 font-semibold">Pagar com PIX ou cartão pelo Mercado Pago</button>
+                  : <InstrucoesPagamento pedido={order} />}
                 <div className="grid grid-cols-2 gap-3 mt-3">
                   <button
                     onClick={() => levarParaCarrinho(order, true)}
