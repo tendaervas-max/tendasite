@@ -4,20 +4,20 @@ Atualizado em 14/10/2026. Versão editável: [Tenda Ervas — documentação té
 
 ## Visão geral
 
-A conta do GitHub `tendaervas-max` tem dois sistemas, os dois gerados no Google AI Studio e usando o Supabase como banco. Os dois projetos Supabase foram retomados em 14/10/2026: os dois já estão ligados ao banco novo, com as regras de acesso.
+A conta do GitHub `tendaervas-max` tem dois sistemas, os dois gerados no Google AI Studio e hoje no mesmo banco Supabase (projeto Site Tenda). Desde 14/10/2026 os dois estão publicados no Cloudflare Pages, de graça.
 
 | Sistema | Para que serve | Repositório | Pasta na máquina | Tecnologia | Publicação | Porta local |
 | --- | --- | --- | --- | --- | --- | --- |
-| Loja (`tendasite`) | Loja virtual de ervas para banho: catálogo, carrinho, cadastro de cliente, pedidos e painel `/admin` | [tendaervas-max/tendasite](https://github.com/tendaervas-max/tendasite) (público) | `~/Documents/GitHub/tendasite` | React 19, Vite 6, Tailwind 4, React Router, Supabase | Netlify (`netlify.toml`: `npm run build`, pasta `dist`) | 5173 |
-| Gestão (`Tenda-Ervas`) | Sistema interno: vendas em quadro (kanban), pedidos de produção, estoque de ervas e dashboard | [tendaervas-max/Tenda-Ervas](https://github.com/tendaervas-max/Tenda-Ervas) (privado) | `~/Documents/GitHub/Tenda-Ervas` | React 19, Vite 6, Tailwind pelo CDN, Supabase | Nenhuma configurada | 3000 |
+| Loja (`tendasite`) | Loja virtual de ervas para banho: catálogo, carrinho, cadastro de cliente, pedidos e painel `/admin` | [tendaervas-max/tendasite](https://github.com/tendaervas-max/tendasite) (público) | `~/Documents/GitHub/tendasite` | React 19, Vite 6, Tailwind 4, React Router, Supabase | Cloudflare Pages: tendasite.pages.dev, publica a `main` (`npm run build`, pasta `dist`) | 5173 |
+| Gestão (`Tenda-Ervas`) | Sistema interno: clientes, vendas em quadro (kanban) com produtos e kits, pedidos, estoque, kits e promoções e dashboard | [tendaervas-max/Tenda-Ervas](https://github.com/tendaervas-max/Tenda-Ervas) (privado) | `~/Documents/GitHub/Tenda-Ervas` | React 19, Vite 6, Tailwind pelo CDN, Supabase | Cloudflare Pages: sistematenda.pages.dev, publica a main | 3000 |
 
-Os ajustes estão na branch `ajustes-nathalia` dos dois repositórios, com os commits feitos e o push ainda pendente.
+O trabalho é feito na branch `ajustes-nathalia` e entra na `main` por pull request. O push é pelo GitHub Desktop, porque o terminal não tem login do GitHub.
 
-Os dois sistemas não conversam entre si: um pedido feito na loja não aparece na gestão.
+Os dois sistemas usam o mesmo banco e o mesmo login: o estoque da gestão é a tabela de produtos da loja, e os pedidos e clientes do site aparecem na gestão.
 
 ## Situação em 14/10/2026 e próximos passos
 
-O código está pronto e os dois projetos Supabase foram retomados. Em 14/10 a loja e a gestão ficaram ligadas ao banco novo, com admin e equipe liberados. A loja também ganhou a compra com PIX e WhatsApp, o catálogo do Canva e os avisos por e-mail. Falta a senha de app do Gmail, publicar na Netlify e testar uma compra de ponta a ponta. Para continuar com o Claude numa conversa nova, abra a pasta do projeto e peça para ele ler o `DOCUMENTACAO.md`.
+Os dois sistemas estão no ar no Cloudflare Pages, ligados ao mesmo banco, com login por e-mail e senha e pelo Google. Faltam a senha de app do Gmail, publicar a função `criar-usuario`, o estoque real e uma compra de teste de ponta a ponta. Para continuar com o Claude numa conversa nova, abra a pasta do projeto e peça para ele ler o `DOCUMENTACAO.md`.
 
 - [x] Ajustes de segurança com commit na branch `ajustes-nathalia` dos dois repositórios
 - [x] Site Tenda (loja) e Tenda Ervas (gestão) retomados no Supabase; o projeto tenda continua pausado
@@ -39,30 +39,42 @@ O código está pronto e os dois projetos Supabase foram retomados. Em 14/10 a l
 - [x] Loja e gestão: aba Usuários no Admin (lista os administradores, torna ou retira admin, cadastra login) e a gestão no mesmo banco e login da loja; o dono (tendaervas) libera quem entra na gestão e quem tem acesso vê o link Gestão no menu (`supabase/atualizacao-2026-10-14-usuarios.sql`, `supabase/atualizacao-2026-10-14-gestao.sql` e o `schema.sql` do Tenda-Ervas, já rodados no Site Tenda)
 - [x] Gestão ligada à loja: o estoque é a tabela de produtos do site (Cadastrar produto com as categorias da loja e categoria nova), os pedidos do site entram no quadro de pedidos e, ao mudar de coluna, mudam o status para o cliente, e os clientes do site aparecem no painel; tela Kits e Promoções cria kit (os itens saem do estoque), monta mais unidades e aplica promoção por preço ou desconto, em produto avulso ou kit, que o site mostra e cobra (`supabase/atualizacao-2026-10-14-gestao-integrada.sql` e `supabase/atualizacao-2026-10-14-kits-promocoes.sql`, já rodados)
 - [x] Gestão: aba Clientes separada das vendas (nome, data de nascimento e CPF válido obrigatórios; clientes do site só para consulta), nova venda escolhe o cliente e o responsável entre os administradores e pode ser excluída, formas de trabalho e categorias com adicionar, renomear e excluir (o site monta as abas pela tabela categorias), cartões do painel levam à aba com os detalhes (`supabase/atualizacao-2026-10-14-cadastros.sql`, já rodado)
+- [x] Gestão: nova venda escolhe produtos e kits da loja (busca, categoria, cor ou aroma, quantidade, preço do dia com promoção, aviso de estoque e total) e o pedido recebe os itens; cadastro de cliente com CEP que preenche o endereço (supabase/atualizacao-2026-10-14-venda-itens-cep.sql, já rodado)
+- [x] Loja e gestão: alterar produto já cadastrado (Admin da loja e Estoque da gestão) e confirmação antes de excluir no Admin; o Cajueiro, excluído sem querer, voltou ao catálogo (supabase/atualizacao-2026-10-14-restaurar-cajueiro.sql, já rodado)
+- [x] Login com Google: app Tenda Ervas em produção no Google Cloud (projeto tenda-ervas) e provedor Google ligado no Supabase
 - [ ] Publicar a Edge Function criar-usuario no Supabase da loja (Edge Functions > Deploy a new function, verify JWT ligado); sem ela, o Cadastrar usuário da aba Usuários dá erro
 - [ ] Ajustar o estoque real de cada produto (todos entraram com 10) no Table Editor do Supabase, tabela products, coluna quantity
 - [ ] Gmail: ligar a verificação em duas etapas da conta da loja, criar uma senha de app e colar no Supabase em Authentication > Emails > SMTP Settings (smtp.gmail.com, porta 465) e no secret `GMAIL_SENHA_APP` da função
-- [x] Netlify: site publicado em tendaervas.netlify.app, com o secret `SITE_URL` da função e, no Supabase, o Site URL e as Redirect URLs configurados (com `/nova-senha`)
+- [x] Cloudflare Pages: loja em tendasite.pages.dev e gestão em sistematenda.pages.dev (o plano grátis do Netlify bloqueou novos deploys), com o secret `SITE_URL` da função e, no Supabase, o Site URL e as Redirect URLs configurados (com `/nova-senha`)
 - [ ] Revisar os textos de privacidade e de trocas e preencher razão social e endereço em `src/loja.ts`
 - [ ] Testar loja e gestão rodando local com `npm run dev`
-- [x] Pull request de `ajustes-nathalia` para a `main` mesclado nos dois repositórios em 14/10/2026; a loja está no ar em tendaervas.netlify.app com a versão nova
-- [ ] Gestão: no projeto sistematenda da Netlify (sistematenda.netlify.app, publica a `main` do Tenda-Ervas), cadastrar `VITE_SUPABASE_URL` e `VITE_SUPABASE_ANON_KEY` em Environment variables, com os mesmos valores do tendaervas (projeto da loja), e publicar de novo; sem elas a gestão abre em MODO LOCAL, sem login, e o que se cadastra fica só no navegador
+- [x] Pull request de `ajustes-nathalia` para a `main` mesclado nos dois repositórios a cada entrega; o Cloudflare Pages publica a main sozinho
 - [x] Apagar o esquema `backup` da loja com `drop schema backup cascade;`: apagado em 14/10/2026; só guardava os 2 logins antigos de admin
 - [ ] Decidir o autor do git: o `~/.gitconfig` global está como `tendaervas-max`, e isso vale para todos os repositórios da máquina
+- [ ] Trocar o link da loja no Instagram e onde mais estiver divulgado para tendasite.pages.dev
+- [ ] Gestão: decidir se Tipo Contrato e Tamanho do kit saem da venda, ganham nome claro ou ficam como estão (hoje são só etiquetas)
+- [ ] Login com Apple: depende da conta paga de desenvolvedor da Apple (US$ 99 por ano) e de renovar a chave a cada 6 meses
 
-Se a versão antiga da loja estiver no ar na Netlify, ela para de funcionar com as regras novas do banco. Isso se resolve publicando a nova versão.
+Os endereços antigos do Netlify (tendaervas.netlify.app e sistematenda.netlify.app) seguem no ar com a versão de 14/10 à tarde, mas não recebem mais publicação. Divulgue só os endereços do Cloudflare.
 
-## Login com Google e pagamento online: o que falta
+## Login com Google e Apple e pagamento online
 
-O botão "Continuar com Google" e a tela de completar cadastro já estão no site; falta ativar o Google no Supabase. O pagamento hoje é por PIX com comprovante no WhatsApp; cobrar no próprio site depende de uma conta no Mercado Pago.
+O login com Google funciona desde 14/10/2026. Login com Apple e cobrança no próprio site dependem de contas pagas da loja; até lá, o pagamento segue por PIX com comprovante no WhatsApp.
 
-**Login com Google** (hoje o botão responde "provider is not enabled", porque o passo 4 ainda não foi feito)
+**Login com Google** (feito em 14/10/2026; o botão "Continuar com Google" volta para a loja, que pede CPF, CEP e WhatsApp antes da primeira compra)
 
-1. Em [console.cloud.google.com](https://console.cloud.google.com), entre com `tendaervas@gmail.com` e crie o projeto "Tenda Ervas".
-2. Em APIs e serviços > Tela de consentimento OAuth, escolha "Externo", nome do app "Tenda Ervas", e-mail de suporte `tendaervas@gmail.com` e domínio autorizado `supabase.co`; depois publique o app (status "Em produção") para qualquer conta Google conseguir entrar.
-3. Em Credenciais > Criar credenciais > ID do cliente OAuth > Aplicativo da Web, cadastre a origem `https://tendaervas.netlify.app` e o URI de redirecionamento `https://hbkywvztwhdccznwuuex.supabase.co/auth/v1/callback`.
-4. Copie o Client ID e o Client Secret e cole no Supabase do Site Tenda em Authentication > Sign In / Providers > Google (ative e salve). O Client Secret é senha: não mande em conversa nem coloque no código.
-5. Teste: "Continuar com Google" volta para o site e pede CPF, CEP e WhatsApp antes da primeira compra.
+| Onde | Como está |
+| --- | --- |
+| Google Cloud, projeto `tenda-ervas` (conta tendaervas@gmail.com) | Branding "Tenda Ervas" com página inicial `https://tendasite.pages.dev`, privacidade `/privacidade` e termos `/trocas`; público Externo, status Em produção. Sem os três links o botão Publicar app fica bloqueado |
+| Google Cloud, cliente OAuth "Loja Tenda Ervas" (Aplicativo da Web) | Origem `https://tendasite.pages.dev`; retorno `https://hbkywvztwhdccznwuuex.supabase.co/auth/v1/callback` |
+| Supabase do Site Tenda, Authentication > Sign In / Providers > Google | Client ID e Client Secret colados e "Enable Sign in with Google" ligado. O Client Secret é senha: nunca em conversa nem no código |
+
+**Login com Apple** (a fazer, se a loja quiser)
+
+1. Assinar o Apple Developer Program (US$ 99 por ano) com uma conta Apple da loja.
+2. Criar o App ID, o Services ID (domínio `tendasite.pages.dev` e retorno do Supabase acima) e uma chave Sign in with Apple.
+3. No Supabase, em Authentication > Sign In / Providers > Apple, colar o Services ID e o segredo gerado da chave. Esse segredo vence a cada 6 meses e precisa ser renovado.
+4. Colocar o botão "Continuar com Apple" na loja (Claude faz).
 
 **Pagamento pelo site** (PIX automático e cartão, com o pedido confirmado sozinho)
 
@@ -137,9 +149,9 @@ O banco da gestão estava sem tabelas, então leva só o `schema.sql`. O da loja
 
 | O que o `schema.sql` cria | Loja | Gestão |
 | --- | --- | --- |
-| Tabelas | `products`, `orders`, `users` (cadastro, sem senha), `admin` | `inventory`, `sales`, `orders`, `equipe` |
+| Tabelas | `products`, `orders`, `users` (cadastro, sem senha), `admin` | `gestao_clientes`, `gestao_vendas`, `gestao_pedidos`, `gestao_formas_trabalho` (no banco da loja) |
 | Quem acessa | Produtos: todos veem, só admin altera. Pedidos e cadastro: o dono e o admin | Só quem está em `equipe` |
-| Funções | `is_admin`, `criar_pedido`, `cancelar_pedido`, `refazer_pedido`, `cpf_valido`, gatilho `ao_criar_usuario` | `eh_da_equipe` |
+| Funções | `is_admin`, `criar_pedido`, `cancelar_pedido`, `refazer_pedido`, `cpf_valido`, gatilho `ao_criar_usuario` | `renomear_forma_trabalho` (usa `eh_da_equipe` e `cpf_valido`, que vêm do schema da loja) |
 | Fotos | Bucket público `product-images` (PNG, JPEG ou WebP, até 5 MB), envio só pelo admin | — |
 
 **Projeto da loja**
@@ -148,17 +160,13 @@ O banco da gestão estava sem tabelas, então leva só o `schema.sql`. O da loja
 2. Em SQL Editor > New query, cole o conteúdo de `tendasite/supabase/schema.sql` e clique em Run.
 3. Em Project Settings > API Keys, copie o Project URL e a chave publishable (anon) para o `tendasite/.env.local`, em `VITE_SUPABASE_URL` e `VITE_SUPABASE_ANON_KEY`. Nunca coloque a chave secret (service\_role) no site.
 4. Em Authentication > Users > Add user, crie o usuário do admin com e-mail, senha e "Auto Confirm User". Depois rode no SQL Editor: `insert into public.admin (user_id) select id from auth.users where email = 'email-do-admin';`
-5. Em Authentication > URL Configuration, coloque o endereço da Netlify em Site URL e `http://localhost:5173` em Redirect URLs, para o link de confirmação de e-mail funcionar.
+5. Em Authentication > URL Configuration, coloque https://tendasite.pages.dev em Site URL e `http://localhost:5173` em Redirect URLs, para o link de confirmação de e-mail funcionar.
 6. Em Authentication > Sign In / Providers > Email, deixe "Confirm email" ligado e aumente o tamanho mínimo de senha para 8.
-7. Na Netlify, em Site configuration > Environment variables, cadastre `VITE_SUPABASE_URL` e `VITE_SUPABASE_ANON_KEY` e faça um novo deploy.
+7. No Cloudflare Pages, projeto tendasite, em Configurações > Variáveis e segredos, cadastre `VITE_SUPABASE_URL` e `VITE_SUPABASE_ANON_KEY` e publique de novo (Tentar implantar novamente no último deploy).
 
-**Projeto da gestão**
+**Gestão**
 
-1. Crie o segundo projeto (sugestão: `tenda-ervas-gestao`).
-2. Rode `Tenda-Ervas/supabase/schema.sql` no SQL Editor.
-3. Copie o Project URL e a chave publishable para o `Tenda-Ervas/.env.local`.
-4. Crie cada pessoa da equipe em Authentication > Users > Add user e libere com: `insert into public.equipe (user_id) select id from auth.users where email = 'email-da-pessoa';`
-5. Em Authentication > Sign In / Providers, desligue "Allow new users to sign up". Assim ninguém cria conta sozinho.
+A gestão não tem projeto próprio desde 14/10/2026. Rode o `supabase/schema.sql` do Tenda-Ervas no SQL Editor do Site Tenda, depois do schema da loja, e libere quem entra pela aba Usuários do Admin da loja. O projeto antigo Tenda Ervas (`msbofqngdoqvuxfpodjd`) ficou sem uso.
 
 No plano gratuito, projeto sem uso por muito tempo é pausado, e foi o que aconteceu com os três projetos antigos. Confira as regras atuais em [supabase.com/pricing](https://supabase.com/pricing). Abra os sistemas de vez em quando ou avalie o plano pago.
 
@@ -170,13 +178,13 @@ Código se altera pelo VS Code e vai para o GitHub. Dados e usuários se alteram
 | --- | --- | --- |
 | Código da loja | `~/Documents/GitHub/tendasite` | VS Code > File > Open Folder; aceite "Trust" no aviso de Restricted Mode; no terminal, `npm install` (só na primeira vez) e `npm run dev`; abra http://localhost:5173 |
 | Código da gestão | `~/Documents/GitHub/Tenda-Ervas` | Mesmo caminho; `npm run dev` abre em http://localhost:3000 |
-| Enviar alterações | GitHub `tendaervas-max` | Na branch `ajustes-nathalia`: `git push -u origin ajustes-nathalia` e abrir um pull request para a `main` |
+| Enviar alterações | GitHub `tendaervas-max` | Na branch `ajustes-nathalia`: push e pull request para a `main` pelo GitHub Desktop (o terminal não tem login do GitHub); o merge publica no Cloudflare |
 | Dados (produtos, pedidos, estoque) | Supabase > Table Editor | Ver e editar linha a linha; as regras de acesso não valem para quem está no painel |
 | Estrutura e consultas | Supabase > SQL Editor | Rodar SQL, como os `insert` de admin e equipe |
 | Usuários e senhas | Supabase > Authentication > Users | Criar usuário, mandar redefinição de senha, excluir conta; a senha criptografada aparece no Table Editor, esquema auth, tabela users, coluna encrypted\_password |
 | Fotos dos produtos | Supabase > Storage > `product-images` | Ver, trocar ou apagar arquivos |
 | Produtos e status de pedido | Site da loja em `/admin` | Entrar com e-mail e senha do admin; a aba Supabase confere se as tabelas existem |
-| Publicação da loja | [app.netlify.com](https://app.netlify.com), site ligado ao `tendasite` | Deploys, variáveis de ambiente e endereço; confira em Build & deploy qual branch ele publica |
+| Publicação da loja e da gestão | [dash.cloudflare.com](https://dash.cloudflare.com), Workers e Pages, projetos `tendasite` e `sistematenda` | Implantações (log de cada build e Tentar implantar novamente), Configurações (build e variáveis) e Domínios personalizados; publica a `main` sozinho |
 | Versão original | Google AI Studio: [loja](https://ai.studio/apps/43632240-6692-412b-9d38-f853e4d5d56e), [gestão](https://ai.studio/apps/drive/1U_kajzVf6Zrv_b0U0P63RD5mHiRwiSEj) | Só consulta: exportar de lá de novo apaga estes ajustes |
 
 O autor dos commits vem do `~/.gitconfig` global da máquina, que hoje está como `tendaervas-max`. Ele também vale para os outros repositórios da máquina. Para usar esse nome só nas pastas da Tenda Ervas, rode `git config user.name` e `git config user.email` dentro de cada uma, e volte o global para o seu nome.
@@ -189,12 +197,12 @@ Os itens de segurança e os que impediam a venda foram feitos em 14/10/2026. O r
 | --- | --- | --- | --- | --- |
 | Alta | Feito | Loja e gestão | Configurar os bancos retomados, rodar os scripts e preencher os `.env.local` (feito em 14/10/2026) | Sem isso nada é salvo |
 | Alta | Feito | Loja | Remover pacotes sem uso (`express`, `better-sqlite3`, `multer`, `jsonwebtoken`, `bcryptjs`, `mercadopago`, `dotenv`, `@google/genai`) e atualizar `vite` e `react-router-dom` | O `npm audit` aponta 22 vulnerabilidades (2 críticas, 12 altas); as críticas vêm de pacotes sem uso |
-| Alta | Feito | Loja | Criar `public/_redirects` com `/* /index.html 200` | Abrir `/produtos` ou `/admin` direto por link dá 404 na Netlify |
+| Alta | Feito | Loja | Criar `public/_redirects` com `/* /index.html 200` | Abrir `/produtos` ou `/admin` direto por link dava 404 no site publicado |
 | Alta | Feito | Loja | Baixar o estoque ao finalizar o pedido e recusar compra acima do estoque | Hoje a quantidade em estoque nunca muda |
 | Alta | A fazer | Loja e gestão | Testar com o Supabase real: cadastro com confirmação de e-mail, login do admin, envio de foto, login da equipe | Só foi testado num banco local que imita o Supabase |
 | Média | Feito | Loja | Opção "Esqueci minha senha" | Hoje o cliente não consegue recuperar a senha sozinho |
 | Média | Feito | Loja | Tela para o cliente alterar endereço e dados | O banco já permite; falta a tela |
-| Média | A fazer | Loja | Editar produto no admin (preço, estoque, foto) | Hoje só cadastra e exclui |
+| Média | Feito | Loja | Editar produto no Admin da loja e no Estoque da gestão (feito em 14/10/2026) | Antes só cadastrava e excluía |
 | Média | A fazer | Loja | Guardar o carrinho no navegador | O carrinho some ao recarregar a página |
 | Média | Feito | Loja | Esconder o botão "+ Novo Produto" de visitantes | Aparece para todo mundo e leva ao login do admin |
 | Média | Feito | Loja | Traduzir as mensagens de erro do cadastro | O Supabase responde em inglês (ex.: senha curta, e-mail já usado) |
@@ -205,13 +213,13 @@ Os itens de segurança e os que impediam a venda foram feitos em 14/10/2026. O r
 | Média | A fazer | Gestão | Instalar o Tailwind no build e tirar o `importmap` do esm.sh do `index.html` | O Tailwind pelo CDN não é para produção (o próprio aviso no console diz isso) |
 | Média | A fazer | Gestão | Fazer funcionar a busca do dashboard e o botão "Recolher" do menu | Hoje os dois não fazem nada |
 | Média | A fazer | Gestão | Trocar os "+12%" e "+8% vs mês anterior" por números reais | São textos fixos no código |
-| Média | A fazer | Gestão | Publicar a gestão (Netlify ou similar) | Hoje só roda na máquina |
+| Média | Feito | Gestão | Publicar a gestão (Cloudflare Pages, sistematenda.pages.dev) | Só rodava na máquina |
 | Baixa | Feito | Loja | Título da aba e idioma da página: "Tenda Ervas" e `pt-BR` | Hoje aparece "My Google AI Studio App", em inglês |
 | Baixa | A fazer | Loja | Apagar a foto do Storage ao excluir o produto | As fotos ficam ocupando espaço |
 | Baixa | A fazer | Gestão | Alterar estoque pelo id da erva, não pelo nome | Duas ervas com o mesmo nome mudam juntas |
 | Baixa | A fazer | Gestão | Arrumar o campo de busca da tela Estoque em janela estreita | Numa janela de 800 px ele fica espremido ao lado dos filtros de peso |
 | Baixa | Feito | Loja | Política de privacidade (LGPD) | A loja guarda CPF e endereço dos clientes |
-| Baixa | A fazer | Loja e gestão | Levar os pedidos da loja para a gestão | Hoje os dois sistemas não se falam |
+| Baixa | Feito | Loja e gestão | Levar os pedidos da loja para a gestão | Feito: a gestão usa o banco da loja e mostra os pedidos e clientes do site |
 
 ## Consultas úteis
 
@@ -237,7 +245,7 @@ select 'bucket ' || id, case when public then 'público' else 'privado' end || '
 from storage.buckets;
 ```
 
-**Gestão (Tenda Ervas):** RLS por tabela, regras e quem está ou não na equipe.
+**Gestão, projeto antigo Tenda Ervas (sem uso desde 14/10/2026; as tabelas da gestão hoje estão no Site Tenda):** RLS por tabela, regras e quem está ou não na equipe.
 
 ```sql
 select 'tabela ' || c.relname as item, case when c.relrowsecurity then 'RLS ligado' else 'RLS DESLIGADO' end as valor
