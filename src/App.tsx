@@ -2258,11 +2258,13 @@ const Privacidade = () => (
   <PaginaTexto titulo="Política de privacidade">
     <p>Esta política explica como a {LOJA.nome} usa os seus dados pessoais, conforme a Lei Geral de Proteção de Dados (Lei 13.709/2018).</p>
     <h3 className="text-2xl font-serif text-brand-olive pt-2">Quais dados guardamos</h3>
-    <p>No cadastro: nome, CPF, e-mail, WhatsApp, endereço e CEP. Em cada compra: os produtos, o valor, a forma de entrega e o andamento do pedido. A senha fica criptografada e nem a loja tem acesso a ela.</p>
+    <p>No cadastro: nome, CPF, e-mail, WhatsApp, endereço e CEP. Em cada compra: os produtos, o valor, a forma de entrega e o andamento do pedido. A autenticação é gerenciada pelo Supabase Auth; não guardamos senhas em nossas tabelas comerciais.</p>
     <h3 className="text-2xl font-serif text-brand-olive pt-2">Para que usamos</h3>
     <p>Para separar e entregar os pedidos, falar com você sobre a compra, emitir documentos fiscais e cumprir obrigações legais. Não vendemos nem usamos seus dados para propaganda de terceiros.</p>
     <h3 className="text-2xl font-serif text-brand-olive pt-2">Com quem compartilhamos</h3>
-    <p>Só com quem é necessário para a compra acontecer: os Correios ou a transportadora (nome e endereço de entrega) e os serviços que hospedam o site e o banco de dados (Cloudflare e Supabase).</p>
+    <p>Com os prestadores necessários à operação, como os serviços de hospedagem e autenticação (Cloudflare e Supabase) e a transportadora quando houver entrega. Quando o pagamento via Mercado Pago estiver habilitado, dados necessários à cobrança e confirmação serão processados por esse provedor; não armazenamos os dados completos do cartão.</p>
+    <h3 className="text-2xl font-serif text-brand-olive pt-2">Segurança e pagamentos</h3>
+    <p>O acesso aos cadastros e pedidos é controlado por autenticação e permissões no banco. A confirmação de pagamento integrado, quando habilitada, será recebida e validada no servidor. Um retorno do navegador sozinho não confirma pagamento.</p>
     <h3 className="text-2xl font-serif text-brand-olive pt-2">Seus direitos</h3>
     <p>Você pode pedir a qualquer momento para ver, corrigir ou apagar seus dados, ou tirar dúvidas sobre o uso deles. Alguns dados de compras precisam ser guardados pelo prazo que a lei fiscal exige.</p>
     <h3 className="text-2xl font-serif text-brand-olive pt-2">Contato</h3>
