@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from "react";
 import { BrowserRouter as Router, Routes, Route, Link, useNavigate, useLocation, useSearchParams } from "react-router-dom";
 import { motion, AnimatePresence } from "motion/react";
-import { ShoppingCart, User, LogOut, Plus, Pencil, Trash2, Instagram, Phone, MapPin, Menu, X, ChevronRight, Leaf, Check, Database, Eye, EyeOff } from "lucide-react";
+import { ShoppingCart, User, LogOut, Plus, Pencil, Trash2, Instagram, Phone, MapPin, Menu, X, ChevronRight, Leaf, Check, Database, Eye, EyeOff, Search } from "lucide-react";
 import type { Session } from "@supabase/supabase-js";
 import { supabase, definirManterConectado } from "./lib/supabase";
 import { Product, CartItem } from "./types";
@@ -281,7 +281,7 @@ const ProductCard = ({ product, onAddToCart, onAbrir }: { product: Product, onAd
     >
       <button type="button" onClick={() => onAbrir(product)} className="block w-full aspect-square overflow-hidden relative shrink-0">
         <img 
-          src={product.image_url || `https://picsum.photos/seed/${product.id}/600/600`} 
+          src={product.image_url || '/produto-sem-foto.svg'} 
           className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500"
           alt={product.name}
           referrerPolicy="no-referrer"
@@ -319,9 +319,9 @@ const ProductCard = ({ product, onAddToCart, onAbrir }: { product: Product, onAd
               <div className="flex items-center justify-between">
                 <span className="text-xs text-gray-400 uppercase tracking-widest">Estoque: {product.quantity}</span>
                 <div className="flex items-center border border-brand-beige/30 rounded-full px-2 py-0.5">
-                  <button onClick={() => setQty(Math.max(1, qty - 1))} className="px-2 text-brand-olive">-</button>
+                  <button type="button" aria-label={`Diminuir quantidade de ${product.name}`} onClick={() => setQty(Math.max(1, qty - 1))} className="px-2 text-brand-olive">-</button>
                   <span className="mx-2 text-sm font-medium">{qty}</span>
-                  <button onClick={() => setQty(Math.min(Math.max(1, product.quantity), qty + 1))} className="px-2 text-brand-olive">+</button>
+                  <button type="button" aria-label={`Aumentar quantidade de ${product.name}`} onClick={() => setQty(Math.min(Math.max(1, product.quantity), qty + 1))} className="px-2 text-brand-olive">+</button>
                 </div>
               </div>
               <button 
@@ -346,7 +346,7 @@ const JanelaProduto = ({ product, onFechar, onAddToCart }: { product: Product, o
   const [opcao, setOpcao] = useState<string | undefined>(opcoes.length === 1 ? opcoes[0].nome : undefined);
   const [qty, setQty] = useState(1);
   const esgotado = product.quantity <= 0;
-  const foto = opcoes.find(o => o.nome === opcao)?.imagem || product.image_url || `https://picsum.photos/seed/${product.id}/600/600`;
+  const foto = opcoes.find(o => o.nome === opcao)?.imagem || product.image_url || '/produto-sem-foto.svg';
   const falta = opcoes.length > 0 && !opcao;
 
   // Método que adiciona a opção escolhida ao carrinho e fecha a janela
@@ -356,11 +356,12 @@ const JanelaProduto = ({ product, onFechar, onAddToCart }: { product: Product, o
   };
 
   return (
-    <div className="fixed inset-0 z-[60] bg-black/50 flex items-end sm:items-center justify-center p-0 sm:p-4" onClick={onFechar}>
+    <div className="fixed inset-0 z-[60] bg-black/50 flex items-end sm:items-center justify-center p-0 sm:p-4" onClick={onFechar} role="presentation">
       <motion.div
         initial={{ opacity: 0, y: 40 }}
         animate={{ opacity: 1, y: 0 }}
         onClick={e => e.stopPropagation()}
+        role="dialog" aria-modal="true" aria-label={`Detalhes de ${product.name}`}
         className="bg-white w-full sm:max-w-3xl max-h-[92vh] overflow-y-auto rounded-t-3xl sm:rounded-3xl shadow-2xl grid grid-cols-1 sm:grid-cols-2"
       >
         <div className="relative bg-white">
@@ -429,6 +430,9 @@ const Products = ({ onAddToCart, isAdmin }: { onAddToCart: (p: Product, qty: num
   const [loading, setLoading] = useState(true);
   const [erro, setErro] = useState("");
   const [aberto, setAberto] = useState<Product | null>(null);
+  const [termo, setTermo] = useState('');
+  const [ordenacao, setOrdenacao] = useState('nome');
+  const [apenasDisponiveis, setApenasDisponiveis] = useState(false);
   const [busca, setBusca] = useSearchParams();
   const ordemCategorias = useCategorias();
   const categoria = busca.get("categoria") || "";
@@ -471,7 +475,15 @@ const Products = ({ onAddToCart, isAdmin }: { onAddToCart: (p: Product, qty: num
 
   const categorias = ordemCategorias.filter(c => products.some(p => p.category === c))
     .concat(Array.from(new Set<string>(products.map(p => p.category))).filter(c => c && !ordemCategorias.includes(c)));
-  const visiveis = categoria ? products.filter(p => p.category === categoria) : products;
+  const visiveis = products
+    .filter(p => !categoria || p.category === categoria)
+    .filter(p => !apenasDisponiveis || p.quantity > 0)
+    .filter(p => [p.name, p.category, p.description || ''].some(v =>
+      v.toLocaleLowerCase('pt-BR').includes(termo.trim().toLocaleLowerCase('pt-BR'))))
+    .sort((a, b) => ordenacao === 'menor-preco' ? a.price - b.price
+      : ordenacao === 'maior-preco' ? b.price - a.price
+      : ordenacao === 'disponibilidade' ? b.quantity - a.quantity
+      : a.name.localeCompare(b.name, 'pt-BR'));
 
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-20">
@@ -505,6 +517,34 @@ const Products = ({ onAddToCart, isAdmin }: { onAddToCart: (p: Product, qty: num
         </div>
       )}
       
+      <section aria-label="Buscar e ordenar produtos" className="bg-white/80 border border-brand-beige/30 rounded-2xl p-4 mb-7 grid gap-4 sm:grid-cols-2 lg:grid-cols-[1fr_auto_auto] lg:items-end">
+        <label className="block text-sm font-semibold text-brand-olive">
+          Buscar produtos
+          <span className="relative block mt-1">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500" size={18} aria-hidden="true" />
+            <input type="search" value={termo} onChange={e => setTermo(e.target.value)}
+              placeholder="Ex.: alecrim, incenso, kit" autoComplete="off"
+              className="w-full min-h-11 pl-10 pr-3 py-2 border rounded-xl border-brand-beige/50 text-gray-900 focus-visible:outline-2 focus-visible:outline-brand-olive" />
+          </span>
+        </label>
+        <label className="block text-sm font-semibold text-brand-olive">
+          Ordenar por
+          <select value={ordenacao} onChange={e => setOrdenacao(e.target.value)}
+            className="block w-full mt-1 min-h-11 border rounded-xl px-3 border-brand-beige/50 text-gray-900 bg-white">
+            <option value="nome">Nome (A–Z)</option>
+            <option value="menor-preco">Menor preço</option>
+            <option value="maior-preco">Maior preço</option>
+            <option value="disponibilidade">Mais disponíveis</option>
+          </select>
+        </label>
+        <label className="flex items-center gap-2 min-h-11 text-sm font-medium text-brand-olive">
+          <input type="checkbox" checked={apenasDisponiveis} onChange={e => setApenasDisponiveis(e.target.checked)}
+            className="w-4 h-4 accent-brand-olive" /> Somente disponíveis
+        </label>
+      </section>
+      <p role="status" aria-live="polite" className="text-sm text-gray-600 mb-5">
+        {visiveis.length} {visiveis.length === 1 ? 'produto encontrado' : 'produtos encontrados'}
+      </p>
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-8">
         {visiveis.map(product => (
           <div key={product.id} className="h-full">
@@ -516,8 +556,12 @@ const Products = ({ onAddToCart, isAdmin }: { onAddToCart: (p: Product, qty: num
       {visiveis.length === 0 && (
         <div className="text-center py-20 space-y-6">
           <p className="text-gray-500">
-            {erro ? "Não foi possível carregar os produtos. Tente de novo em alguns instantes." : "Nenhum produto cadastrado no momento."}
+            {erro ? "Não foi possível carregar os produtos. Verifique a conexão e tente novamente." : "Nenhum produto corresponde aos filtros selecionados."}
           </p>
+          {!erro && <button type="button" onClick={() => { setTermo(''); setApenasDisponiveis(false); setBusca({}); setOrdenacao('nome'); }}
+            className="rounded-full bg-brand-olive text-white px-6 py-3 font-medium">Limpar filtros</button>}
+          {erro && <button type="button" onClick={() => window.location.reload()}
+            className="rounded-full bg-brand-olive text-white px-6 py-3 font-medium">Tentar novamente</button>}
           {isAdmin && erro && (
             <p className="max-w-xl mx-auto text-sm text-red-700 bg-red-50 border border-red-200 rounded-xl p-4">
               Aviso para o admin: o banco não respondeu ({erro}). Confira se o projeto Supabase está ativo.
@@ -587,7 +631,7 @@ const Cart = ({ cart, onUpdateQuantity, onRemove, user, edicao, onDesistirEdicao
             {cart.map(item => (
               <div key={chaveCarrinho(item.id, item.opcao)} className="flex items-center gap-6 p-6 border-b border-brand-beige/10 last:border-0">
                 <img 
-                  src={item.image_url || `https://picsum.photos/seed/${item.id}/200/200`} 
+                  src={item.image_url || '/produto-sem-foto.svg'} 
                   className="w-20 h-20 object-cover rounded-xl"
                   alt={item.name}
                   referrerPolicy="no-referrer"
@@ -605,11 +649,11 @@ const Cart = ({ cart, onUpdateQuantity, onRemove, user, edicao, onDesistirEdicao
                 </div>
                 <div className="flex items-center gap-4">
                   <div className="flex items-center border border-brand-beige/30 rounded-full px-3 py-1">
-                    <button onClick={() => onUpdateQuantity(chaveCarrinho(item.id, item.opcao), -1)} className="text-brand-olive hover:opacity-50">-</button>
+                    <button type="button" aria-label={`Diminuir quantidade de ${item.name}`} onClick={() => onUpdateQuantity(chaveCarrinho(item.id, item.opcao), -1)} className="text-brand-olive hover:opacity-50">-</button>
                     <span className="mx-4 text-sm font-medium">{item.cartQuantity}</span>
-                    <button onClick={() => onUpdateQuantity(chaveCarrinho(item.id, item.opcao), 1)} className="text-brand-olive hover:opacity-50">+</button>
+                    <button type="button" aria-label={`Aumentar quantidade de ${item.name}`} onClick={() => onUpdateQuantity(chaveCarrinho(item.id, item.opcao), 1)} className="text-brand-olive hover:opacity-50">+</button>
                   </div>
-                  <button onClick={() => onRemove(chaveCarrinho(item.id, item.opcao))} className="text-red-400 hover:text-red-600 transition-colors">
+                  <button type="button" aria-label={`Remover ${item.name} do carrinho`} onClick={() => onRemove(chaveCarrinho(item.id, item.opcao))} className="text-red-600 hover:text-red-700 transition-colors">
                     <Trash2 size={20} />
                   </button>
                 </div>
