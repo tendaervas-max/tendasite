@@ -5,7 +5,7 @@ import { ShoppingCart, User, LogOut, Plus, Pencil, Trash2, Instagram, Phone, Map
 import type { Session } from "@supabase/supabase-js";
 import { supabase, definirManterConectado } from "./lib/supabase";
 import { Product, CartItem } from "./types";
-import { LOJA, linkWhatsApp, STATUS_PEDIDO, mensagemPedido, mensagemEntrega, reais, CATEGORIAS, maiorDeIdade, chaveCarrinho, cpfValido, formatarCpf, comPromocao } from "./loja";
+import { LOJA, linkWhatsApp, STATUS_PEDIDO, mensagemPedido, mensagemEntrega, reais, CATEGORIAS, maiorDeIdade, chaveCarrinho, cpfValido, formatarCpf, comPromocao, comEstoqueDosKits } from "./loja";
 
 // --- Components ---
 
@@ -445,7 +445,7 @@ const Products = ({ onAddToCart, isAdmin }: { onAddToCart: (p: Product, qty: num
         console.error("Error fetching products:", error);
         setErro(error.message || "sem resposta");
       } else {
-        setProducts((data || []).map(comPromocao));
+        setProducts(comEstoqueDosKits(data || []).map(comPromocao));
       }
       setLoading(false);
     };
@@ -680,7 +680,7 @@ const Admin = ({ isAdmin, ehDono }: { isAdmin: boolean, ehDono: boolean }) => {
     if (isLoggedIn) {
       const fetchData = async () => {
         const { data: productsData, error: erroProdutos } = await supabase.from('products').select('*');
-        setProducts(productsData || []);
+        setProducts(comEstoqueDosKits(productsData || []));
         
         const { data: ordersData, error: erroPedidos } = await supabase.from('orders').select('*, users(email, phone, cpf, address, cep, number)').order('created_at', { ascending: false });
         setOrders(ordersData || []);
@@ -2357,8 +2357,8 @@ export default function App() {
     }
     if (cart.length > 0 && !confirm("Os produtos que estão no carrinho serão trocados pelos itens do pedido. Continuar?")) return false;
 
-    const { data: dadosProdutos, error } = await supabase.from('products').select('*').in('id', itens.map(item => item.id));
-    const produtos = (dadosProdutos || []).map(comPromocao);
+    const { data: dadosProdutos, error } = await supabase.from('products').select('*');
+    const produtos = comEstoqueDosKits(dadosProdutos || []).map(comPromocao);
     if (error) {
       alert("Não foi possível carregar os produtos do pedido: " + error.message);
       return false;
