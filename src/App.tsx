@@ -450,7 +450,21 @@ const Products = ({ onAddToCart, isAdmin }: { onAddToCart: (p: Product, qty: num
       }
       setLoading(false);
     };
-    fetchProducts();
+    void fetchProducts();
+    // Disponibilidade de kits virtuais é compartilhada: recarregar saldos de
+    // componentes após vendas de outros clientes e ao voltar para esta aba.
+    const atualizarAoVoltar = () => { if (document.visibilityState === 'visible') void fetchProducts(); };
+    const atualizarNoFoco = () => { void fetchProducts(); };
+    const intervalo = window.setInterval(() => {
+      if (document.visibilityState === 'visible') void fetchProducts();
+    }, 15000);
+    document.addEventListener('visibilitychange', atualizarAoVoltar);
+    window.addEventListener('focus', atualizarNoFoco);
+    return () => {
+      window.clearInterval(intervalo);
+      document.removeEventListener('visibilitychange', atualizarAoVoltar);
+      window.removeEventListener('focus', atualizarNoFoco);
+    };
   }, []);
 
   if (loading) return <div className="min-h-screen flex items-center justify-center">Carregando...</div>;
@@ -512,7 +526,7 @@ const Products = ({ onAddToCart, isAdmin }: { onAddToCart: (p: Product, qty: num
         </div>
       )}
 
-      {aberto && <JanelaProduto product={aberto} onFechar={() => setAberto(null)} onAddToCart={onAddToCart} />}
+      {aberto && <JanelaProduto product={products.find(p => p.id === aberto.id) || aberto} onFechar={() => setAberto(null)} onAddToCart={onAddToCart} />}
     </div>
   );
 };
