@@ -46,7 +46,7 @@ const Navbar = ({ cartCount, isAdmin, acessoGestao, user }: { cartCount: number,
             {user && <Link to="/meus-pedidos" className="text-sm font-medium hover:text-brand-olive transition-colors">Meus Pedidos</Link>}
             {user && <Link to="/minha-conta" className="text-sm font-medium hover:text-brand-olive transition-colors">Minha conta</Link>}
             {user && <button onClick={sair} className="text-sm font-medium hover:text-brand-olive transition-colors">Sair</button>}
-            <Link to="/carrinho" className="relative p-2 text-gray-700 hover:text-brand-olive transition-colors">
+            <Link to="/carrinho" aria-label="Abrir carrinho" className="relative p-2 text-gray-700 hover:text-brand-olive transition-colors">
               <ShoppingCart size={20} />
               {cartCount > 0 && (
                 <span className="absolute top-0 right-0 bg-brand-olive text-white text-[10px] font-bold px-1.5 py-0.5 rounded-full">
@@ -64,7 +64,7 @@ const Navbar = ({ cartCount, isAdmin, acessoGestao, user }: { cartCount: number,
           </div>
 
           <div className="md:hidden flex items-center space-x-4">
-            <Link to="/carrinho" className="relative p-2 text-gray-700">
+            <Link to="/carrinho" aria-label="Abrir carrinho" className="relative p-2 text-gray-700">
               <ShoppingCart size={20} />
               {cartCount > 0 && (
                 <span className="absolute top-0 right-0 bg-brand-olive text-white text-[10px] font-bold px-1.5 py-0.5 rounded-full">
@@ -72,7 +72,7 @@ const Navbar = ({ cartCount, isAdmin, acessoGestao, user }: { cartCount: number,
                 </span>
               )}
             </Link>
-            <button onClick={() => setIsOpen(!isOpen)} className="p-2 text-gray-700">
+            <button type="button" aria-label={isOpen ? "Fechar menu" : "Abrir menu"} aria-expanded={isOpen} aria-controls="navegacao-mobile" onClick={() => setIsOpen(!isOpen)} className="p-2 text-gray-700">
               {isOpen ? <X size={24} /> : <Menu size={24} />}
             </button>
           </div>
@@ -86,7 +86,7 @@ const Navbar = ({ cartCount, isAdmin, acessoGestao, user }: { cartCount: number,
             initial={{ opacity: 0, height: 0 }}
             animate={{ opacity: 1, height: "auto" }}
             exit={{ opacity: 0, height: 0 }}
-            className="md:hidden bg-brand-paper border-b border-brand-beige/20 overflow-hidden"
+            id="navegacao-mobile" className="md:hidden bg-brand-paper border-b border-brand-beige/20 overflow-hidden"
           >
             <div className="px-4 pt-2 pb-6 space-y-4">
               <Link to="/" onClick={() => setIsOpen(false)} className="block text-lg font-medium">Início</Link>
@@ -1548,11 +1548,21 @@ const PaymentPage = ({ cart, user, edicao, onPedidoFeito }: { cart: CartItem[], 
 
       if (error) throw error;
 
+      // O total definitivo pertence ao banco: promoções e disponibilidade podem
+      // mudar enquanto o carrinho está aberto.
+      const {data:pedidoSalvo,error:erroConsulta} = await supabase.from('orders')
+        .select('id,description,total_price,delivery_method').eq('id',data).single();
+      if(erroConsulta || !pedidoSalvo){
+        onPedidoFeito();
+        alert('Pedido criado, mas não foi possível consultar o valor final. Confira em Meus pedidos antes de pagar.');
+        navigate('/meus-pedidos');
+        return;
+      }
       setPedido({
-        id: data,
-        description: cart.map(item => `${item.cartQuantity}x ${item.name}${item.opcao ? ` (${item.opcao})` : ""}`).join(", "),
-        total_price: total,
-        delivery_method: entrega,
+        id: pedidoSalvo.id,
+        description: pedidoSalvo.description,
+        total_price: Number(pedidoSalvo.total_price),
+        delivery_method: pedidoSalvo.delivery_method,
         anterior: edicao?.id
       });
       onPedidoFeito();
