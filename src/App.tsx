@@ -2576,6 +2576,9 @@ export default function App() {
   return (
     <Router>
       <div className="flex flex-col min-h-screen">
+        <a href="#conteudo-principal" className="sr-only focus:not-sr-only focus:fixed focus:top-3 focus:left-3 focus:z-[100] focus:bg-white focus:text-brand-olive focus:px-4 focus:py-3 focus:rounded-lg focus:shadow-lg">
+          Pular para conteúdo principal
+        </a>
         <Navbar 
           cartCount={cart.reduce((acc, item) => acc + item.cartQuantity, 0)} 
           isAdmin={isAdmin}
@@ -2583,7 +2586,7 @@ export default function App() {
           user={user}
         />
         
-        <main className="flex-grow">
+        <main id="conteudo-principal" tabIndex={-1} className="flex-grow">
           {!sessaoCarregada ? (
             <div className="min-h-screen flex items-center justify-center">Carregando...</div>
           ) : (
