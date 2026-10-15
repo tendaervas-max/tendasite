@@ -81,7 +81,7 @@ test('modal de produto fecha com Escape e mantém foco acessível',async ({page}
 
 test('página inicial explica a loja e direciona ao catálogo',async ({page})=>{
  await page.goto('/');
- await expect(page.getByRole('heading',{name:'Tenda Ervas'})).toBeVisible();
+ await expect(page.getByRole('heading',{name:'Tenda Ervas',level:1})).toBeVisible();
  await expect(page.getByText(/Ervas, incensos, acessórios e kits/)).toBeVisible();
  await expect(page.getByText('3. Combine a entrega')).toBeVisible();
  await page.getByRole('link',{name:/Explorar Produtos/}).click();
