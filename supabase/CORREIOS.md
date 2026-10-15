@@ -19,7 +19,7 @@ Em Supabase > Edge Functions > Secrets, no projeto **Site Tenda**:
 | `CORREIOS_CODIGOS_SERVICOS` | Códigos de produtos/serviços de seu contrato separados por vírgulas, ex. `03220,03298` somente se habilitados. |
 | `CORREIOS_USUARIO` | Usuário de acesso às APIs no CWS. |
 | `CORREIOS_CODIGO_ACESSO` | Código de acesso a APIs gerado no CWS. |
-| `CORREIOS_CONTRATO` | Número de contrato comercial. |
+| `CORREIOS_CONTRATO` | Número de contrato comercial. |\n| `CORREIOS_DR` | Número da superintendência regional do contrato (necessário quando usado no parâmetro de preço contratual). |
 | `CORREIOS_CARTAO_POSTAGEM` | Número do cartão de postagem (quando exigido pelo serviço; se informado, é usado na autenticação). |
 
 Como alternativa ao login/senha, a função aceita `CORREIOS_BEARER_TOKEN` como segredo de acesso já autorizado (por exemplo, uma chave de subdelegação do Correios), evitando gerar token por chamada. Não use um token de curta validade sem rotina de renovação.
