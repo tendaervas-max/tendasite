@@ -342,6 +342,24 @@ const ProductCard = ({ product, onAddToCart, onAbrir }: { product: Product, onAd
 
 // Janela do produto: foto grande, descrição, escolha da opção (a foto muda quando a opção tem foto própria) e quantidade
 const JanelaProduto = ({ product, onFechar, onAddToCart }: { product: Product, onFechar: () => void, onAddToCart: (p: Product, qty: number, opcao?: string) => void }) => {
+  const dialogRef = React.useRef<HTMLDivElement>(null);
+  const fecharRef = React.useRef<HTMLButtonElement>(null);
+  useEffect(() => {
+    const anterior = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+    fecharRef.current?.focus();
+    const teclado = (evento: KeyboardEvent) => {
+      if(evento.key === 'Escape') { evento.preventDefault(); onFechar(); return; }
+      if(evento.key !== 'Tab') return;
+      const elementos = Array.from(dialogRef.current?.querySelectorAll<HTMLElement>(
+        'button:not([disabled]),a[href],input:not([disabled]),select:not([disabled]),[tabindex]:not([tabindex="-1"])'
+      ) || []).filter(elemento => elemento.getClientRects().length > 0);
+      const primeiro = elementos[0], ultimo = elementos[elementos.length-1];
+      if (evento.shiftKey && document.activeElement === primeiro) {evento.preventDefault(); ultimo?.focus();}
+      else if (!evento.shiftKey && document.activeElement === ultimo) {evento.preventDefault(); primeiro?.focus();}
+    };
+    document.addEventListener('keydown', teclado);
+    return () => {document.removeEventListener('keydown', teclado); anterior?.focus();};
+  }, []);
   // Com duas opções ou mais, o cliente também pode deixar a loja escolher (Aleatório)
   const opcoes = (product.options || []).length >= 2 ? [...product.options, { nome: "Aleatório" }] : (product.options || []);
   const [opcao, setOpcao] = useState<string | undefined>(opcoes.length === 1 ? opcoes[0].nome : undefined);
@@ -362,7 +380,7 @@ const JanelaProduto = ({ product, onFechar, onAddToCart }: { product: Product, o
         initial={{ opacity: 0, y: 40 }}
         animate={{ opacity: 1, y: 0 }}
         onClick={e => e.stopPropagation()}
-        role="dialog" aria-modal="true" aria-label={`Detalhes de ${product.name}`}
+        ref={dialogRef} role="dialog" aria-modal="true" aria-label={`Detalhes de ${product.name}`}
         className="bg-white w-full sm:max-w-3xl max-h-[92vh] overflow-y-auto rounded-t-3xl sm:rounded-3xl shadow-2xl grid grid-cols-1 sm:grid-cols-2"
       >
         <div className="relative bg-white">
@@ -370,7 +388,7 @@ const JanelaProduto = ({ product, onFechar, onAddToCart }: { product: Product, o
           {product.adult && <div className="absolute top-4 left-4 bg-red-600 text-white px-2.5 py-1 rounded-full text-xs font-bold">18+</div>}
         </div>
         <div className="p-6 sm:p-8 space-y-5 relative">
-          <button onClick={onFechar} aria-label="Fechar" className="absolute top-4 right-4 p-1 text-gray-500 hover:text-brand-olive"><X size={22} /></button>
+          <button ref={fecharRef} type="button" onClick={onFechar} aria-label="Fechar detalhes" className="absolute top-4 right-4 p-1 text-gray-500 hover:text-brand-olive"><X size={22} /></button>
           <div>
             <div className="text-xs text-gray-500 uppercase tracking-widest">{product.category}</div>
             <h3 className="text-3xl font-serif text-brand-olive pr-8">{product.name}</h3>
