@@ -4,6 +4,7 @@ import { motion, AnimatePresence } from "motion/react";
 import { ShoppingCart, User, LogOut, Plus, Pencil, Trash2, Instagram, Phone, MapPin, Menu, X, ChevronRight, Leaf, Check, Database, Eye, EyeOff } from "lucide-react";
 import type { Session } from "@supabase/supabase-js";
 import { supabase, definirManterConectado } from "./lib/supabase";
+import { CotacaoCorreios } from "./components/CotacaoCorreios";
 import { Product, CartItem } from "./types";
 import { LOJA, linkWhatsApp, STATUS_PEDIDO, mensagemPedido, mensagemEntrega, reais, CATEGORIAS, maiorDeIdade, chaveCarrinho, cpfValido, formatarCpf, comPromocao, comEstoqueDosKits } from "./loja";
 
@@ -1462,6 +1463,7 @@ const PaymentPage = ({ cart, user, edicao, onPedidoFeito }: { cart: CartItem[], 
   const [pedido, setPedido] = useState<{ id: number, description: string, total_price: number, delivery_method: string, anterior?: number } | null>(null);
   const [entrega, setEntrega] = useState<"Correios" | "Retirada">(edicao?.entrega || "Correios");
   const [loading, setLoading] = useState(false);
+  const [cotacaoSelecionada, setCotacaoSelecionada] = useState<{ codigo: string; valor: number; prazoDias: number | null } | null>(null);
   const navigate = useNavigate();
   const total = cart.reduce((acc, item) => acc + item.price * item.cartQuantity, 0);
 
@@ -1556,7 +1558,7 @@ const PaymentPage = ({ cart, user, edicao, onPedidoFeito }: { cart: CartItem[], 
             {(["Correios", "Retirada"] as const).map(opcao => (
               <button
                 key={opcao}
-                onClick={() => setEntrega(opcao)}
+                onClick={() => { setEntrega(opcao); setCotacaoSelecionada(null); }}
                 className={`py-3 rounded-xl border-2 transition-all font-medium ${
                   entrega === opcao 
                     ? "border-brand-olive bg-brand-olive text-white" 
@@ -1581,7 +1583,16 @@ const PaymentPage = ({ cart, user, edicao, onPedidoFeito }: { cart: CartItem[], 
                 CEP: {user?.cep}
               </p>
               <p className="text-sm text-gray-600 mt-3">O frete dos Correios é combinado pelo WhatsApp depois de finalizar.</p>
-              <a href={linkWhatsApp("Olá! Estou fazendo um pedido no site e queria combinar a entrega pelos Correios.")} target="_blank" rel="noreferrer" className="inline-flex items-center gap-2 mt-3 text-sm font-bold text-green-700 hover:underline">
+              <CotacaoCorreios cep={user?.cep} selecionada={cotacaoSelecionada} aoSelecionar={setCotacaoSelecionada} />
+              {cotacaoSelecionada && (
+                <p className="text-sm mt-3 text-brand-olive font-semibold">
+                  Serviço selecionado para combinar com a loja: {cotacaoSelecionada.codigo} · {reais(cotacaoSelecionada.valor)}.
+                  O frete não será cobrado junto com os produtos neste pedido.
+                </p>
+              )}
+              <a href={linkWhatsApp(cotacaoSelecionada
+                ? `Olá! Estou fazendo um pedido no site. Consultei o serviço ${cotacaoSelecionada.codigo} dos Correios com frete de ${reais(cotacaoSelecionada.valor)}${cotacaoSelecionada.prazoDias == null ? '' : ` e prazo estimado de ${cotacaoSelecionada.prazoDias} dias úteis`}. Gostaria de confirmar esse frete antes de pagar.`
+                : "Olá! Estou fazendo um pedido no site e queria combinar a entrega pelos Correios.")} target="_blank" rel="noreferrer" className="inline-flex items-center gap-2 mt-3 text-sm font-bold text-green-700 hover:underline">
                 <Phone size={16} /> Combinar a entrega pelo WhatsApp
               </a>
             </>
