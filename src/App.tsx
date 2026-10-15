@@ -165,15 +165,15 @@ const Footer = () => (
 const Home = () => (
   <div className="space-y-20 pb-20">
     {/* Hero Section */}
-    <section className="relative h-screen flex items-start justify-center overflow-hidden">
+    <section className="relative min-h-[68vh] md:min-h-[78vh] flex items-start justify-center overflow-hidden">
       {/* Background Image */}
-      <div className="absolute inset-0 z-0">
+      <div className="absolute inset-0 z-0 bg-gradient-to-br from-[#284934] to-brand-olive">
         <img 
           src="/hero.png.png" 
           className="w-full h-full object-cover"
           alt="Tenda Ervas Hero"
           onError={(e) => {
-            (e.target as HTMLImageElement).src = 'https://images.unsplash.com/photo-1540324155974-7523202daa3f?q=80&w=1920&auto=format&fit=crop';
+            (e.target as HTMLImageElement).style.display = 'none';
           }}
         />
         <div className="absolute inset-0 bg-black/30 backdrop-blur-[1px]"></div>
@@ -192,7 +192,7 @@ const Home = () => (
           </h1>
 
           <p className="text-xl md:text-2xl text-white/90 mb-8 max-w-2xl mx-auto leading-relaxed font-light drop-shadow-lg">
-            Sabedoria ancestral e equilíbrio natural para o seu dia a dia.
+            Ervas, incensos, acessórios e kits para quem valoriza tradição, cuidado e rituais.
           </p>
 
           <Link 
@@ -206,6 +206,23 @@ const Home = () => (
       </div>
     </section>
 
+    <section aria-label="Como comprar" className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        <div className="bg-white/85 rounded-2xl border border-brand-beige/30 p-5">
+          <p className="text-sm font-bold text-brand-olive mb-2">1. Escolha com clareza</p>
+          <p className="text-sm text-gray-700">Pesquise produtos, veja os detalhes, variações, valores e disponibilidade.</p>
+        </div>
+        <div className="bg-white/85 rounded-2xl border border-brand-beige/30 p-5">
+          <p className="text-sm font-bold text-brand-olive mb-2">2. Revise seu pedido</p>
+          <p className="text-sm text-gray-700">Ajuste as quantidades no carrinho e confira o total dos produtos.</p>
+        </div>
+        <div className="bg-white/85 rounded-2xl border border-brand-beige/30 p-5">
+          <p className="text-sm font-bold text-brand-olive mb-2">3. Combine a entrega</p>
+          <p className="text-sm text-gray-700">Escolha retirada ou combine o frete com a loja antes de pagar o envio.</p>
+        </div>
+      </div>
+    </section>
+
     {/* About Section */}
     <section className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
       <div className="grid grid-cols-1 md:grid-cols-2 gap-16 items-center">
@@ -216,7 +233,7 @@ const Home = () => (
               className="w-full h-full object-cover"
               alt="Nossa Essência - Tenda Ervas"
               onError={(e) => {
-                (e.target as HTMLImageElement).src = 'https://images.unsplash.com/photo-1602928321679-560bb453f190?q=80&w=800&auto=format&fit=crop';
+                (e.target as HTMLImageElement).style.display = 'none';
               }}
             />
           </div>
@@ -226,8 +243,7 @@ const Home = () => (
           <h2 className="text-4xl md:text-5xl font-serif text-brand-olive">Nossa Essência</h2>
           <div className="w-20 h-1 bg-brand-mint"></div>
           <p className="text-gray-600 leading-relaxed text-lg">
-            Tradição, Axé e Cuidado. Encontre o melhor em artigos religiosos de matriz africana, fitoterapia e itens para rituais. 
-            Das velas que iluminam caminhos aos óleos que renovam o corpo, entregamos a essência do sagrado diretamente na sua casa.
+            Tradição, Axé e Cuidado. Conheça nossa seleção de ervas, incensos, acessórios e kits. Escolha os itens pelo catálogo e confira preços e estoque antes de fazer seu pedido.
           </p>
           <div className="pt-4 grid grid-cols-2 gap-8">
             <div>
