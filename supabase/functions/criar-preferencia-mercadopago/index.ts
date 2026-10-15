@@ -33,9 +33,12 @@ Deno.serve(async req => {
   } catch { return json({ error: 'Requisição inválida' }, 400); }
   if (!Number.isSafeInteger(pedidoId) || pedidoId <= 0) return json({ error: 'Pedido inválido' }, 400);
   const { data: pedido, error } = await client.from('orders')
-    .select('id,user_id,status,total_price,items').eq('id', pedidoId).single();
+    .select('id,user_id,status,total_price,items,delivery_method').eq('id', pedidoId).single();
   if (error || !pedido || pedido.user_id !== auth.user.id) return json({ error: 'Pedido não encontrado' }, 404);
   if (pedido.status !== 'aguardando pagamento') return json({ error: 'Este pedido não está aguardando pagamento' }, 409);
+  // Frete dos Correios ainda é combinado manualmente e NÃO compõe o total do pedido.
+  // Não criar cobrança incompleta para entrega sem frete calculado.
+  if (pedido.delivery_method !== 'Retirada') return json({ error: 'Pagamento online para entrega requer frete confirmado; use a opção de atendimento da loja' }, 422);
   const total = Number(pedido.total_price);
   if (!Number.isFinite(total) || total <= 0 || !Array.isArray(pedido.items) || !pedido.items.length)
     return json({ error: 'Pedido sem total válido' }, 422);
