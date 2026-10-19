@@ -1563,6 +1563,7 @@ const PaymentPage = ({ cart, user, edicao, onPedidoFeito }: { cart: CartItem[], 
   const [loading, setLoading] = useState(false);
   const [redirecionando, setRedirecionando] = useState(false);
   const [erroPagamento, setErroPagamento] = useState('');
+  const [formaEscolhida, setFormaEscolhida] = useState<'direto' | 'mercadopago'>('direto');
   const navigate = useNavigate();
   const total = cart.reduce((acc, item) => acc + item.price * item.cartQuantity, 0);
 
@@ -1633,28 +1634,45 @@ const PaymentPage = ({ cart, user, edicao, onPedidoFeito }: { cart: CartItem[], 
               <p className="text-sm text-amber-950">O botão de pagamento de teste não está habilitado nesta publicação. Na Cloudflare Pages, configure VITE_MERCADOPAGO_ATIVO=true no ambiente Preview e faça um novo deploy. Nenhuma cobrança será iniciada nesta tela.</p>
             </div>
           )}
-          {mercadoPagoHabilitado && pedido.delivery_method === 'Retirada' && (
-            <div className="border border-brand-beige/30 rounded-2xl p-4 space-y-3 text-left">
-              <h3 className="font-semibold text-brand-olive">Pagar com PIX ou cartão</h3>
-              <p className="text-sm text-gray-600">Pagamento em ambiente seguro do Mercado Pago. O pedido só será marcado como pago após a confirmação do provedor.</p>
-              {erroPagamento && <p role="alert" className="text-sm text-red-700">{erroPagamento}</p>}
-              <button type="button" disabled={redirecionando} onClick={async()=>{
-                setRedirecionando(true);setErroPagamento('');
-                try {await abrirCheckoutMercadoPago(pedido.id);}
-                catch(e) {setErroPagamento(e instanceof Error?e.message:'Erro ao iniciar pagamento');setRedirecionando(false);}
-              }} className="w-full rounded-full bg-brand-olive text-white py-3 px-4 font-bold disabled:opacity-50">
-                {redirecionando?'Abrindo Mercado Pago…':'Pagar com PIX ou cartão pelo Mercado Pago'}
-              </button>
-              <p className="text-xs text-gray-500">A confirmação pode levar alguns instantes; consulte o status em Meus pedidos.</p>
+          {pedido.delivery_method === 'Retirada' ? (
+            <div className="border border-brand-beige/30 rounded-2xl p-4 space-y-4 text-left">
+              <h3 className="font-semibold text-brand-olive">Escolha como pagar</h3>
+              <p className="text-sm text-gray-700">Escolha apenas uma opção para este pedido. Não realize dois pagamentos.</p>
+              <div className="grid sm:grid-cols-2 gap-3" role="group" aria-label="Forma de pagamento">
+                <button type="button" aria-pressed={formaEscolhida === 'direto'} onClick={()=>setFormaEscolhida('direto')}
+                  className={`p-3 rounded-xl border-2 font-semibold text-sm text-left ${formaEscolhida === 'direto' ? 'border-brand-olive bg-brand-mint/20' : 'border-gray-200'}`}>
+                  PIX direto pela chave
+                  <span className="block mt-1 text-xs font-normal">Enviar comprovante à loja · confirmação manual</span>
+                </button>
+                <button type="button" aria-pressed={formaEscolhida === 'mercadopago'} onClick={()=>setFormaEscolhida('mercadopago')}
+                  className={`p-3 rounded-xl border-2 font-semibold text-sm text-left ${formaEscolhida === 'mercadopago' ? 'border-brand-olive bg-brand-mint/20' : 'border-gray-200'}`}>
+                  Mercado Pago
+                  <span className="block mt-1 text-xs font-normal">PIX ou cartão · tarifa conforme a conta</span>
+                </button>
+              </div>
+              {formaEscolhida === 'direto' ? (
+                <div className="space-y-3">
+                  <p className="text-sm">PIX pela chave da loja: <strong>{reais(Number(pedido.total_price))}</strong>. Confira o nome do destinatário no aplicativo do seu banco antes de transferir.</p>
+                  <InstrucoesPagamento pedido={pedido} />
+                  <p role="status" className="text-sm text-amber-900 bg-amber-50 border border-amber-200 rounded-lg p-3">O pedido permanece <strong>Aguardando pagamento</strong> até a equipe conferir o recebimento no banco e confirmar no sistema. O comprovante por si só não confirma o pagamento automaticamente.</p>
+                </div>
+              ) : mercadoPagoHabilitado ? (
+                <div className="space-y-3">
+                  <p className="text-sm text-gray-700">Pagamento processado pelo Mercado Pago, sujeito às tarifas aplicáveis. A confirmação chega automaticamente após validação pelo servidor.</p>
+                  {erroPagamento && <p role="alert" className="text-sm text-red-700">{erroPagamento}</p>}
+                  <button type="button" disabled={redirecionando} onClick={async()=>{
+                    setRedirecionando(true);setErroPagamento('');
+                    try {await abrirCheckoutMercadoPago(pedido.id);}
+                    catch(e){setErroPagamento(e instanceof Error?e.message:'Erro ao iniciar pagamento');setRedirecionando(false);}
+                  }} className="w-full rounded-full bg-brand-olive text-white py-3 px-4 font-bold disabled:opacity-50">
+                    {redirecionando?'Abrindo Mercado Pago…':'Pagar pelo Mercado Pago'}
+                  </button>
+                </div>
+              ) : (
+                <p className="text-sm text-amber-900">Mercado Pago indisponível nesta publicação. Você pode escolher PIX direto e enviar o comprovante à loja.</p>
+              )}
             </div>
-          )}
-          {(!mercadoPagoHabilitado || pedido.delivery_method !== 'Retirada') && <InstrucoesPagamento pedido={pedido} />}
-          {mercadoPagoHabilitado && pedido.delivery_method === 'Retirada' && (
-            <p className="text-sm text-gray-600">
-              Se tiver dificuldades para pagar, <a className="text-brand-olive underline" href={linkWhatsApp(`Olá! Preciso de ajuda para pagar o pedido #${pedido.id}.`)} target="_blank" rel="noreferrer">fale com a loja</a>.
-              Não faça outro pagamento antes de verificar o status do pedido.
-            </p>
-          )}
+          ) : <InstrucoesPagamento pedido={pedido} />}
           <div className="pt-2">
             <Link to="/meus-pedidos" className="text-brand-olive font-medium underline underline-offset-4">
               Ver meus pedidos
@@ -1778,6 +1796,8 @@ const MyOrders = ({ user, onCarregar }: { user: any, onCarregar: (pedido: any, e
   const [orders, setOrders] = useState<any[]>([]);
   type DadosPagamento = { pedido_id: number; status: string; metodo: string | null; valor: number | null; verificado_em: string | null; atualizado_em: string | null };
   const [pagamentos, setPagamentos] = useState<Record<number, DadosPagamento>>({});
+  const [avisoConfirmacao, setAvisoConfirmacao] = useState<number | null>(null);
+  const statusVistos = React.useRef<Map<number, string>>(new Map());
   const [processando, setProcessando] = useState<number | null>(null);
   const navigate = useNavigate();
 
@@ -1796,6 +1816,13 @@ const MyOrders = ({ user, onCarregar }: { user: any, onCarregar: (pedido: any, e
       if (error || !ativo) return;
       const meusPedidos = data || [];
       setOrders(meusPedidos);
+      for (const pedido of meusPedidos) {
+        const anterior = statusVistos.current.get(pedido.id);
+        if (anterior === 'aguardando pagamento' && pedido.status === 'pagamento confirmado') {
+          setAvisoConfirmacao(pedido.id);
+        }
+        statusVistos.current.set(pedido.id, pedido.status);
+      }
       if (meusPedidos.length === 0) { setPagamentos({}); return; }
       // RLS garante que cada cliente visualize somente os pagamentos dos seus pedidos.
       const { data: registros, error: erroPagamento } = await supabase
@@ -1893,9 +1920,16 @@ const MyOrders = ({ user, onCarregar }: { user: any, onCarregar: (pedido: any, e
   return (
     <div className="max-w-4xl mx-auto px-4 py-20 min-h-screen">
       <h2 className="text-4xl font-serif text-brand-olive mb-6">Meus Pedidos</h2>
-      {retornoPagamento && <p role="status" className="mb-6 rounded-xl bg-brand-mint/20 border border-brand-mint/40 p-4 text-sm text-gray-700">
-        Você voltou do Mercado Pago. Isso não significa que o pagamento já foi confirmado. Confira o status do pedido abaixo; ele será atualizado após validação pelo servidor.
-      </p>}
+      {(avisoConfirmacao !== null || (retornoPagamento && orders.some(p => p.status === 'pagamento confirmado'))) && (
+        <div role="status" aria-live="polite" className="mb-6 rounded-xl bg-emerald-50 border border-emerald-300 p-5 text-emerald-900">
+          <strong>Pagamento confirmado!</strong> {avisoConfirmacao !== null ? `O pedido #${avisoConfirmacao} foi confirmado.` : 'O sistema já registrou um pagamento aprovado. Confira os detalhes no pedido abaixo.'}
+        </div>
+      )}
+      {retornoPagamento && !orders.some(p => p.status === 'pagamento confirmado') && avisoConfirmacao === null && (
+        <p role="status" className="mb-6 rounded-xl bg-brand-mint/20 border border-brand-mint/40 p-4 text-sm text-gray-700">
+          Você voltou do Mercado Pago. A confirmação ainda não chegou; esta página verifica automaticamente o status.
+        </p>
+      )}
       <div className="space-y-6">
         {orders.map(order => (
           <div key={order.id} className="bg-white p-8 rounded-3xl shadow-sm border border-brand-beige/20">
@@ -1920,13 +1954,20 @@ const MyOrders = ({ user, onCarregar }: { user: any, onCarregar: (pedido: any, e
             {detalhesPagamento(order)}
             {order.status === "aguardando pagamento" && (
               <>
-                {mercadoPagoHabilitado && order.delivery_method === 'Retirada'
-                  ? <button type="button" disabled={processando === order.id} onClick={async()=>{
-                    setProcessando(order.id);
-                    try{await abrirCheckoutMercadoPago(order.id);}
-                    catch(e){alert(e instanceof Error?e.message:'Pagamento indisponível');setProcessando(null);}
-                  }} className="w-full rounded-full bg-brand-olive text-white py-3 font-semibold">Pagar com PIX ou cartão pelo Mercado Pago</button>
-                  : <InstrucoesPagamento pedido={order} />}
+                <div className="space-y-3">
+                  <details className="border border-brand-beige/30 rounded-xl p-4" data-testid={`pix-direto-pedido-${order.id}`}>
+                    <summary className="cursor-pointer font-semibold text-brand-olive">Pagar com PIX direto pela chave da loja</summary>
+                    <div className="mt-4"><InstrucoesPagamento pedido={order} /></div>
+                    <p className="text-sm bg-amber-50 rounded-lg p-3 mt-3">A loja precisa conferir o PIX recebido antes de confirmar o pedido. Não pague novamente se já fez a transferência.</p>
+                  </details>
+                  {mercadoPagoHabilitado && order.delivery_method === 'Retirada' && (
+                    <button type="button" disabled={processando === order.id} onClick={async()=>{
+                      setProcessando(order.id);
+                      try{await abrirCheckoutMercadoPago(order.id);}
+                      catch(e){alert(e instanceof Error?e.message:'Pagamento indisponível');setProcessando(null);}
+                    }} className="w-full rounded-full bg-brand-olive text-white py-3 font-semibold">Pagar pelo Mercado Pago (pode ter tarifa)</button>
+                  )}
+                </div>
                 <div className="grid grid-cols-2 gap-3 mt-3">
                   <button
                     onClick={() => levarParaCarrinho(order, true)}
