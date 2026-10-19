@@ -10,10 +10,18 @@ const MP_ENV = Deno.env.get('MP_ENV') || 'sandbox';
 const SITE_URL = Deno.env.get('SITE_URL') || '';
 const MP_WEBHOOK_URL = Deno.env.get('MP_WEBHOOK_URL') || '';
 
+// CORS é necessário no preflight enviado pelo navegador antes do POST autenticado.
+const corsHeaders = {
+  'Access-Control-Allow-Origin': 'https://tendasite.pages.dev',
+  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type, x-supabase-api-version',
+  'Access-Control-Allow-Methods': 'POST, OPTIONS',
+  'Vary': 'Origin'
+};
 const json = (data: unknown, status = 200) =>
-  new Response(JSON.stringify(data), { status, headers: { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' } });
+  new Response(JSON.stringify(data), { status, headers: { ...corsHeaders, 'Content-Type': 'application/json', 'Cache-Control': 'no-store' } });
 
 Deno.serve(async req => {
+  if (req.method === 'OPTIONS') return new Response(null, { status: 204, headers: corsHeaders });
   if (req.method !== 'POST') return json({ error: 'Método não permitido' }, 405);
   if (!SUPABASE_URL || !SUPABASE_ANON_KEY || !SUPABASE_SERVICE_ROLE_KEY ||
       !MP_ACCESS_TOKEN || !SITE_URL.startsWith('https://') || !MP_WEBHOOK_URL.startsWith('https://'))
