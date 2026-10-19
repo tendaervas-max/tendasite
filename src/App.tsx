@@ -753,10 +753,20 @@ const Admin = ({ isAdmin, ehDono }: { isAdmin: boolean, ehDono: boolean }) => {
   const [password, setPassword] = useState("");
   const [products, setProducts] = useState<Product[]>([]);
   const [paginaProdutos, setPaginaProdutos] = useState(1);
+  const [buscaProdutos, setBuscaProdutos] = useState("");
+  const [categoriaProdutos, setCategoriaProdutos] = useState("");
+  const [estoqueProdutos, setEstoqueProdutos] = useState("todos");
+  const [exibicaoProdutos, setExibicaoProdutos] = useState<"lista" | "grade">("lista");
   const PRODUTOS_POR_PAGINA = 10;
-  const totalPaginasProdutos = Math.max(1, Math.ceil(products.length / PRODUTOS_POR_PAGINA));
+  const produtosFiltrados = products.filter(p => {
+    const busca = buscaProdutos.trim().toLocaleLowerCase("pt-BR");
+    return (!busca || p.name.toLocaleLowerCase("pt-BR").includes(busca)) &&
+      (!categoriaProdutos || p.category === categoriaProdutos) &&
+      (estoqueProdutos === "todos" || (estoqueProdutos === "disponiveis" ? p.quantity > 0 : p.quantity <= 0));
+  });
+  const totalPaginasProdutos = Math.max(1, Math.ceil(produtosFiltrados.length / PRODUTOS_POR_PAGINA));
   const paginaProdutosAtual = Math.min(paginaProdutos, totalPaginasProdutos);
-  const produtosPaginados = products.slice((paginaProdutosAtual - 1) * PRODUTOS_POR_PAGINA, paginaProdutosAtual * PRODUTOS_POR_PAGINA);
+  const produtosPaginados = produtosFiltrados.slice((paginaProdutosAtual - 1) * PRODUTOS_POR_PAGINA, paginaProdutosAtual * PRODUTOS_POR_PAGINA);
   const [orders, setOrders] = useState<any[]>([]);
   const [erroBanco, setErroBanco] = useState("");
   const [newProduct, setNewProduct] = useState({ name: "", description: "", price: "", quantity: "", category: "Ervas", opcoes: "", adult: false });
@@ -1237,12 +1247,33 @@ const Admin = ({ isAdmin, ehDono }: { isAdmin: boolean, ehDono: boolean }) => {
               <Plus size={16} /> Novo Produto
             </button>
           </div>
+          <div className="bg-white rounded-2xl border border-brand-beige/20 p-4 flex flex-wrap items-center gap-3">
+            <label className="flex-1 min-w-[180px]">
+              <span className="sr-only">Buscar produto</span>
+              <input value={buscaProdutos} onChange={e => { setBuscaProdutos(e.target.value); setPaginaProdutos(1); }} placeholder="Buscar pelo nome..." className="w-full px-4 py-2 rounded-lg border border-brand-beige/30" />
+            </label>
+            <select aria-label="Filtrar categoria" value={categoriaProdutos} onChange={e => { setCategoriaProdutos(e.target.value); setPaginaProdutos(1); }} className="px-3 py-2 rounded-lg border border-brand-beige/30 bg-white">
+              <option value="">Todas as categorias</option>
+              {Array.from(new Set(products.map(p => p.category))).filter(Boolean).sort((a,b) => a.localeCompare(b,'pt-BR')).map(c => <option key={c} value={c}>{c}</option>)}
+            </select>
+            <select aria-label="Filtrar estoque" value={estoqueProdutos} onChange={e => { setEstoqueProdutos(e.target.value); setPaginaProdutos(1); }} className="px-3 py-2 rounded-lg border border-brand-beige/30 bg-white">
+              <option value="todos">Todos os estoques</option>
+              <option value="disponiveis">Em estoque</option>
+              <option value="esgotados">Esgotados</option>
+            </select>
+            <div className="flex items-center border border-brand-beige/30 rounded-lg overflow-hidden" aria-label="Modo de exibição">
+              <button type="button" aria-pressed={exibicaoProdutos === "lista"} onClick={() => setExibicaoProdutos("lista")} className={`px-4 py-2 text-sm ${exibicaoProdutos === "lista" ? "bg-brand-olive text-white" : "bg-white text-brand-olive"}`}>Lista</button>
+              <button type="button" aria-pressed={exibicaoProdutos === "grade"} onClick={() => setExibicaoProdutos("grade")} className={`px-4 py-2 text-sm ${exibicaoProdutos === "grade" ? "bg-brand-olive text-white" : "bg-white text-brand-olive"}`}>Grade</button>
+            </div>
+            <span className="text-sm text-gray-500">{produtosFiltrados.length} produto(s)</span>
+          </div>
           <div className="bg-white rounded-3xl shadow-sm border border-brand-beige/20 overflow-hidden">
+            <div className={exibicaoProdutos === "grade" ? "grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 p-4" : ""}>
             {produtosPaginados.map(p => (
-              <div key={p.id} className="flex items-center gap-6 p-6 border-b border-brand-beige/10 last:border-0">
+              <div key={p.id} className={exibicaoProdutos === "grade" ? "flex flex-col gap-3 p-4 rounded-xl border border-brand-beige/20" : "flex items-center gap-6 p-6 border-b border-brand-beige/10 last:border-0"}>
                 <img 
                   src={p.image_url || `https://picsum.photos/seed/${p.id}/200/200`} 
-                  className="w-16 h-16 object-cover rounded-lg"
+                  className={exibicaoProdutos === "grade" ? "w-full h-36 object-contain rounded-lg" : "w-16 h-16 object-cover rounded-lg"}
                   alt={p.name}
                   referrerPolicy="no-referrer"
                 />
@@ -1258,13 +1289,14 @@ const Admin = ({ isAdmin, ehDono }: { isAdmin: boolean, ehDono: boolean }) => {
                 </button>
               </div>
             ))}
-            {products.length === 0 && (
-              <div className="p-12 text-center text-gray-400">Nenhum produto cadastrado.</div>
+            </div>
+            {produtosFiltrados.length === 0 && (
+              <div className="p-12 text-center text-gray-400">Nenhum produto encontrado com os filtros atuais.</div>
             )}
-            {products.length > PRODUTOS_POR_PAGINA && (
+            {produtosFiltrados.length > PRODUTOS_POR_PAGINA && (
               <nav aria-label="Paginação dos produtos" className="flex flex-wrap items-center justify-between gap-3 px-6 py-5 border-t border-brand-beige/20">
                 <span className="text-sm text-gray-600">
-                  Mostrando {(paginaProdutosAtual - 1) * PRODUTOS_POR_PAGINA + 1}–{Math.min(paginaProdutosAtual * PRODUTOS_POR_PAGINA, products.length)} de {products.length} produtos
+                  Mostrando {(paginaProdutosAtual - 1) * PRODUTOS_POR_PAGINA + 1}–{Math.min(paginaProdutosAtual * PRODUTOS_POR_PAGINA, produtosFiltrados.length)} de {produtosFiltrados.length} produtos
                 </span>
                 <div className="flex items-center gap-3">
                   <button type="button" disabled={paginaProdutosAtual <= 1} onClick={() => setPaginaProdutos(p => Math.max(1, p - 1))} className="px-4 py-2 rounded-lg border border-brand-beige/40 disabled:opacity-40 disabled:cursor-not-allowed hover:bg-brand-beige/10">Anterior</button>
