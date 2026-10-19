@@ -7,6 +7,7 @@ import { supabase, definirManterConectado } from "./lib/supabase";
 import { Product, CartItem } from "./types";
 import { abrirCheckoutMercadoPago, mercadoPagoHabilitado } from "./lib/mercadopago";
 import { EditarCaixasLoja, ResumoCaixas } from "./Embalagens";
+import { carregarCarrinho, salvarCarrinho } from "./lib/carrinhoPersistente";
 import { LOJA, linkWhatsApp, STATUS_PEDIDO, mensagemPedido, mensagemEntrega, reais, CATEGORIAS, maiorDeIdade, chaveCarrinho, cpfValido, formatarCpf, comPromocao, comEstoqueDosKits } from "./loja";
 
 // --- Components ---
@@ -2458,7 +2459,10 @@ const MinhaConta = ({ user, onCadastroAtualizado }: { user: any, onCadastroAtual
 // --- Main App ---
 
 export default function App() {
-  const [cart, setCart] = useState<CartItem[]>([]);
+  const [cart, setCart] = useState<CartItem[]>(carregarCarrinho);
+
+  // Persiste inclusões, mudanças de quantidade e remoções; depois de finalizar limpa também o armazenamento.
+  useEffect(() => { salvarCarrinho(cart); }, [cart]);
   const [isAdmin, setIsAdmin] = useState(false);
   const [acessoGestao, setAcessoGestao] = useState(false);
   const [ehDono, setEhDono] = useState(false);
