@@ -708,7 +708,7 @@ const Cart = ({ cart, onUpdateQuantity, onRemove, user, edicao, onDesistirEdicao
               <span>{reais(total)}</span>
             </div>
             <p className="text-sm text-brand-paper/70 leading-relaxed">
-              Pagamento por PIX. Envio pelos Correios, com frete combinado pelo WhatsApp, ou retirada em {LOJA.localRetirada || LOJA.cidade}.
+              Pague pelo Mercado Pago ou por PIX direto pela chave da loja. Envio pelos Correios com frete combinado pelo WhatsApp, ou retirada em {LOJA.localRetirada || LOJA.cidade}.
             </p>
             <button 
               onClick={handleGoToPayment}
@@ -2571,8 +2571,10 @@ const MinhaConta = ({ user, onCadastroAtualizado }: { user: any, onCadastroAtual
       <div className={`${cartao} space-y-3`}>
         <h3 className="text-2xl font-serif text-brand-olive">Pagamento</h3>
         <p className="text-sm text-gray-600 leading-relaxed">
-          Os pagamentos são feitos por PIX, direto do seu banco: não é preciso cadastrar cartão nem conta aqui.
-          Se precisar de reembolso, combinamos a sua chave PIX pelo WhatsApp {LOJA.whatsappExibicao}.
+          Para pagar seu pedido, você pode usar o checkout seguro do Mercado Pago, com as opções de pagamento disponíveis na plataforma.
+          Também oferecemos PIX direto pela chave da loja, com confirmação manual após a conferência do recebimento.
+          Quando o pagamento for confirmado, você poderá acompanhar o status em Meus Pedidos.
+          Em caso de dúvidas ou solicitação de reembolso, fale com a loja pelo WhatsApp {LOJA.whatsappExibicao}.
         </p>
       </div>
     </div>
