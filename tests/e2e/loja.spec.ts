@@ -130,3 +130,9 @@ test('descarta dados corrompidos do carrinho sem interromper o site',async ({pag
  await page.goto('/carrinho');
  await expect(page.getByText('Seu carrinho está vazio.')).toBeVisible();
 });
+
+test('checkout não mostra pagamento confirmado sem webhook e oferece Pix direto apenas no pedido',async ({page})=>{
+ await page.goto('/meus-pedidos?retorno=mercadopago');
+ // O acesso do cliente continua exigindo autenticação: não exibir uma confirmação fictícia.
+ await expect(page.getByText('Pagamento confirmado!',{exact:false})).toHaveCount(0);
+});
