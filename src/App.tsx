@@ -8,6 +8,7 @@ import { Product, CartItem } from "./types";
 import { abrirCheckoutMercadoPago, mercadoPagoHabilitado } from "./lib/mercadopago";
 import { EditarCaixasLoja, ResumoCaixas } from "./Embalagens";
 import { carregarCarrinho, salvarCarrinho } from "./lib/carrinhoPersistente";
+import { gerarPixCopiaCola, gerarQrPix } from "./lib/pixDireto";
 import { LOJA, linkWhatsApp, STATUS_PEDIDO, mensagemPedido, mensagemEntrega, reais, CATEGORIAS, maiorDeIdade, chaveCarrinho, cpfValido, formatarCpf, comPromocao, comEstoqueDosKits } from "./loja";
 
 // --- Components ---
@@ -1497,50 +1498,78 @@ const Admin = ({ isAdmin, ehDono }: { isAdmin: boolean, ehDono: boolean }) => {
 
 // Bloco com a chave PIX e o botão do WhatsApp, usado no fim da compra e em "Meus pedidos"
 const InstrucoesPagamento = ({ pedido }: { pedido: { id: number, description: string, total_price: number, delivery_method: string } }) => {
-  const [copiado, setCopiado] = useState(false);
+  const [copiado, setCopiado] = useState<'chave' | 'codigo' | null>(null);
+  // QR Code com valor exato apenas na Retirada: pedidos Correios exigem cotação de frete antes de pagar.
+  const pix = pedido.delivery_method === 'Retirada' && LOJA.chavePix
+    ? (() => { try {
+        const codigo = gerarPixCopiaCola(LOJA.chavePix, Number(pedido.total_price), pedido.id);
+        return { codigo, qr: gerarQrPix(codigo) };
+      } catch { return null; } })()
+    : null;
 
-  // Método que copia a chave PIX para a área de transferência
-  const copiarChave = async () => {
+  const copiar = async (texto: string, tipo: 'chave' | 'codigo') => {
     try {
-      await navigator.clipboard.writeText(LOJA.chavePix);
-      setCopiado(true);
+      await navigator.clipboard.writeText(texto);
+      setCopiado(tipo);
     } catch {
-      alert(`Chave PIX: ${LOJA.chavePix}`);
+      alert('Não foi possível copiar automaticamente. Selecione e copie o código exibido.');
     }
   };
 
   return (
     <div className="space-y-4 text-left">
-      <p className="text-gray-700 leading-relaxed">
-        {pedido.delivery_method === "Retirada"
-          ? <>Pague <strong>{reais(Number(pedido.total_price))}</strong> pelo PIX e mande o comprovante pelo WhatsApp. Combinamos a retirada por lá.</>
-          : <>Mande o pedido pelo WhatsApp para calcularmos o frete dos Correios. Depois é só pagar pelo PIX o valor dos produtos ({reais(Number(pedido.total_price))}) mais o frete.</>}
-      </p>
+      {pedido.delivery_method === 'Retirada' ? (
+        <>
+          <p className="text-gray-700 leading-relaxed">
+            Pague <strong>{reais(Number(pedido.total_price))}</strong> pelo aplicativo do seu banco, diretamente para a conta Nu Empresas da Tenda Ervas, sem abrir o Mercado Pago.
+          </p>
+          {pix && (
+            <div className="border border-brand-beige/30 bg-white rounded-2xl p-5 space-y-4">
+              <h3 className="text-center font-bold text-brand-olive">Escaneie o QR Code PIX</h3>
+              <svg role="img" aria-label={`QR Code PIX do pedido ${pedido.id}, valor ${reais(Number(pedido.total_price))}`}
+                xmlns="http://www.w3.org/2000/svg" viewBox={`0 0 ${pix.qr.tamanho + 8} ${pix.qr.tamanho + 8}`}
+                shapeRendering="crispEdges" className="w-full max-w-[260px] mx-auto bg-white rounded-lg">
+                <rect x="0" y="0" width={pix.qr.tamanho + 8} height={pix.qr.tamanho + 8} fill="white"/>
+                {pix.qr.quadrados.map((p, i) => <rect key={i} x={p.x + 4} y={p.y + 4} width="1" height="1" fill="#111827"/>)}
+              </svg>
+              <div className="text-center font-semibold text-brand-olive">{reais(Number(pedido.total_price))} · Pedido #{pedido.id}</div>
+              <label htmlFor={`pix-copia-${pedido.id}`} className="block text-sm font-semibold">PIX copia e cola</label>
+              <textarea id={`pix-copia-${pedido.id}`} readOnly value={pix.codigo} rows={3}
+                onFocus={e => e.currentTarget.select()} className="w-full border rounded-xl bg-gray-50 p-3 text-xs font-mono break-all resize-none"/>
+              <button type="button" onClick={()=>void copiar(pix.codigo, 'codigo')}
+                className="w-full bg-brand-olive text-white font-semibold py-3 rounded-full">
+                {copiado === 'codigo' ? 'Código PIX copiado!' : 'Copiar código PIX'}
+              </button>
+            </div>
+          )}
+        </>
+      ) : (
+        <p className="text-gray-700 leading-relaxed">
+          Para envio pelos Correios, fale com a loja para calcular o frete antes de pagar. O valor dos produtos é {reais(Number(pedido.total_price))}, sem o frete. Não transfira somente esse valor.
+        </p>
+      )}
       <div className="bg-brand-mint/20 p-5 rounded-2xl">
-        <div className="text-xs text-gray-600 uppercase tracking-widest mb-1">Chave PIX</div>
+        <div className="text-xs text-gray-600 uppercase tracking-widest mb-1">Chave PIX da loja (CNPJ)</div>
         {LOJA.chavePix ? (
           <div className="flex items-center justify-between gap-3">
             <div>
               <div className="font-mono text-brand-olive break-all">{LOJA.chavePix}</div>
               {LOJA.favorecidoPix && <div className="text-xs text-gray-600 mt-1">{LOJA.favorecidoPix}</div>}
             </div>
-            <button onClick={copiarChave} className="shrink-0 text-sm font-medium text-brand-olive border border-brand-olive rounded-full px-4 py-1.5 hover:bg-brand-olive hover:text-white transition-all">
-              {copiado ? "Copiada!" : "Copiar"}
+            <button type="button" onClick={()=>void copiar(LOJA.chavePix, 'chave')} className="shrink-0 text-sm font-medium text-brand-olive border border-brand-olive rounded-full px-4 py-1.5 hover:bg-brand-olive hover:text-white transition-all">
+              {copiado === 'chave' ? 'Copiada!' : 'Copiar'}
             </button>
           </div>
-        ) : (
-          <div className="text-gray-700">Enviamos a chave pelo WhatsApp.</div>
-        )}
+        ) : <div className="text-gray-700">Consulte a chave diretamente com a loja.</div>}
       </div>
-      <a
-        href={linkWhatsApp(mensagemPedido(pedido))}
-        target="_blank"
-        rel="noreferrer"
-        className="w-full inline-flex items-center justify-center gap-2 bg-green-600 text-white font-bold py-4 rounded-full hover:bg-green-700 transition-all shadow-lg"
-      >
-        <Phone size={18} /> Enviar pedido pelo WhatsApp
+      <p role="status" className="text-sm text-amber-900 bg-amber-50 border border-amber-200 rounded-xl p-3">
+        Confira o nome do recebedor no aplicativo bancário. Este QR Code é estático: ele não informa automaticamente à loja que você pagou. Seu pedido permanece aguardando a conferência do PIX recebido na conta.
+      </p>
+      <a href={linkWhatsApp(mensagemPedido(pedido))} target="_blank" rel="noreferrer"
+        className="w-full inline-flex items-center justify-center gap-2 border-2 border-green-600 text-green-700 font-bold py-3 rounded-full hover:bg-green-50 transition-all">
+        <Phone size={18}/> Falar com a loja (opcional)
       </a>
-      <BotaoCombinarEntrega pedido={pedido} />
+      <BotaoCombinarEntrega pedido={pedido}/>
     </div>
   );
 };
@@ -1654,7 +1683,7 @@ const PaymentPage = ({ cart, user, edicao, onPedidoFeito }: { cart: CartItem[], 
                 <div className="space-y-3">
                   <p className="text-sm">PIX pela chave da loja: <strong>{reais(Number(pedido.total_price))}</strong>. Confira o nome do destinatário no aplicativo do seu banco antes de transferir.</p>
                   <InstrucoesPagamento pedido={pedido} />
-                  <p role="status" className="text-sm text-amber-900 bg-amber-50 border border-amber-200 rounded-lg p-3">O pedido permanece <strong>Aguardando pagamento</strong> até a equipe conferir o recebimento no banco e confirmar no sistema. O comprovante por si só não confirma o pagamento automaticamente.</p>
+                  <p role="status" className="text-sm text-amber-900 bg-amber-50 border border-amber-200 rounded-lg p-3">Não é necessário enviar comprovante para copiar ou escanear o PIX. O pedido permanece <strong>Aguardando pagamento</strong> até a equipe conferir a entrada do valor no Nubank; ainda não há confirmação bancária automática.</p>
                 </div>
               ) : mercadoPagoHabilitado ? (
                 <div className="space-y-3">
