@@ -1794,6 +1794,7 @@ const PaymentPage = ({ cart, user, edicao, onPedidoFeito }: { cart: CartItem[], 
 const MyOrders = ({ user, onCarregar }: { user: any, onCarregar: (pedido: any, editar: boolean) => Promise<boolean> }) => {
   const retornoPagamento = new URLSearchParams(window.location.search).get('retorno') === 'mercadopago';
   const [orders, setOrders] = useState<any[]>([]);
+  const [pedidoAberto, setPedidoAberto] = useState<number | null>(null);
   type DadosPagamento = { pedido_id: number; status: string; metodo: string | null; valor: number | null; verificado_em: string | null; atualizado_em: string | null };
   const [pagamentos, setPagamentos] = useState<Record<number, DadosPagamento>>({});
   const [avisoConfirmacao, setAvisoConfirmacao] = useState<number | null>(null);
@@ -1812,6 +1813,7 @@ const MyOrders = ({ user, onCarregar }: { user: any, onCarregar: (pedido: any, e
         .from('orders')
         .select('*')
         .eq('user_id', user.id)
+        .eq('arquivado_teste', false)
         .order('created_at', { ascending: false });
       if (error || !ativo) return;
       const meusPedidos = data || [];
@@ -1951,7 +1953,26 @@ const MyOrders = ({ user, onCarregar }: { user: any, onCarregar: (pedido: any, e
               <p className="text-sm text-gray-600">{order.description}</p>
               <p className="text-sm font-bold text-brand-olive mt-2">Total: {reais(order.total_price)}</p>
             </div>
-            {detalhesPagamento(order)}
+            <button type="button" onClick={()=>setPedidoAberto(pedidoAberto === order.id ? null : order.id)}
+              aria-expanded={pedidoAberto === order.id} aria-controls={`detalhe-pedido-${order.id}`}
+              className="w-full rounded-xl border border-brand-beige/40 px-4 py-3 mb-3 text-left font-semibold text-brand-olive hover:bg-brand-mint/10">
+              {pedidoAberto === order.id ? 'Ocultar detalhes do pedido' : 'Ver todos os detalhes deste pedido'}
+            </button>
+            {pedidoAberto === order.id && (
+              <section id={`detalhe-pedido-${order.id}`} aria-label={`Detalhes do pedido #${order.id}`} className="rounded-xl border border-brand-beige/20 p-4 mb-4 space-y-3">
+                <h3 className="font-semibold text-brand-olive">Produtos comprados</h3>
+                <ul className="space-y-2">{(Array.isArray(order.items) ? order.items : []).map((item:any,i:number)=>(
+                  <li key={i} className="flex justify-between gap-2 border-b pb-2 text-sm">
+                    <span>{item.quantidade}x {item.nome}{item.opcao ? ` (${item.opcao})` : ''}</span>
+                    <span>{reais(Number(item.preco || 0) * Number(item.quantidade || 0))}</span>
+                  </li>
+                ))}</ul>
+                <p><strong>Pedido feito em:</strong> {dataBrasilia(order.created_at)} (Brasília)</p>
+                <p><strong>Entrega:</strong> {order.delivery_method}</p>
+                <p><strong>Total:</strong> {reais(Number(order.total_price))}</p>
+                {detalhesPagamento(order)}
+              </section>
+            )}
             {order.status === "aguardando pagamento" && (
               <>
                 <div className="space-y-3">
