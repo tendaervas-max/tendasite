@@ -1776,6 +1776,8 @@ const PaymentPage = ({ cart, user, edicao, onPedidoFeito }: { cart: CartItem[], 
 const MyOrders = ({ user, onCarregar }: { user: any, onCarregar: (pedido: any, editar: boolean) => Promise<boolean> }) => {
   const retornoPagamento = new URLSearchParams(window.location.search).get('retorno') === 'mercadopago';
   const [orders, setOrders] = useState<any[]>([]);
+  type DadosPagamento = { pedido_id: number; status: string; metodo: string | null; valor: number | null; verificado_em: string | null; atualizado_em: string | null };
+  const [pagamentos, setPagamentos] = useState<Record<number, DadosPagamento>>({});
   const [processando, setProcessando] = useState<number | null>(null);
   const navigate = useNavigate();
 
@@ -1784,19 +1786,77 @@ const MyOrders = ({ user, onCarregar }: { user: any, onCarregar: (pedido: any, e
       navigate("/checkout");
       return;
     }
+    let ativo = true;
     const fetchMyOrders = async () => {
       const { data, error } = await supabase
         .from('orders')
         .select('*')
         .eq('user_id', user.id)
         .order('created_at', { ascending: false });
-      
-      if (!error) {
-        setOrders(data || []);
-      }
+      if (error || !ativo) return;
+      const meusPedidos = data || [];
+      setOrders(meusPedidos);
+      if (meusPedidos.length === 0) { setPagamentos({}); return; }
+      // RLS garante que cada cliente visualize somente os pagamentos dos seus pedidos.
+      const { data: registros, error: erroPagamento } = await supabase
+        .from('pagamentos_mercadopago')
+        .select('pedido_id,status,metodo,valor,verificado_em,atualizado_em')
+        .in('pedido_id', meusPedidos.map(p => p.id));
+      if (!ativo || erroPagamento) return;
+      setPagamentos(Object.fromEntries(((registros || []) as DadosPagamento[]).map(p => [p.pedido_id, p])));
     };
-    fetchMyOrders();
-  }, [user]);
+    void fetchMyOrders();
+    const timer = window.setInterval(() => { if (!document.hidden) void fetchMyOrders(); }, 15000);
+    const atualizarAoVoltar = () => { if (!document.hidden) void fetchMyOrders(); };
+    document.addEventListener('visibilitychange', atualizarAoVoltar);
+    return () => { ativo = false; window.clearInterval(timer); document.removeEventListener('visibilitychange', atualizarAoVoltar); };
+  }, [user?.id]);
+
+  const dataBrasilia = (valor: string) => new Intl.DateTimeFormat('pt-BR', {
+    dateStyle: 'short', timeStyle: 'short', timeZone: 'America/Sao_Paulo'
+  }).format(new Date(valor));
+  const descricaoMetodo = (metodo: string | null) => {
+    const chave = (metodo || '').toLowerCase();
+    if (chave === 'pix') return 'PIX';
+    if (chave === 'credit_card') return 'Cartão de crédito';
+    if (chave === 'debit_card') return 'Cartão de débito';
+    if (chave === 'bolbradesco' || chave === 'pec') return 'Boleto';
+    if (chave === 'account_money') return 'Saldo Mercado Pago';
+    return metodo ? 'Mercado Pago (' + metodo.replace(/_/g, ' ') + ')' : 'Não informado';
+  };
+  const confirmarStatus = (pedido: any, pagamento?: DadosPagamento) =>
+    pagamento?.status === 'approved' && pedido.status !== 'pedido cancelado';
+  const detalhesPagamento = (pedido: any) => {
+    const pagamento = pagamentos[pedido.id];
+    const aprovado = confirmarStatus(pedido, pagamento);
+    return (
+      <div className="bg-brand-mint/10 border border-brand-beige/20 rounded-2xl p-4 mb-5 text-sm space-y-2" data-testid={`pagamento-pedido-${pedido.id}`}>
+        <h3 className="font-bold text-brand-olive">Informações do pagamento</h3>
+        {aprovado ? (
+          <>
+            <p><strong>Situação:</strong> Pagamento confirmado pelo Mercado Pago</p>
+            <p><strong>Forma de pagamento:</strong> {descricaoMetodo(pagamento.metodo)}</p>
+            {pagamento.valor !== null && <p><strong>Valor pago:</strong> {reais(Number(pagamento.valor))}</p>}
+            {pagamento.verificado_em && <p><strong>Confirmado em:</strong> {dataBrasilia(pagamento.verificado_em)} (horário de Brasília)</p>}
+          </>
+        ) : pagamento?.status === 'refunded' || pagamento?.status === 'charged_back' ? (
+          <p><strong>Situação:</strong> {pagamento.status === 'refunded' ? 'Pagamento reembolsado' : 'Pagamento contestado'} — consulte a loja para detalhes.</p>
+        ) : pagamento?.status === 'rejected' || pagamento?.status === 'cancelled' ? (
+          <p><strong>Situação:</strong> Pagamento não aprovado. Confira o status antes de tentar novamente.</p>
+        ) : pedido.status === 'aguardando pagamento' ? (
+          <>
+            <p><strong>Situação:</strong> Aguardando confirmação do pagamento.</p>
+            <p><strong>Forma de pagamento:</strong> Ainda não confirmada.</p>
+          </>
+        ) : (
+          <>
+            <p><strong>Situação do pedido:</strong> {STATUS_PEDIDO[pedido.status] || pedido.status}</p>
+            <p className="text-gray-600">Não há comprovante de pagamento eletrônico confirmado neste pedido. Entre em contato com a loja se já pagou.</p>
+          </>
+        )}
+      </div>
+    );
+  };
 
   const handleConfirmArrival = async (orderId: number) => {
     const { error } = await supabase
@@ -1857,6 +1917,7 @@ const MyOrders = ({ user, onCarregar }: { user: any, onCarregar: (pedido: any, e
               <p className="text-sm text-gray-600">{order.description}</p>
               <p className="text-sm font-bold text-brand-olive mt-2">Total: {reais(order.total_price)}</p>
             </div>
+            {detalhesPagamento(order)}
             {order.status === "aguardando pagamento" && (
               <>
                 {mercadoPagoHabilitado && order.delivery_method === 'Retirada'
