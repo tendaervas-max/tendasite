@@ -471,11 +471,6 @@ const JanelaProduto = ({ product, onFechar, onAddToCart }: { product: Product, o
 
 const Products = ({ onAddToCart, isAdmin }: { onAddToCart: (p: Product, qty: number, opcao?: string) => void, isAdmin: boolean }) => {
   const [products, setProducts] = useState<Product[]>([]);
-  const [paginaProdutos, setPaginaProdutos] = useState(1);
-  const PRODUTOS_POR_PAGINA = 10;
-  const totalPaginasProdutos = Math.max(1, Math.ceil(products.length / PRODUTOS_POR_PAGINA));
-  const paginaProdutosAtual = Math.min(paginaProdutos, totalPaginasProdutos);
-  const produtosPaginados = products.slice((paginaProdutosAtual - 1) * PRODUTOS_POR_PAGINA, paginaProdutosAtual * PRODUTOS_POR_PAGINA);
   const [loading, setLoading] = useState(true);
   const [erro, setErro] = useState("");
   const [aberto, setAberto] = useState<Product | null>(null);
@@ -757,6 +752,11 @@ const Admin = ({ isAdmin, ehDono }: { isAdmin: boolean, ehDono: boolean }) => {
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
   const [products, setProducts] = useState<Product[]>([]);
+  const [paginaProdutos, setPaginaProdutos] = useState(1);
+  const PRODUTOS_POR_PAGINA = 10;
+  const totalPaginasProdutos = Math.max(1, Math.ceil(products.length / PRODUTOS_POR_PAGINA));
+  const paginaProdutosAtual = Math.min(paginaProdutos, totalPaginasProdutos);
+  const produtosPaginados = products.slice((paginaProdutosAtual - 1) * PRODUTOS_POR_PAGINA, paginaProdutosAtual * PRODUTOS_POR_PAGINA);
   const [orders, setOrders] = useState<any[]>([]);
   const [erroBanco, setErroBanco] = useState("");
   const [newProduct, setNewProduct] = useState({ name: "", description: "", price: "", quantity: "", category: "Ervas", opcoes: "", adult: false });
