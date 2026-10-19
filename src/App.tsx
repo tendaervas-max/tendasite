@@ -471,6 +471,11 @@ const JanelaProduto = ({ product, onFechar, onAddToCart }: { product: Product, o
 
 const Products = ({ onAddToCart, isAdmin }: { onAddToCart: (p: Product, qty: number, opcao?: string) => void, isAdmin: boolean }) => {
   const [products, setProducts] = useState<Product[]>([]);
+  const [paginaProdutos, setPaginaProdutos] = useState(1);
+  const PRODUTOS_POR_PAGINA = 10;
+  const totalPaginasProdutos = Math.max(1, Math.ceil(products.length / PRODUTOS_POR_PAGINA));
+  const paginaProdutosAtual = Math.min(paginaProdutos, totalPaginasProdutos);
+  const produtosPaginados = products.slice((paginaProdutosAtual - 1) * PRODUTOS_POR_PAGINA, paginaProdutosAtual * PRODUTOS_POR_PAGINA);
   const [loading, setLoading] = useState(true);
   const [erro, setErro] = useState("");
   const [aberto, setAberto] = useState<Product | null>(null);
@@ -1233,7 +1238,7 @@ const Admin = ({ isAdmin, ehDono }: { isAdmin: boolean, ehDono: boolean }) => {
             </button>
           </div>
           <div className="bg-white rounded-3xl shadow-sm border border-brand-beige/20 overflow-hidden">
-            {products.map(p => (
+            {produtosPaginados.map(p => (
               <div key={p.id} className="flex items-center gap-6 p-6 border-b border-brand-beige/10 last:border-0">
                 <img 
                   src={p.image_url || `https://picsum.photos/seed/${p.id}/200/200`} 
@@ -1255,6 +1260,18 @@ const Admin = ({ isAdmin, ehDono }: { isAdmin: boolean, ehDono: boolean }) => {
             ))}
             {products.length === 0 && (
               <div className="p-12 text-center text-gray-400">Nenhum produto cadastrado.</div>
+            )}
+            {products.length > PRODUTOS_POR_PAGINA && (
+              <nav aria-label="Paginação dos produtos" className="flex flex-wrap items-center justify-between gap-3 px-6 py-5 border-t border-brand-beige/20">
+                <span className="text-sm text-gray-600">
+                  Mostrando {(paginaProdutosAtual - 1) * PRODUTOS_POR_PAGINA + 1}–{Math.min(paginaProdutosAtual * PRODUTOS_POR_PAGINA, products.length)} de {products.length} produtos
+                </span>
+                <div className="flex items-center gap-3">
+                  <button type="button" disabled={paginaProdutosAtual <= 1} onClick={() => setPaginaProdutos(p => Math.max(1, p - 1))} className="px-4 py-2 rounded-lg border border-brand-beige/40 disabled:opacity-40 disabled:cursor-not-allowed hover:bg-brand-beige/10">Anterior</button>
+                  <span className="text-sm font-semibold">Página {paginaProdutosAtual} de {totalPaginasProdutos}</span>
+                  <button type="button" disabled={paginaProdutosAtual >= totalPaginasProdutos} onClick={() => setPaginaProdutos(p => Math.min(totalPaginasProdutos, p + 1))} className="px-4 py-2 rounded-lg border border-brand-beige/40 disabled:opacity-40 disabled:cursor-not-allowed hover:bg-brand-beige/10">Próxima</button>
+                </div>
+              </nav>
             )}
           </div>
         </div>
