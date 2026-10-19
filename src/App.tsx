@@ -1626,6 +1626,12 @@ const PaymentPage = ({ cart, user, edicao, onPedidoFeito }: { cart: CartItem[], 
           </div>
           <h2 className="text-4xl font-serif text-brand-olive">Pedido #{pedido.id} recebido!</h2>
           {pedido.anterior && <p className="text-sm text-gray-600">Ele substitui o pedido #{pedido.anterior}, que foi cancelado.</p>}
+          {!mercadoPagoHabilitado && pedido.delivery_method === 'Retirada' && (
+            <div role="status" className="border border-amber-200 bg-amber-50 rounded-2xl p-4 text-left space-y-2">
+              <h3 className="font-semibold text-amber-950">Mercado Pago — modo de testes</h3>
+              <p className="text-sm text-amber-950">O botão de pagamento de teste não está habilitado nesta publicação. Na Cloudflare Pages, configure VITE_MERCADOPAGO_ATIVO=true no ambiente Preview e faça um novo deploy. Nenhuma cobrança será iniciada nesta tela.</p>
+            </div>
+          )}
           {mercadoPagoHabilitado && pedido.delivery_method === 'Retirada' && (
             <div className="border border-brand-beige/30 rounded-2xl p-4 space-y-3 text-left">
               <h3 className="font-semibold text-brand-olive">Pagar com PIX ou cartão</h3>
@@ -1701,6 +1707,17 @@ const PaymentPage = ({ cart, user, edicao, onPedidoFeito }: { cart: CartItem[], 
         </div>
 
         {entrega === 'Correios' && <div className="mb-6"><ResumoCaixas /></div>}
+
+        {entrega === 'Retirada' && (
+          <div className="mb-6 rounded-2xl border border-brand-beige/30 bg-white p-5 text-left space-y-2" data-testid="mercadopago-checkout-status">
+            <h3 className="font-semibold text-brand-olive">Pagamento pelo Mercado Pago {mercadoPagoHabilitado ? '— teste' : '— aguardando ativação'}</h3>
+            {mercadoPagoHabilitado ? (
+              <p className="text-sm text-gray-700">Após clicar em <strong>Finalizar pedido</strong>, você verá o botão <strong>Pagar com PIX ou cartão pelo Mercado Pago</strong> na confirmação. Use somente a conta e os métodos de teste. Não faça pagamento real.</p>
+            ) : (
+              <p className="text-sm text-amber-800">O pagamento pelo Mercado Pago está desativado nesta versão. Para testá-lo, habilite VITE_MERCADOPAGO_ATIVO=true no Preview da Cloudflare e faça um novo deploy. Não utilize cobrança real.</p>
+            )}
+          </div>
+        )}
 
         <div className="bg-brand-mint/20 p-6 rounded-2xl mb-8">
           {entrega === "Correios" ? (
