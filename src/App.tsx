@@ -6,6 +6,7 @@ import type { Session } from "@supabase/supabase-js";
 import { supabase, definirManterConectado } from "./lib/supabase";
 import { Product, CartItem } from "./types";
 import { abrirCheckoutMercadoPago, mercadoPagoHabilitado } from "./lib/mercadopago";
+import { EditarCaixasLoja, ResumoCaixas } from "./Embalagens";
 import { LOJA, linkWhatsApp, STATUS_PEDIDO, mensagemPedido, mensagemEntrega, reais, CATEGORIAS, maiorDeIdade, chaveCarrinho, cpfValido, formatarCpf, comPromocao, comEstoqueDosKits } from "./loja";
 
 // --- Components ---
@@ -46,6 +47,7 @@ const Navbar = ({ cartCount, isAdmin, acessoGestao, user }: { cartCount: number,
             {user && <Link to="/meus-pedidos" className="text-sm font-medium hover:text-brand-olive transition-colors">Meus Pedidos</Link>}
             {user && <Link to="/minha-conta" className="text-sm font-medium hover:text-brand-olive transition-colors">Minha conta</Link>}
             {user && <button onClick={sair} className="text-sm font-medium hover:text-brand-olive transition-colors">Sair</button>}
+            {acessoGestao && <Link to="/configurar-frete" className="text-sm font-medium hover:text-brand-olive">Caixas e frete</Link>}
             <Link to="/carrinho" aria-label="Abrir carrinho" className="relative p-2 text-gray-700 hover:text-brand-olive transition-colors">
               <ShoppingCart size={20} />
               {cartCount > 0 && (
@@ -1698,6 +1700,8 @@ const PaymentPage = ({ cart, user, edicao, onPedidoFeito }: { cart: CartItem[], 
           </div>
         </div>
 
+        {entrega === 'Correios' && <div className="mb-6"><ResumoCaixas /></div>}
+
         <div className="bg-brand-mint/20 p-6 rounded-2xl mb-8">
           {entrega === "Correios" ? (
             <>
@@ -2618,6 +2622,7 @@ export default function App() {
               <Route path="/minha-conta" element={<MinhaConta user={user} onCadastroAtualizado={dados => setUser((u: any) => ({ ...u, ...dados }))} />} />
               <Route path="/pagamento" element={<PaymentPage cart={cart} user={user} edicao={edicao} onPedidoFeito={encerrarEdicao} />} />
               <Route path="/admin" element={<Admin isAdmin={isAdmin} ehDono={ehDono} />} />
+              <Route path="/configurar-frete" element={<EditarCaixasLoja temAcesso={acessoGestao} />} />
             </Routes>
           )}
         </main>
