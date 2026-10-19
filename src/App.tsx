@@ -477,6 +477,9 @@ const Products = ({ onAddToCart, isAdmin }: { onAddToCart: (p: Product, qty: num
   const [termo, setTermo] = useState('');
   const [ordenacao, setOrdenacao] = useState('nome');
   const [apenasDisponiveis, setApenasDisponiveis] = useState(false);
+  const [paginaVitrine, setPaginaVitrine] = useState(1);
+  const PRODUTOS_POR_PAGINA_VITRINE = 12;
+
   const [busca, setBusca] = useSearchParams();
   const ordemCategorias = useCategorias();
   const categoria = busca.get("categoria") || "";
@@ -515,6 +518,10 @@ const Products = ({ onAddToCart, isAdmin }: { onAddToCart: (p: Product, qty: num
     };
   }, []);
 
+  useEffect(() => {
+    setPaginaVitrine(1);
+  }, [termo, ordenacao, apenasDisponiveis, busca.get("categoria")]);
+
   if (loading) return <div className="min-h-screen flex items-center justify-center">Carregando...</div>;
 
   const categorias = ordemCategorias.filter(c => products.some(p => p.category === c))
@@ -528,6 +535,10 @@ const Products = ({ onAddToCart, isAdmin }: { onAddToCart: (p: Product, qty: num
       : ordenacao === 'maior-preco' ? b.price - a.price
       : ordenacao === 'disponibilidade' ? b.quantity - a.quantity
       : a.name.localeCompare(b.name, 'pt-BR'));
+  const totalPaginasVitrine = Math.max(1, Math.ceil(visiveis.length / PRODUTOS_POR_PAGINA_VITRINE));
+  const paginaVitrineAtual = Math.min(paginaVitrine, totalPaginasVitrine);
+  const produtosPaginaVitrine = visiveis.slice((paginaVitrineAtual - 1) * PRODUTOS_POR_PAGINA_VITRINE, paginaVitrineAtual * PRODUTOS_POR_PAGINA_VITRINE);
+
 
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-20">
@@ -590,13 +601,29 @@ const Products = ({ onAddToCart, isAdmin }: { onAddToCart: (p: Product, qty: num
         {visiveis.length} {visiveis.length === 1 ? 'produto encontrado' : 'produtos encontrados'}
       </p>
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-8">
-        {visiveis.map(product => (
+        {produtosPaginaVitrine.map(product => (
           <div key={product.id} className="h-full">
             <ProductCard product={product} onAddToCart={onAddToCart} onAbrir={setAberto} />
           </div>
         ))}
       </div>
       
+      {visiveis.length > PRODUTOS_POR_PAGINA_VITRINE && (
+        <nav aria-label="Paginação da coleção" className="flex flex-wrap justify-center items-center gap-3 mt-10 mb-5">
+          <button type="button" disabled={paginaVitrineAtual === 1}
+            onClick={() => setPaginaVitrine(p => Math.max(1, p - 1))}
+            className="rounded-full border border-brand-beige/50 bg-white px-5 py-2 font-medium text-brand-olive disabled:opacity-40 disabled:cursor-not-allowed">
+            Anterior
+          </button>
+          <span className="text-sm font-medium text-brand-olive">Página {paginaVitrineAtual} de {totalPaginasVitrine}</span>
+          <button type="button" disabled={paginaVitrineAtual >= totalPaginasVitrine}
+            onClick={() => setPaginaVitrine(p => Math.min(totalPaginasVitrine, p + 1))}
+            className="rounded-full border border-brand-beige/50 bg-white px-5 py-2 font-medium text-brand-olive disabled:opacity-40 disabled:cursor-not-allowed">
+            Próxima
+          </button>
+        </nav>
+      )}
+
       {visiveis.length === 0 && (
         <div className="text-center py-20 space-y-6">
           <p className="text-gray-500">
