@@ -1832,7 +1832,7 @@ const MyOrders = ({ user, onCarregar }: { user: any, onCarregar: (pedido: any, e
     return (
       <div className="bg-brand-mint/10 border border-brand-beige/20 rounded-2xl p-4 mb-5 text-sm space-y-2" data-testid={`pagamento-pedido-${pedido.id}`}>
         <h3 className="font-bold text-brand-olive">Informações do pagamento</h3>
-        {aprovado ? (
+        {aprovado && pagamento ? (
           <>
             <p><strong>Situação:</strong> Pagamento confirmado pelo Mercado Pago</p>
             <p><strong>Forma de pagamento:</strong> {descricaoMetodo(pagamento.metodo)}</p>
