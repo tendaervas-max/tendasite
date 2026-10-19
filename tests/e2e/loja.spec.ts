@@ -98,3 +98,9 @@ test('falha na API mostra mensagem e botão para tentar novamente',async ({page}
  await expect(page.getByText('Não foi possível carregar os produtos. Verifique a conexão e tente novamente.')).toBeVisible();
  await expect(page.getByRole('button',{name:'Tentar novamente'})).toBeVisible();
 });
+
+test('edição de caixas é restrita à equipe autenticada',async ({page})=>{
+ await page.goto('/configurar-frete');
+ await expect(page.getByRole('heading',{name:'Acesso restrito'})).toBeVisible();
+ await expect(page.getByText('Somente a equipe da Tenda Ervas pode editar as medidas.')).toBeVisible();
+});
