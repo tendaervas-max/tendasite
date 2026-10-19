@@ -1,3 +1,5 @@
+import { gerarPixCopiaECola } from "./lib/pixEstatico";
+import { qrcodegen } from "./lib/qrcodegen";
 import React, { useState, useEffect } from "react";
 import { BrowserRouter as Router, Routes, Route, Link, useNavigate, useLocation, useSearchParams } from "react-router-dom";
 import { motion, AnimatePresence } from "motion/react";
@@ -1497,79 +1499,98 @@ const Admin = ({ isAdmin, ehDono }: { isAdmin: boolean, ehDono: boolean }) => {
 };
 
 // Bloco com a chave PIX e o botão do WhatsApp, usado no fim da compra e em "Meus pedidos"
-const InstrucoesPagamento = ({ pedido }: { pedido: { id: number, description: string, total_price: number, delivery_method: string } }) => {
-  const [copiado, setCopiado] = useState<'chave' | 'codigo' | null>(null);
-  // QR Code com valor exato apenas na Retirada: pedidos Correios exigem cotação de frete antes de pagar.
-  const pix = pedido.delivery_method === 'Retirada' && LOJA.chavePix
-    ? (() => { try {
-        const codigo = gerarPixCopiaCola(LOJA.chavePix, Number(pedido.total_price), pedido.id);
-        return { codigo, qr: gerarQrPix(codigo) };
-      } catch { return null; } })()
-    : null;
+// QR Code gerado no próprio navegador, sem enviar valor, chave ou pedido a serviços externos.
+const PixQrCode = ({ codigo }: { codigo: string }) => {
+  const qr = React.useMemo(() => qrcodegen.QrCode.encodeText(codigo, qrcodegen.QrCode.Ecc.MEDIUM), [codigo]);
+  const margem = 4;
+  const tamanho = qr.size + margem * 2;
+  let quadrados = '';
+  for (let y = 0; y < qr.size; y++) for (let x = 0; x < qr.size; x++) {
+    if (qr.getModule(x, y)) quadrados += `M${x + margem},${y + margem}h1v1h-1z`;
+  }
+  return (
+    <svg role="img" aria-label="QR Code PIX do pedido" viewBox={`0 0 ${tamanho} ${tamanho}`}
+      xmlns="http://www.w3.org/2000/svg" className="w-full max-w-[252px] aspect-square rounded-xl border border-gray-200 bg-white"
+      shapeRendering="crispEdges">
+      <rect width={tamanho} height={tamanho} fill="#fff" />
+      <path d={quadrados} fill="#000" />
+    </svg>
+  );
+};
 
-  const copiar = async (texto: string, tipo: 'chave' | 'codigo') => {
+const InstrucoesPagamento = ({ pedido }: { pedido: { id: number, description: string, total_price: number, delivery_method: string } }) => {
+  const [copiado, setCopiado] = useState(false);
+  const [codigoCopiado, setCodigoCopiado] = useState(false);
+  // QR com valor exato somente para retirada; não gerar cobrança sem o frete de entrega.
+  const copiaECola = React.useMemo(() => {
+    if (pedido.delivery_method !== 'Retirada' || !LOJA.chavePix) return null;
     try {
-      await navigator.clipboard.writeText(texto);
-      setCopiado(tipo);
+      return gerarPixCopiaECola({
+        chave: LOJA.chavePix, valor: Number(pedido.total_price), pedidoId: pedido.id,
+        nome: LOJA.nome, cidade: LOJA.localRetirada.split(',')[0] || 'Guarulhos'
+      });
+    } catch { return null; }
+  }, [pedido.id, pedido.total_price, pedido.delivery_method]);
+  const copiarCodigo = async () => {
+    if (!copiaECola) return;
+    try { await navigator.clipboard.writeText(copiaECola); setCodigoCopiado(true); }
+    catch { alert('Não foi possível copiar o código PIX. Use a chave PIX exibida abaixo.'); }
+  };
+
+  // Método que copia a chave PIX para a área de transferência
+  const copiarChave = async () => {
+    try {
+      await navigator.clipboard.writeText(LOJA.chavePix);
+      setCopiado(true);
     } catch {
-      alert('Não foi possível copiar automaticamente. Selecione e copie o código exibido.');
+      alert(`Chave PIX: ${LOJA.chavePix}`);
     }
   };
 
   return (
     <div className="space-y-4 text-left">
-      {pedido.delivery_method === 'Retirada' ? (
-        <>
-          <p className="text-gray-700 leading-relaxed">
-            Pague <strong>{reais(Number(pedido.total_price))}</strong> pelo aplicativo do seu banco, diretamente para a conta Nu Empresas da Tenda Ervas, sem abrir o Mercado Pago.
-          </p>
-          {pix && (
-            <div className="border border-brand-beige/30 bg-white rounded-2xl p-5 space-y-4">
-              <h3 className="text-center font-bold text-brand-olive">Escaneie o QR Code PIX</h3>
-              <svg role="img" aria-label={`QR Code PIX do pedido ${pedido.id}, valor ${reais(Number(pedido.total_price))}`}
-                xmlns="http://www.w3.org/2000/svg" viewBox={`0 0 ${pix.qr.tamanho + 8} ${pix.qr.tamanho + 8}`}
-                shapeRendering="crispEdges" className="w-full max-w-[260px] mx-auto bg-white rounded-lg">
-                <rect x="0" y="0" width={pix.qr.tamanho + 8} height={pix.qr.tamanho + 8} fill="white"/>
-                {pix.qr.quadrados.map((p, i) => <rect key={i} x={p.x + 4} y={p.y + 4} width="1" height="1" fill="#111827"/>)}
-              </svg>
-              <div className="text-center font-semibold text-brand-olive">{reais(Number(pedido.total_price))} · Pedido #{pedido.id}</div>
-              <label htmlFor={`pix-copia-${pedido.id}`} className="block text-sm font-semibold">PIX copia e cola</label>
-              <textarea id={`pix-copia-${pedido.id}`} readOnly value={pix.codigo} rows={3}
-                onFocus={e => e.currentTarget.select()} className="w-full border rounded-xl bg-gray-50 p-3 text-xs font-mono break-all resize-none"/>
-              <button type="button" onClick={()=>void copiar(pix.codigo, 'codigo')}
-                className="w-full bg-brand-olive text-white font-semibold py-3 rounded-full">
-                {copiado === 'codigo' ? 'Código PIX copiado!' : 'Copiar código PIX'}
-              </button>
-            </div>
-          )}
-        </>
-      ) : (
-        <p className="text-gray-700 leading-relaxed">
-          Para envio pelos Correios, fale com a loja para calcular o frete antes de pagar. O valor dos produtos é {reais(Number(pedido.total_price))}, sem o frete. Não transfira somente esse valor.
-        </p>
+      <p className="text-gray-700 leading-relaxed">
+        {pedido.delivery_method === "Retirada"
+          ? <>Pague <strong>{reais(Number(pedido.total_price))}</strong> com o QR Code PIX ou código copia e cola da Tenda Ervas. O recebimento será conferido pela loja antes da confirmação do pedido.</>
+          : <>Mande o pedido pelo WhatsApp para calcularmos o frete dos Correios. Depois é só pagar pelo PIX o valor dos produtos ({reais(Number(pedido.total_price))}) mais o frete.</>}
+      </p>
+      {copiaECola && (
+        <div className="rounded-2xl border border-brand-beige/30 bg-white p-5 space-y-4" data-testid={`pix-qrcode-pedido-${pedido.id}`}>
+          <h3 className="font-semibold text-brand-olive">PIX direto para a conta Nu Empresas</h3>
+          <p className="text-sm text-gray-700">Escaneie o QR Code pelo aplicativo do seu banco ou copie o código abaixo. Valor: <strong>{reais(Number(pedido.total_price))}</strong>.</p>
+          <div className="flex justify-center"><PixQrCode codigo={copiaECola}/></div>
+          <button type="button" onClick={copiarCodigo}
+            className="w-full rounded-full bg-brand-olive text-white font-semibold px-4 py-3 hover:opacity-90">
+            {codigoCopiado ? 'Código PIX copiado!' : 'Copiar código PIX copia e cola'}
+          </button>
+          <p className="text-xs text-gray-600">Confira se o aplicativo mostra a empresa correta como destinatária. O código não confirma o pagamento automaticamente; aguarde a conferência do recebimento.</p>
+        </div>
       )}
       <div className="bg-brand-mint/20 p-5 rounded-2xl">
-        <div className="text-xs text-gray-600 uppercase tracking-widest mb-1">Chave PIX da loja (CNPJ)</div>
+        <div className="text-xs text-gray-600 uppercase tracking-widest mb-1">Chave PIX</div>
         {LOJA.chavePix ? (
           <div className="flex items-center justify-between gap-3">
             <div>
               <div className="font-mono text-brand-olive break-all">{LOJA.chavePix}</div>
               {LOJA.favorecidoPix && <div className="text-xs text-gray-600 mt-1">{LOJA.favorecidoPix}</div>}
             </div>
-            <button type="button" onClick={()=>void copiar(LOJA.chavePix, 'chave')} className="shrink-0 text-sm font-medium text-brand-olive border border-brand-olive rounded-full px-4 py-1.5 hover:bg-brand-olive hover:text-white transition-all">
-              {copiado === 'chave' ? 'Copiada!' : 'Copiar'}
+            <button onClick={copiarChave} className="shrink-0 text-sm font-medium text-brand-olive border border-brand-olive rounded-full px-4 py-1.5 hover:bg-brand-olive hover:text-white transition-all">
+              {copiado ? "Copiada!" : "Copiar"}
             </button>
           </div>
-        ) : <div className="text-gray-700">Consulte a chave diretamente com a loja.</div>}
+        ) : (
+          <div className="text-gray-700">Enviamos a chave pelo WhatsApp.</div>
+        )}
       </div>
-      <p role="status" className="text-sm text-amber-900 bg-amber-50 border border-amber-200 rounded-xl p-3">
-        Confira o nome do recebedor no aplicativo bancário. Este QR Code é estático: ele não informa automaticamente à loja que você pagou. Seu pedido permanece aguardando a conferência do PIX recebido na conta.
-      </p>
-      <a href={linkWhatsApp(mensagemPedido(pedido))} target="_blank" rel="noreferrer"
-        className="w-full inline-flex items-center justify-center gap-2 border-2 border-green-600 text-green-700 font-bold py-3 rounded-full hover:bg-green-50 transition-all">
-        <Phone size={18}/> Falar com a loja (opcional)
+      <a
+        href={linkWhatsApp(mensagemPedido(pedido))}
+        target="_blank"
+        rel="noreferrer"
+        className="w-full inline-flex items-center justify-center gap-2 bg-green-600 text-white font-bold py-4 rounded-full hover:bg-green-700 transition-all shadow-lg"
+      >
+        <Phone size={18} /> Enviar pedido pelo WhatsApp
       </a>
-      <BotaoCombinarEntrega pedido={pedido}/>
+      <BotaoCombinarEntrega pedido={pedido} />
     </div>
   );
 };
@@ -1671,7 +1692,7 @@ const PaymentPage = ({ cart, user, edicao, onPedidoFeito }: { cart: CartItem[], 
                 <button type="button" aria-pressed={formaEscolhida === 'direto'} onClick={()=>setFormaEscolhida('direto')}
                   className={`p-3 rounded-xl border-2 font-semibold text-sm text-left ${formaEscolhida === 'direto' ? 'border-brand-olive bg-brand-mint/20' : 'border-gray-200'}`}>
                   PIX direto pela chave
-                  <span className="block mt-1 text-xs font-normal">Enviar comprovante à loja · confirmação manual</span>
+                  <span className="block mt-1 text-xs font-normal">QR Code e copia e cola · confirmação manual</span>
                 </button>
                 <button type="button" aria-pressed={formaEscolhida === 'mercadopago'} onClick={()=>setFormaEscolhida('mercadopago')}
                   className={`p-3 rounded-xl border-2 font-semibold text-sm text-left ${formaEscolhida === 'mercadopago' ? 'border-brand-olive bg-brand-mint/20' : 'border-gray-200'}`}>
