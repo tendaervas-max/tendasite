@@ -104,3 +104,29 @@ test('edição de caixas é restrita à equipe autenticada',async ({page})=>{
  await expect(page.getByRole('heading',{name:'Acesso restrito'})).toBeVisible();
  await expect(page.getByText('Somente a equipe da Tenda Ervas pode editar as medidas.')).toBeVisible();
 });
+
+test('mantém produtos e variantes no carrinho após recarregar a página',async ({page})=>{
+ await page.getByRole('button',{name:'Escolher aroma'}).click();
+ const dialog=page.getByRole('dialog',{name:'Detalhes de Incenso Satya'});
+ await dialog.getByRole('button',{name:'Lavanda'}).click();
+ await dialog.getByRole('button',{name:/Adicionar/}).click();
+ await page.locator('a[href="/carrinho"]:visible').first().click();
+ await expect(page.getByRole('heading',{name:'Incenso Satya'})).toBeVisible();
+ await page.reload();
+ await expect(page.getByRole('heading',{name:'Incenso Satya'})).toBeVisible();
+ await expect(page.getByText('Lavanda')).toBeVisible();
+ await page.getByRole('button',{name:'Aumentar quantidade de Incenso Satya'}).click();
+ await page.reload();
+ await expect(page.getByRole('button',{name:'Diminuir quantidade de Incenso Satya'})).toBeVisible();
+ await page.getByRole('button',{name:'Remover Incenso Satya do carrinho'}).click();
+ await expect(page.getByText('Seu carrinho está vazio.')).toBeVisible();
+ await page.reload();
+ await expect(page.getByText('Seu carrinho está vazio.')).toBeVisible();
+});
+
+test('descarta dados corrompidos do carrinho sem interromper o site',async ({page})=>{
+ await page.evaluate(()=>localStorage.setItem('tendaervas:carrinho:v1','{"quebrado":true'));
+ await page.reload();
+ await page.goto('/carrinho');
+ await expect(page.getByText('Seu carrinho está vazio.')).toBeVisible();
+});
