@@ -286,7 +286,7 @@ const ProductCard = ({ product, onAddToCart, onAbrir }: { product: Product, onAd
   const [qty, setQty] = useState(1);
   const [adicionado, setAdicionado] = useState(false);
   const esgotado = product.quantity <= 0;
-  const temOpcoes = (product.options || []).length > 0;
+  const temOpcoes = (product.options || []).length > 0 || Object.keys(product.color_stock || {}).length > 0;
 
   // Método que adiciona ao carrinho e mostra "Adicionado" no botão por um instante
   const adicionar = () => {
