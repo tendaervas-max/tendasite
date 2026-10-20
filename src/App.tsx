@@ -393,6 +393,7 @@ const JanelaProduto = ({ product, onFechar, onAddToCart }: { product: Product, o
   const galeria = Array.from(new Set([...(product.image_urls || []), product.image_url || ""].filter(Boolean)));
   const [fotoSelecionada, setFotoSelecionada] = useState(0);
   const foto = opcoes.find(o => o.nome === opcao)?.imagem || galeria[fotoSelecionada] || '/produto-sem-foto.svg';
+  const corFoto = product.image_colors?.[galeria[fotoSelecionada]] || '';
   const falta = opcoes.length > 0 && !opcao;
 
   // Método que adiciona a opção escolhida ao carrinho e fecha a janela
@@ -412,6 +413,7 @@ const JanelaProduto = ({ product, onFechar, onAddToCart }: { product: Product, o
       >
         <div className="relative bg-white">
           <img src={foto} alt={opcao ? `${product.name} - ${opcao}` : product.name} className="w-full aspect-square object-cover" referrerPolicy="no-referrer" />
+          {corFoto && <p className="text-sm text-center font-medium text-brand-olive">Cor: {corFoto}</p>}
           {galeria.length > 1 && (
             <div className="flex gap-2 overflow-x-auto p-3" aria-label="Fotos do produto">
               {galeria.map((url, i) => (
@@ -811,6 +813,8 @@ const Admin = ({ isAdmin, ehDono }: { isAdmin: boolean, ehDono: boolean }) => {
   const [erroBanco, setErroBanco] = useState("");
   const [newProduct, setNewProduct] = useState({ name: "", description: "", price: "", quantity: "", category: "Ervas", opcoes: "", adult: false });
   const [imagesNovas, setImagesNovas] = useState<File[]>([]);
+  const [coresExistentes, setCoresExistentes] = useState<Record<string,string>>({});
+  const [coresNovas, setCoresNovas] = useState<string[]>([]);
   const [categoriaNova, setCategoriaNova] = useState(false);
   const [editando, setEditando] = useState<Product | null>(null);
   const [tabelaAberta, setTabelaAberta] = useState("");
@@ -998,6 +1002,8 @@ const Admin = ({ isAdmin, ehDono }: { isAdmin: boolean, ehDono: boolean }) => {
     setNewProduct({ name: "", description: "", price: "", quantity: "", category: "Ervas", opcoes: "", adult: false });
     setCategoriaNova(false);
     setImagesNovas([]);
+    setCoresNovas([]);
+    setCoresExistentes(p.image_colors || {});
     setActiveTab("add");
   };
 
@@ -1034,6 +1040,8 @@ const Admin = ({ isAdmin, ehDono }: { isAdmin: boolean, ehDono: boolean }) => {
         imagensEnviadas.push(publicUrl);
       }
       const galeria = [...imagensExistentes, ...imagensEnviadas];
+      const cores = { ...coresExistentes };
+      imagensEnviadas.forEach((url,i) => { if (coresNovas[i]?.trim()) cores[url] = coresNovas[i].trim(); });
 
       const dados = {
         name: newProduct.name,
@@ -1043,6 +1051,7 @@ const Admin = ({ isAdmin, ehDono }: { isAdmin: boolean, ehDono: boolean }) => {
         // Na alteração sem foto nova, fica a foto que o produto já tinha
         image_url: galeria[0] || "",
         image_urls: galeria,
+        image_colors: cores,
         category: categoriasCadastro.find(c => c.toLowerCase() === newProduct.category.trim().toLowerCase()) ?? newProduct.category.trim(),
         // Opção que já existia mantém a foto dela
         options: newProduct.opcoes.split(",").map(o => o.trim()).filter(Boolean).map(nome => editando?.options?.find(o => o.nome === nome) ?? { nome }),
@@ -1059,6 +1068,8 @@ const Admin = ({ isAdmin, ehDono }: { isAdmin: boolean, ehDono: boolean }) => {
       setNewProduct({ name: "", description: "", price: "", quantity: "", category: "Ervas", opcoes: "", adult: false });
       setCategoriaNova(false);
       setImagesNovas([]);
+      setCoresNovas([]);
+      setCoresExistentes({});
       setEditando(null);
       alert(editando ? "Produto alterado com sucesso!" : "Produto cadastrado com sucesso!");
     } catch (err: any) {
@@ -1258,12 +1269,15 @@ const Admin = ({ isAdmin, ehDono }: { isAdmin: boolean, ehDono: boolean }) => {
                       <div key={url} className="relative">
                         <img src={url} alt={`Foto ${i + 1} de ${editando.name}`} className="w-24 h-24 object-cover rounded-lg border" />
                         {i === 0 && <span className="absolute bottom-0 left-0 bg-brand-olive text-white text-xs px-2 rounded">Capa</span>}
+                        <label className="block text-xs">Cor
+                          <input value={coresExistentes[url] || ''} onChange={e => setCoresExistentes(prev => ({...prev,[url]:e.target.value}))} placeholder="Ex.: Verde" className="w-24 border rounded p-1" />
+                        </label>
                       </div>
                     ))}
                   </div>
                 ) : null}
                 <input type="file" accept="image/*" multiple
-                  onChange={e => setImagesNovas(Array.from(e.target.files || []))}
+                  onChange={e => {const files=Array.from(e.target.files || []);setImagesNovas(files);setCoresNovas(files.map(() => ""));}}
                   className="w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:font-semibold file:bg-brand-mint file:text-brand-olive" />
                 {imagesNovas.length > 0 && <p className="text-sm text-brand-olive">{imagesNovas.length} nova(s) foto(s) para adicionar ao salvar.</p>}
                 {imagesNovas.length > 0 && (
@@ -1273,7 +1287,9 @@ const Admin = ({ isAdmin, ehDono }: { isAdmin: boolean, ehDono: boolean }) => {
                         <img src={URL.createObjectURL(arquivo)} alt={`Prévia da nova foto ${i + 1}`}
                           className="w-full aspect-square object-cover"
                           onLoad={e => URL.revokeObjectURL(e.currentTarget.src)} />
-                        <p className="text-xs text-brand-olive px-2 py-1">Nova foto {i + 1}</p>
+                        <label className="block text-xs px-2 py-1">Cor
+                          <input value={coresNovas[i] || ''} onChange={e=>setCoresNovas(prev=>prev.map((v,n)=>n===i?e.target.value:v))} placeholder="Ex.: Azul" className="w-full border rounded px-1" />
+                        </label>
                       </div>
                     ))}
                   </div>
