@@ -328,7 +328,7 @@ const ProductCard = ({ product, onAddToCart, onAbrir }: { product: Product, onAd
         <div className="flex flex-col gap-4 pt-2 mt-auto">
           {temOpcoes ? (
             <>
-              <span className="text-xs text-gray-400 uppercase tracking-widest">{product.options.length} opções · Estoque: {product.quantity}</span>
+              <span className="text-xs text-gray-400 uppercase tracking-widest">{Object.keys(product.color_stock || {}).length > 0 ? `${Object.keys(product.color_stock || {}).length} cores` : `${(product.options || []).length} opções`} · Estoque: {product.quantity}</span>
               <button 
                 onClick={() => onAbrir(product)}
                 disabled={esgotado}
@@ -459,21 +459,27 @@ const JanelaProduto = ({ product, onFechar, onAddToCart }: { product: Product, o
                   <button
                     key={o.nome}
                     type="button"
-                    onClick={() => setOpcao(o.nome)}
+                    disabled={coresCadastradas.length > 0 && Number(product.color_stock?.[o.nome] || 0) <= 0}
+                    onClick={() => {
+                      setOpcao(o.nome);
+                      const index=galeria.findIndex(url => (product.image_colors?.[url] || '').trim().toLocaleLowerCase('pt-BR') === o.nome.trim().toLocaleLowerCase('pt-BR'));
+                      if(index >= 0) setFotoSelecionada(index);
+                      setQty(1);
+                    }}
                     className={`px-3 py-1.5 rounded-full text-sm border transition-all ${opcao === o.nome ? "bg-brand-olive text-white border-brand-olive" : "border-brand-beige/50 text-gray-700 hover:border-brand-olive"}`}
                   >
-                    {o.nome}
+                    {o.nome}{coresCadastradas.length > 0 ? ` (${product.color_stock?.[o.nome] || 0})` : ''}
                   </button>
                 ))}
               </div>
             </div>
           )}
           <div className="flex items-center justify-between">
-            <span className="text-xs text-gray-500 uppercase tracking-widest">Estoque: {product.quantity}</span>
+            <span className="text-xs text-gray-500 uppercase tracking-widest">Estoque: {coresCadastradas.length && opcao ? estoqueDaOpcao : product.quantity}</span>
             {!esgotado && <div className="flex items-center border border-brand-beige/30 rounded-full px-2 py-0.5">
               <button type="button" aria-label={`Diminuir quantidade de ${product.name}`} onClick={() => setQty(Math.max(1, qty - 1))} className="px-2 text-brand-olive">-</button>
               <span className="mx-2 text-sm font-medium">{qty}</span>
-              <button type="button" aria-label={`Aumentar quantidade de ${product.name}`} onClick={() => setQty(Math.min(Math.max(1, product.quantity), qty + 1))} className="px-2 text-brand-olive">+</button>
+              <button type="button" aria-label={`Aumentar quantidade de ${product.name}`} onClick={() => setQty(Math.min(Math.max(1, estoqueDaOpcao), qty + 1))} className="px-2 text-brand-olive">+</button>
             </div>}
           </div>
           <button
