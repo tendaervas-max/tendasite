@@ -390,7 +390,9 @@ const JanelaProduto = ({ product, onFechar, onAddToCart }: { product: Product, o
   const [opcao, setOpcao] = useState<string | undefined>(opcoes.length === 1 ? opcoes[0].nome : undefined);
   const [qty, setQty] = useState(1);
   const esgotado = product.quantity <= 0;
-  const foto = opcoes.find(o => o.nome === opcao)?.imagem || product.image_url || '/produto-sem-foto.svg';
+  const galeria = Array.from(new Set([...(product.image_urls || []), product.image_url || ""].filter(Boolean)));
+  const [fotoSelecionada, setFotoSelecionada] = useState(0);
+  const foto = opcoes.find(o => o.nome === opcao)?.imagem || galeria[fotoSelecionada] || '/produto-sem-foto.svg';
   const falta = opcoes.length > 0 && !opcao;
 
   // Método que adiciona a opção escolhida ao carrinho e fecha a janela
@@ -410,6 +412,17 @@ const JanelaProduto = ({ product, onFechar, onAddToCart }: { product: Product, o
       >
         <div className="relative bg-white">
           <img src={foto} alt={opcao ? `${product.name} - ${opcao}` : product.name} className="w-full aspect-square object-cover" referrerPolicy="no-referrer" />
+          {galeria.length > 1 && (
+            <div className="flex gap-2 overflow-x-auto p-3" aria-label="Fotos do produto">
+              {galeria.map((url, i) => (
+                <button type="button" key={url} onClick={() => setFotoSelecionada(i)}
+                  aria-label={`Ver foto ${i + 1}`} aria-pressed={fotoSelecionada === i}
+                  className={`shrink-0 rounded-lg border-2 ${fotoSelecionada === i ? 'border-brand-olive' : 'border-transparent'}`}>
+                  <img src={url} alt={`Miniatura ${i + 1}`} className="h-16 w-16 rounded object-cover" />
+                </button>
+              ))}
+            </div>
+          )}
           {product.adult && <div className="absolute top-4 left-4 bg-red-600 text-white px-2.5 py-1 rounded-full text-xs font-bold">18+</div>}
         </div>
         <div className="p-6 sm:p-8 space-y-5 relative">
@@ -797,7 +810,7 @@ const Admin = ({ isAdmin, ehDono }: { isAdmin: boolean, ehDono: boolean }) => {
   const [orders, setOrders] = useState<any[]>([]);
   const [erroBanco, setErroBanco] = useState("");
   const [newProduct, setNewProduct] = useState({ name: "", description: "", price: "", quantity: "", category: "Ervas", opcoes: "", adult: false });
-  const [image, setImage] = useState<File | null>(null);
+  const [imagesNovas, setImagesNovas] = useState<File[]>([]);
   const [categoriaNova, setCategoriaNova] = useState(false);
   const [editando, setEditando] = useState<Product | null>(null);
   const [tabelaAberta, setTabelaAberta] = useState("");
@@ -984,7 +997,7 @@ const Admin = ({ isAdmin, ehDono }: { isAdmin: boolean, ehDono: boolean }) => {
     setEditando(null);
     setNewProduct({ name: "", description: "", price: "", quantity: "", category: "Ervas", opcoes: "", adult: false });
     setCategoriaNova(false);
-    setImage(null);
+    setImagesNovas([]);
     setActiveTab("add");
   };
 
@@ -1001,32 +1014,26 @@ const Admin = ({ isAdmin, ehDono }: { isAdmin: boolean, ehDono: boolean }) => {
       adult: p.adult
     });
     setCategoriaNova(false);
-    setImage(null);
+    setImagesNovas([]);
     setActiveTab("add");
   };
 
   const handleAddProduct = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
-      let imageUrl = "";
-      
-      if (image) {
-        const fileExt = image.name.split('.').pop();
-        const fileName = `${Math.random()}.${fileExt}`;
-        const filePath = `${fileName}`;
-
-        const { error: uploadError } = await supabase.storage
-          .from('product-images')
-          .upload(filePath, image);
-
-        if (uploadError) throw uploadError;
-
-        const { data: { publicUrl } } = supabase.storage
-          .from('product-images')
-          .getPublicUrl(filePath);
-        
-        imageUrl = publicUrl;
+      const imagensExistentes = editando ? Array.from(new Set([...(editando.image_urls || []), editando.image_url || ""].filter(Boolean))) : [];
+      const imagensEnviadas: string[] = [];
+      for (const arquivo of imagesNovas) {
+        if (!arquivo.type.startsWith("image/")) throw new Error("Selecione apenas arquivos de imagem.");
+        if (arquivo.size > 8 * 1024 * 1024) throw new Error("Cada imagem deve ter até 8 MB.");
+        const extensao = arquivo.name.split(".").pop()?.toLowerCase() || "jpg";
+        const caminho = `${crypto.randomUUID()}.${extensao}`;
+        const { error: erroUpload } = await supabase.storage.from("product-images").upload(caminho, arquivo, { contentType: arquivo.type });
+        if (erroUpload) throw erroUpload;
+        const { data: { publicUrl } } = supabase.storage.from("product-images").getPublicUrl(caminho);
+        imagensEnviadas.push(publicUrl);
       }
+      const galeria = [...imagensExistentes, ...imagensEnviadas];
 
       const dados = {
         name: newProduct.name,
@@ -1034,7 +1041,8 @@ const Admin = ({ isAdmin, ehDono }: { isAdmin: boolean, ehDono: boolean }) => {
         price: parseFloat(newProduct.price),
         quantity: parseInt(newProduct.quantity),
         // Na alteração sem foto nova, fica a foto que o produto já tinha
-        image_url: imageUrl || editando?.image_url || "",
+        image_url: galeria[0] || "",
+        image_urls: galeria,
         category: categoriasCadastro.find(c => c.toLowerCase() === newProduct.category.trim().toLowerCase()) ?? newProduct.category.trim(),
         // Opção que já existia mantém a foto dela
         options: newProduct.opcoes.split(",").map(o => o.trim()).filter(Boolean).map(nome => editando?.options?.find(o => o.nome === nome) ?? { nome }),
@@ -1050,7 +1058,7 @@ const Admin = ({ isAdmin, ehDono }: { isAdmin: boolean, ehDono: boolean }) => {
       setProducts(editando ? products.map(p => p.id === editando.id ? data : p) : [...products, data]);
       setNewProduct({ name: "", description: "", price: "", quantity: "", category: "Ervas", opcoes: "", adult: false });
       setCategoriaNova(false);
-      setImage(null);
+      setImagesNovas([]);
       setEditando(null);
       alert(editando ? "Produto alterado com sucesso!" : "Produto cadastrado com sucesso!");
     } catch (err: any) {
@@ -1241,16 +1249,23 @@ const Admin = ({ isAdmin, ehDono }: { isAdmin: boolean, ehDono: boolean }) => {
                 <input type="checkbox" checked={newProduct.adult} onChange={e => setNewProduct({...newProduct, adult: e.target.checked})} className="accent-brand-olive" />
                 Só para maiores de 18 anos (fumo)
               </label>
-              <div className="space-y-2">
-                <label className="text-xs text-gray-400 uppercase tracking-widest">{editando?.image_url ? "Trocar a Foto (opcional)" : "Foto do Produto"}</label>
-                {editando?.image_url && !image && (
-                  <img src={editando.image_url} alt={editando.name} className="w-20 h-20 object-cover rounded-lg" referrerPolicy="no-referrer" />
-                )}
-                <input 
-                  type="file" 
-                  onChange={e => setImage(e.target.files?.[0] || null)}
-                  className="w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-brand-mint file:text-brand-olive hover:file:bg-brand-mint/80"
-                />
+              <div className="space-y-3">
+                <label className="text-xs text-gray-500 uppercase tracking-widest">Galeria de fotos do produto</label>
+                <p className="text-sm text-gray-600">Adicione imagens de outras cores. As fotos anteriores serão mantidas e a primeira continuará como capa.</p>
+                {editando && (editando.image_urls?.length || editando.image_url) ? (
+                  <div className="flex flex-wrap gap-2">
+                    {Array.from(new Set([...(editando.image_urls || []), editando.image_url || ""].filter(Boolean))).map((url, i) => (
+                      <div key={url} className="relative">
+                        <img src={url} alt={`Foto ${i + 1} de ${editando.name}`} className="w-24 h-24 object-cover rounded-lg border" />
+                        {i === 0 && <span className="absolute bottom-0 left-0 bg-brand-olive text-white text-xs px-2 rounded">Capa</span>}
+                      </div>
+                    ))}
+                  </div>
+                ) : null}
+                <input type="file" accept="image/*" multiple
+                  onChange={e => setImagesNovas(Array.from(e.target.files || []))}
+                  className="w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:font-semibold file:bg-brand-mint file:text-brand-olive" />
+                {imagesNovas.length > 0 && <p className="text-sm text-brand-olive">{imagesNovas.length} nova(s) foto(s) para adicionar ao salvar.</p>}
               </div>
               <button className="w-full bg-brand-olive text-white py-3 rounded-full font-bold shadow-md hover:shadow-lg transition-all">
                 {editando ? "Salvar Alterações" : "Cadastrar Produto"}
