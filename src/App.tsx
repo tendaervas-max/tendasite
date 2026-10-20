@@ -1016,8 +1016,8 @@ const Admin = ({ isAdmin, ehDono }: { isAdmin: boolean, ehDono: boolean }) => {
     setCategoriaNova(false);
     setImagesNovas([]);
     setCoresNovas([]);
-    setCoresExistentes(p.image_colors || {});
-    setEstoquePorCor(p.color_stock || {});
+    setCoresExistentes({});
+    setEstoquePorCor({});
     setFotosRemovidas([]);
     setActiveTab("add");
   };
@@ -1036,6 +1036,10 @@ const Admin = ({ isAdmin, ehDono }: { isAdmin: boolean, ehDono: boolean }) => {
     });
     setCategoriaNova(false);
     setImagesNovas([]);
+    setCoresNovas([]);
+    setCoresExistentes(p.image_colors || {});
+    setEstoquePorCor(p.color_stock || {});
+    setFotosRemovidas([]);
     setActiveTab("add");
   };
 
