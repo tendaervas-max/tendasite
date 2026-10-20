@@ -1266,6 +1266,18 @@ const Admin = ({ isAdmin, ehDono }: { isAdmin: boolean, ehDono: boolean }) => {
                   onChange={e => setImagesNovas(Array.from(e.target.files || []))}
                   className="w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:font-semibold file:bg-brand-mint file:text-brand-olive" />
                 {imagesNovas.length > 0 && <p className="text-sm text-brand-olive">{imagesNovas.length} nova(s) foto(s) para adicionar ao salvar.</p>}
+                {imagesNovas.length > 0 && (
+                  <div className="grid grid-cols-3 sm:grid-cols-4 gap-3">
+                    {imagesNovas.map((arquivo, i) => (
+                      <div key={`${arquivo.name}-${i}`} className="rounded-lg border border-brand-beige/30 overflow-hidden">
+                        <img src={URL.createObjectURL(arquivo)} alt={`Prévia da nova foto ${i + 1}`}
+                          className="w-full aspect-square object-cover"
+                          onLoad={e => URL.revokeObjectURL(e.currentTarget.src)} />
+                        <p className="text-xs text-brand-olive px-2 py-1">Nova foto {i + 1}</p>
+                      </div>
+                    ))}
+                  </div>
+                )}
               </div>
               <button className="w-full bg-brand-olive text-white py-3 rounded-full font-bold shadow-md hover:shadow-lg transition-all">
                 {editando ? "Salvar Alterações" : "Cadastrar Produto"}
