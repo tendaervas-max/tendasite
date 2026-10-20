@@ -388,7 +388,7 @@ const JanelaProduto = ({ product, onFechar, onAddToCart }: { product: Product, o
   // Com duas opções ou mais, o cliente também pode deixar a loja escolher (Aleatório)
   const coresCadastradas = Object.keys(product.color_stock || {});
   const opcoes = coresCadastradas.length > 0
-    ? coresCadastradas.map(nome=>({nome}))
+    ? coresCadastradas.map(nome=>({nome, imagem: undefined as string | undefined}))
     : (product.options || []).length >= 2 ? [...product.options, { nome: "Aleatório" }] : (product.options || []);
   const [opcao, setOpcao] = useState<string | undefined>(opcoes.length === 1 ? opcoes[0].nome : undefined);
   const [qty, setQty] = useState(1);
@@ -422,7 +422,7 @@ const JanelaProduto = ({ product, onFechar, onAddToCart }: { product: Product, o
           {galeria.length > 1 && (
             <div className="flex gap-2 overflow-x-auto p-3" aria-label="Fotos do produto">
               {galeria.map((url, i) => (
-                <button type="button" key={url} onClick={() => setFotoSelecionada(i)}
+                <button type="button" key={url} onClick={() => { setFotoSelecionada(i); const cor=product.image_colors?.[url]?.trim(); if(cor && Object.prototype.hasOwnProperty.call(product.color_stock || {},cor)) setOpcao(cor); }}
                   aria-label={`Ver foto ${i + 1}`} aria-pressed={fotoSelecionada === i}
                   className={`shrink-0 rounded-lg border-2 ${fotoSelecionada === i ? 'border-brand-olive' : 'border-transparent'}`}>
                   <img src={url} alt={`Miniatura ${i + 1}`} className="h-16 w-16 rounded object-cover" />
@@ -1057,6 +1057,8 @@ const Admin = ({ isAdmin, ehDono }: { isAdmin: boolean, ehDono: boolean }) => {
       fotosRemovidas.forEach(url=>delete coresAtuais[url]);
       const todasCores = [...Object.values(coresAtuais),...coresNovas].map(c=>c.trim()).filter(Boolean);
       const variacoes = Array.from(new Set(todasCores));
+      if (variacoes.some(c => estoquePorCor[c] === undefined))
+        throw new Error("Informe a quantidade em estoque de cada cor antes de salvar.");
       const colorStock = Object.fromEntries(variacoes.map(c=>[c,Math.max(0,Math.floor(estoquePorCor[c] || 0))]));
       const dados = {
         name: newProduct.name,
@@ -1321,7 +1323,7 @@ const Admin = ({ isAdmin, ehDono }: { isAdmin: boolean, ehDono: boolean }) => {
                 ].filter(Boolean))).map(cor=>(
                   <label key={cor} className="flex items-center justify-between gap-3 text-sm text-brand-olive">
                     <span>{cor}</span>
-                    <input type="number" min="0" step="1" value={estoquePorCor[cor] ?? 0}
+                    <input type="number" min="0" step="1" value={estoquePorCor[cor] ?? ""}
                       onChange={e=>setEstoquePorCor(prev=>({...prev,[cor]:Math.max(0,Math.floor(Number(e.target.value)||0))}))}
                       className="w-28 rounded-xl border border-brand-beige/40 bg-white px-3 py-2 text-right" />
                   </label>
