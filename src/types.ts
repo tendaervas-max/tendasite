@@ -12,6 +12,7 @@ export interface Product {
   image_url: string | null;
   image_urls?: string[] | null;
   image_colors?: Record<string, string> | null;
+  color_stock?: Record<string, number> | null;
   category: string;
   options: OpcaoProduto[];
   adult: boolean;
