@@ -1081,7 +1081,9 @@ const Admin = ({ isAdmin, ehDono }: { isAdmin: boolean, ehDono: boolean }) => {
         : await supabase.from('products').insert([dados]).select().single();
 
       if (error) throw error;
-
+      if (!data || JSON.stringify(data.image_colors || {}) !== JSON.stringify(cores) ||
+          JSON.stringify(data.color_stock || {}) !== JSON.stringify(colorStock))
+        throw new Error("A gravação das cores e quantidades não foi confirmada pelo banco.");
       setProducts(editando ? products.map(p => p.id === editando.id ? data : p) : [...products, data]);
       setNewProduct({ name: "", description: "", price: "", quantity: "", category: "Ervas", opcoes: "", adult: false });
       setCategoriaNova(false);
@@ -1294,6 +1296,11 @@ const Admin = ({ isAdmin, ehDono }: { isAdmin: boolean, ehDono: boolean }) => {
                       <label className="block text-xs uppercase tracking-wider text-brand-olive">Cor desta foto
                         <input value={coresExistentes[url] || ''} onChange={e=>setCoresExistentes(prev=>({...prev,[url]:e.target.value}))} placeholder="Ex.: Rosa" className="mt-1 w-full rounded-xl border border-brand-beige/40 px-3 py-2 text-sm normal-case tracking-normal" />
                       </label>
+                      {(coresExistentes[url] || '').trim() && <label className="block text-xs uppercase tracking-wider text-brand-olive">Quantidade desta cor
+                        <input type="number" min="0" step="1" value={estoquePorCor[coresExistentes[url].trim()] ?? ''}
+                          onChange={e=>setEstoquePorCor(prev=>({...prev,[coresExistentes[url].trim()]:Math.max(0,Math.floor(Number(e.target.value)||0))}))}
+                          placeholder="Quantidade" className="mt-1 w-full rounded-xl border border-brand-beige/40 px-3 py-2 text-sm" />
+                      </label>}
                       <button type="button" onClick={()=>setFotosRemovidas(prev=>[...prev,url])} className="text-sm text-red-700 underline">Remover foto</button>
                     </div>
                   ))}
@@ -1305,6 +1312,11 @@ const Admin = ({ isAdmin, ehDono }: { isAdmin: boolean, ehDono: boolean }) => {
                       <label className="block text-xs uppercase tracking-wider text-brand-olive">Cor desta foto
                         <input value={coresNovas[i] || ''} onChange={e=>setCoresNovas(prev=>prev.map((v,n)=>n===i?e.target.value:v))} placeholder="Ex.: Azul" className="mt-1 w-full rounded-xl border border-brand-beige/40 px-3 py-2 text-sm normal-case tracking-normal" />
                       </label>
+                      {coresNovas[i]?.trim() && <label className="block text-xs uppercase tracking-wider text-brand-olive">Quantidade desta cor
+                        <input type="number" min="0" step="1" value={estoquePorCor[coresNovas[i].trim()] ?? ''}
+                          onChange={e=>setEstoquePorCor(prev=>({...prev,[coresNovas[i].trim()]:Math.max(0,Math.floor(Number(e.target.value)||0))}))}
+                          placeholder="Quantidade" className="mt-1 w-full rounded-xl border border-brand-beige/40 px-3 py-2 text-sm" />
+                      </label>}
                       <button type="button" onClick={()=>{setImagesNovas(prev=>prev.filter((_,n)=>n!==i));setCoresNovas(prev=>prev.filter((_,n)=>n!==i));}} className="text-sm text-red-700 underline">Remover foto</button>
                     </div>
                   ))}
