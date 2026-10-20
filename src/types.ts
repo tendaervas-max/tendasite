@@ -10,6 +10,7 @@ export interface Product {
   price: number;
   quantity: number;
   image_url: string | null;
+  image_urls?: string[] | null;
   category: string;
   options: OpcaoProduto[];
   adult: boolean;
