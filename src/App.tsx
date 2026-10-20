@@ -386,7 +386,10 @@ const JanelaProduto = ({ product, onFechar, onAddToCart }: { product: Product, o
     return () => {document.removeEventListener('keydown', teclado); anterior?.focus();};
   }, []);
   // Com duas opções ou mais, o cliente também pode deixar a loja escolher (Aleatório)
-  const opcoes = (product.options || []).length >= 2 ? [...product.options, { nome: "Aleatório" }] : (product.options || []);
+  const coresCadastradas = Object.keys(product.color_stock || {});
+  const opcoes = coresCadastradas.length > 0
+    ? coresCadastradas.map(nome=>({nome}))
+    : (product.options || []).length >= 2 ? [...product.options, { nome: "Aleatório" }] : (product.options || []);
   const [opcao, setOpcao] = useState<string | undefined>(opcoes.length === 1 ? opcoes[0].nome : undefined);
   const [qty, setQty] = useState(1);
   const esgotado = product.quantity <= 0;
@@ -394,11 +397,13 @@ const JanelaProduto = ({ product, onFechar, onAddToCart }: { product: Product, o
   const [fotoSelecionada, setFotoSelecionada] = useState(0);
   const foto = opcoes.find(o => o.nome === opcao)?.imagem || galeria[fotoSelecionada] || '/produto-sem-foto.svg';
   const corFoto = product.image_colors?.[galeria[fotoSelecionada]] || '';
-  const falta = opcoes.length > 0 && !opcao;
+  const coresEstoque = Object.entries(product.color_stock || {});
+  const estoqueDaOpcao = coresEstoque.length > 0 ? Number(product.color_stock?.[opcao || ''] ?? 0) : product.quantity;
+  const falta = coresEstoque.length > 0 ? !opcao || estoqueDaOpcao <= 0 : opcoes.length > 0 && !opcao;
 
   // Método que adiciona a opção escolhida ao carrinho e fecha a janela
   const adicionar = () => {
-    onAddToCart(product, qty, opcao);
+    onAddToCart(product, Math.min(qty,estoqueDaOpcao), opcao);
     onFechar();
   };
 
@@ -816,6 +821,7 @@ const Admin = ({ isAdmin, ehDono }: { isAdmin: boolean, ehDono: boolean }) => {
   const [coresExistentes, setCoresExistentes] = useState<Record<string,string>>({});
   const [fotosRemovidas, setFotosRemovidas] = useState<string[]>([]);
   const [coresNovas, setCoresNovas] = useState<string[]>([]);
+  const [estoquePorCor, setEstoquePorCor] = useState<Record<string,number>>({});
   const [categoriaNova, setCategoriaNova] = useState(false);
   const [editando, setEditando] = useState<Product | null>(null);
   const [tabelaAberta, setTabelaAberta] = useState("");
@@ -1005,6 +1011,7 @@ const Admin = ({ isAdmin, ehDono }: { isAdmin: boolean, ehDono: boolean }) => {
     setImagesNovas([]);
     setCoresNovas([]);
     setCoresExistentes(p.image_colors || {});
+    setEstoquePorCor(p.color_stock || {});
     setFotosRemovidas([]);
     setActiveTab("add");
   };
@@ -1046,11 +1053,17 @@ const Admin = ({ isAdmin, ehDono }: { isAdmin: boolean, ehDono: boolean }) => {
       fotosRemovidas.forEach(url => delete cores[url]);
       imagensEnviadas.forEach((url,i) => { if (coresNovas[i]?.trim()) cores[url] = coresNovas[i].trim(); });
 
+      const coresAtuais = {...coresExistentes};
+      fotosRemovidas.forEach(url=>delete coresAtuais[url]);
+      const todasCores = [...Object.values(coresAtuais),...coresNovas].map(c=>c.trim()).filter(Boolean);
+      const variacoes = Array.from(new Set(todasCores));
+      const colorStock = Object.fromEntries(variacoes.map(c=>[c,Math.max(0,Math.floor(estoquePorCor[c] || 0))]));
       const dados = {
         name: newProduct.name,
         description: newProduct.description,
         price: parseFloat(newProduct.price),
-        quantity: parseInt(newProduct.quantity),
+        quantity: variacoes.length ? Object.values(colorStock).reduce((a,b)=>a+Number(b),0) : parseInt(newProduct.quantity),
+        color_stock: colorStock,
         // Na alteração sem foto nova, fica a foto que o produto já tinha
         image_url: galeria[0] || "",
         image_urls: galeria,
@@ -1073,6 +1086,7 @@ const Admin = ({ isAdmin, ehDono }: { isAdmin: boolean, ehDono: boolean }) => {
       setImagesNovas([]);
       setCoresNovas([]);
       setCoresExistentes({});
+      setEstoquePorCor({});
       setFotosRemovidas([]);
       setEditando(null);
       alert(editando ? "Produto alterado com sucesso!" : "Produto cadastrado com sucesso!");
@@ -1297,6 +1311,21 @@ const Admin = ({ isAdmin, ehDono }: { isAdmin: boolean, ehDono: boolean }) => {
                   <input type="file" accept="image/*" multiple className="sr-only" onChange={e=>{const arquivos=Array.from(e.target.files || []);setImagesNovas(prev=>[...prev,...arquivos]);setCoresNovas(prev=>[...prev,...arquivos.map(()=>'')]);e.target.value='';}} />
                 </label>
                 {fotosRemovidas.length>0 && <p className="text-xs text-red-700">{fotosRemovidas.length} foto(s) serão retiradas da galeria ao salvar.</p>}
+              </div>
+              <div className="rounded-2xl bg-brand-beige/10 border border-brand-beige/30 p-4 space-y-3">
+                <h4 className="font-semibold text-brand-olive">Estoque disponível por cor</h4>
+                <p className="text-sm text-gray-600">Informe a quantidade de cada cor. O estoque total será a soma das cores ao salvar.</p>
+                {Array.from(new Set([
+                  ...Object.entries(coresExistentes).filter(([url])=>!fotosRemovidas.includes(url)).map(([,cor])=>cor.trim()),
+                  ...coresNovas.map(c=>c.trim())
+                ].filter(Boolean))).map(cor=>(
+                  <label key={cor} className="flex items-center justify-between gap-3 text-sm text-brand-olive">
+                    <span>{cor}</span>
+                    <input type="number" min="0" step="1" value={estoquePorCor[cor] ?? 0}
+                      onChange={e=>setEstoquePorCor(prev=>({...prev,[cor]:Math.max(0,Math.floor(Number(e.target.value)||0))}))}
+                      className="w-28 rounded-xl border border-brand-beige/40 bg-white px-3 py-2 text-right" />
+                  </label>
+                ))}
               </div>
               <button className="w-full bg-brand-olive text-white py-3 rounded-full font-bold shadow-md hover:shadow-lg transition-all">
                 {editando ? "Salvar Alterações" : "Cadastrar Produto"}
