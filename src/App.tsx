@@ -812,8 +812,9 @@ const Admin = ({ isAdmin, ehDono }: { isAdmin: boolean, ehDono: boolean }) => {
   const [exibicaoProdutos, setExibicaoProdutos] = useState<"lista" | "grade">("lista");
   const PRODUTOS_POR_PAGINA = 10;
   const produtosFiltrados = products.filter(p => {
-    const busca = buscaProdutos.trim().toLocaleLowerCase("pt-BR");
-    return (!busca || p.name.toLocaleLowerCase("pt-BR").includes(busca)) &&
+    const normalizar = (valor: string) => valor.normalize('NFD').replace(/[\u0300-\u036f]/g, '').trim().toLocaleLowerCase('pt-BR');
+    const busca = normalizar(buscaProdutos);
+    return (!busca || normalizar(`${p.name} ${p.category}`).includes(busca)) &&
       (!categoriaProdutos || p.category === categoriaProdutos) &&
       (estoqueProdutos === "todos" || (estoqueProdutos === "disponiveis" ? p.quantity > 0 : p.quantity <= 0));
   });
@@ -1069,7 +1070,7 @@ const Admin = ({ isAdmin, ehDono }: { isAdmin: boolean, ehDono: boolean }) => {
       const variacoes = Array.from(new Set(todasCores));
       if (variacoes.some(c => estoquePorCor[c] === undefined))
         throw new Error("Informe a quantidade em estoque de cada cor antes de salvar.");
-      const colorStock = Object.fromEntries(variacoes.map(c=>[c,Math.max(0,Math.floor(estoquePorCor[c] || 0))]));
+      const colorStock: Record<string, number> = Object.fromEntries(variacoes.map(c=>[c,Math.max(0,Math.floor(estoquePorCor[c] || 0))]));
       const dados = {
         name: newProduct.name,
         description: newProduct.description,
@@ -1176,10 +1177,10 @@ const Admin = ({ isAdmin, ehDono }: { isAdmin: boolean, ehDono: boolean }) => {
           O banco não respondeu ({erroBanco}). Os produtos e pedidos podem estar incompletos; confira se o projeto Supabase está ativo.
         </div>
       )}
-      <div className="flex justify-between items-center mb-12">
-        <div className="flex items-center gap-8">
+      <div className="flex flex-wrap justify-between items-center gap-4 mb-12">
+        <div className="flex flex-wrap items-center gap-4">
           <h2 className="text-4xl font-serif text-brand-olive">Painel Administrativo</h2>
-          <div className="flex bg-brand-beige/10 p-1 rounded-xl">
+          <div className="flex flex-wrap bg-brand-beige/10 p-1 rounded-xl">
             <button 
               onClick={() => setActiveTab("products")}
               className={`px-6 py-2 rounded-lg text-sm font-medium transition-all ${activeTab === "products" ? "bg-brand-olive text-white shadow-md" : "text-gray-500 hover:text-brand-olive"}`}
@@ -1340,7 +1341,7 @@ const Admin = ({ isAdmin, ehDono }: { isAdmin: boolean, ehDono: boolean }) => {
                 <h4 className="font-semibold text-brand-olive">Estoque disponível por cor</h4>
                 <p className="text-sm text-gray-600">Informe a quantidade de cada cor. O estoque total será a soma das cores ao salvar.</p>
                 {Array.from(new Set([
-                  ...Object.entries(coresExistentes).filter(([url])=>!fotosRemovidas.includes(url)).map(([,cor])=>cor.trim()),
+                  ...Object.entries(coresExistentes as Record<string, string>).filter(([url])=>!fotosRemovidas.includes(url)).map(([,cor])=>cor.trim()),
                   ...coresNovas.map(c=>c.trim())
                 ].filter(Boolean))).map(cor=>(
                   <label key={cor} className="flex items-center justify-between gap-3 text-sm text-brand-olive">
@@ -1373,46 +1374,53 @@ const Admin = ({ isAdmin, ehDono }: { isAdmin: boolean, ehDono: boolean }) => {
               <Plus size={16} /> Novo Produto
             </button>
           </div>
-          <div className="bg-white rounded-2xl border border-brand-beige/20 p-4 flex flex-wrap items-center gap-3">
-            <label className="flex-1 min-w-[180px]">
-              <span className="sr-only">Buscar produto</span>
-              <input value={buscaProdutos} onChange={e => { setBuscaProdutos(e.target.value); setPaginaProdutos(1); }} placeholder="Buscar pelo nome..." className="w-full px-4 py-2 rounded-lg border border-brand-beige/30" />
-            </label>
-            <select aria-label="Filtrar categoria" value={categoriaProdutos} onChange={e => { setCategoriaProdutos(e.target.value); setPaginaProdutos(1); }} className="px-3 py-2 rounded-lg border border-brand-beige/30 bg-white">
-              <option value="">Todas as categorias</option>
-              {Array.from(new Set(products.map(p => p.category))).filter(Boolean).sort((a,b) => a.localeCompare(b,'pt-BR')).map(c => <option key={c} value={c}>{c}</option>)}
-            </select>
-            <select aria-label="Filtrar estoque" value={estoqueProdutos} onChange={e => { setEstoqueProdutos(e.target.value); setPaginaProdutos(1); }} className="px-3 py-2 rounded-lg border border-brand-beige/30 bg-white">
-              <option value="todos">Todos os estoques</option>
-              <option value="disponiveis">Em estoque</option>
-              <option value="esgotados">Esgotados</option>
-            </select>
-            <div className="flex items-center border border-brand-beige/30 rounded-lg overflow-hidden" aria-label="Modo de exibição">
-              <button type="button" aria-pressed={exibicaoProdutos === "lista"} onClick={() => setExibicaoProdutos("lista")} className={`px-4 py-2 text-sm ${exibicaoProdutos === "lista" ? "bg-brand-olive text-white" : "bg-white text-brand-olive"}`}>Lista</button>
-              <button type="button" aria-pressed={exibicaoProdutos === "grade"} onClick={() => setExibicaoProdutos("grade")} className={`px-4 py-2 text-sm ${exibicaoProdutos === "grade" ? "bg-brand-olive text-white" : "bg-white text-brand-olive"}`}>Grade</button>
+          <div className="bg-white rounded-2xl border border-brand-beige/20 p-4 space-y-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+              <label className="block text-xs font-semibold text-gray-600">Buscar produto
+                <input type="search" value={buscaProdutos} onChange={e => { setBuscaProdutos(e.target.value); setPaginaProdutos(1); }} placeholder="Nome ou categoria" className="mt-1 w-full px-3 py-3 rounded-xl border border-brand-beige/30 text-sm" />
+              </label>
+              <label className="block text-xs font-semibold text-gray-600">Categoria
+                <select aria-label="Categoria" value={categoriaProdutos} onChange={e => { setCategoriaProdutos(e.target.value); setPaginaProdutos(1); }} className="mt-1 w-full px-3 py-3 rounded-xl border border-brand-beige/30 bg-white text-sm">
+                  <option value="">Todas as categorias</option>
+                  {Array.from(new Set<string>(products.map(p => p.category))).filter(Boolean).sort((a,b) => a.localeCompare(b,'pt-BR')).map(c => <option key={c} value={c}>{c}</option>)}
+                </select>
+              </label>
+              <label className="block text-xs font-semibold text-gray-600">Situação de estoque
+                <select aria-label="Situação de estoque" value={estoqueProdutos} onChange={e => { setEstoqueProdutos(e.target.value); setPaginaProdutos(1); }} className="mt-1 w-full px-3 py-3 rounded-xl border border-brand-beige/30 bg-white text-sm">
+                  <option value="todos">Todos os estoques</option><option value="disponiveis">Em estoque</option><option value="esgotados">Esgotados</option>
+                </select>
+              </label>
             </div>
-            <span className="text-sm text-gray-500">{produtosFiltrados.length} produto(s)</span>
+            <div className="flex flex-wrap items-center justify-between gap-3 border-t border-brand-beige/20 pt-3">
+              <div className="flex flex-wrap items-center gap-3"><span role="status" className="text-sm text-gray-500">{produtosFiltrados.length} de {products.length} produtos</span>
+                {(buscaProdutos || categoriaProdutos || estoqueProdutos !== 'todos') && <button type="button" onClick={() => { setBuscaProdutos(''); setCategoriaProdutos(''); setEstoqueProdutos('todos'); setPaginaProdutos(1); }} className="text-sm text-brand-olive underline font-semibold">Limpar filtros</button>}
+              </div>
+              <div role="group" className="inline-flex items-center border border-brand-beige/30 rounded-xl overflow-hidden" aria-label="Modo de exibição">
+                <button type="button" aria-pressed={exibicaoProdutos === "lista"} onClick={() => setExibicaoProdutos("lista")} className={`px-4 py-2.5 text-sm ${exibicaoProdutos === "lista" ? "bg-brand-olive text-white" : "bg-white text-brand-olive"}`}>Lista</button>
+                <button type="button" aria-pressed={exibicaoProdutos === "grade"} onClick={() => setExibicaoProdutos("grade")} className={`px-4 py-2.5 text-sm ${exibicaoProdutos === "grade" ? "bg-brand-olive text-white" : "bg-white text-brand-olive"}`}>Grade</button>
+              </div>
+            </div>
           </div>
           <div className="bg-white rounded-3xl shadow-sm border border-brand-beige/20 overflow-hidden">
             <div className={exibicaoProdutos === "grade" ? "grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 p-4" : ""}>
             {produtosPaginados.map(p => (
-              <div key={p.id} className={exibicaoProdutos === "grade" ? "flex flex-col gap-3 p-4 rounded-xl border border-brand-beige/20" : "flex items-center gap-6 p-6 border-b border-brand-beige/10 last:border-0"}>
+              <div key={p.id} className={exibicaoProdutos === "grade" ? "min-w-0 flex flex-col gap-3 p-4 rounded-xl border border-brand-beige/20" : "min-w-0 grid grid-cols-[4rem_minmax(0,1fr)] sm:grid-cols-[4rem_minmax(0,1fr)_auto] items-center gap-3 sm:gap-5 p-4 sm:p-6 border-b border-brand-beige/10 last:border-0"}>
                 <img 
-                  src={p.image_url || `https://picsum.photos/seed/${p.id}/200/200`} 
-                  className={exibicaoProdutos === "grade" ? "w-full h-36 object-contain rounded-lg" : "w-16 h-16 object-cover rounded-lg"}
+                  src={p.image_url || "/produto-sem-foto.svg"}
+                  onError={e => { e.currentTarget.onerror = null; e.currentTarget.src = "/produto-sem-foto.svg"; }} 
+                  className={exibicaoProdutos === "grade" ? "w-full h-36 object-contain rounded-lg" : "w-16 h-16 object-contain rounded-lg bg-brand-beige/5"}
                   alt={p.name}
                   referrerPolicy="no-referrer"
                 />
-                <div className="flex-1">
-                  <h4 className="font-medium text-brand-olive">{p.name}</h4>
-                  <p className="text-xs text-gray-400">{p.category} • {reais(p.price)} • Est: {p.quantity}{(p.options || []).length > 0 ? ` • ${p.options.length} opções` : ""}{p.adult ? " • 18+" : ""}</p>
+                <div className="min-w-0 flex-1">
+                  <h4 className="font-medium text-brand-olive break-words">{p.name}</h4>
+                  <p className="text-xs text-gray-500 break-words mt-1">{p.category}{(p.options || []).length > 0 ? ` • ${p.options.length} opções` : ""}{p.adult ? " • 18+" : ""}</p>
+                  <div className="flex flex-wrap items-center gap-2 mt-2"><strong className="text-sm text-brand-olive">{reais(p.price)}</strong><span className={`text-xs rounded-full px-2 py-1 ${p.quantity > 0 ? 'bg-green-50 text-green-800' : 'bg-red-50 text-red-700'}`}>{p.quantity > 0 ? `Estoque: ${p.quantity}` : 'Esgotado'}</span></div>
                 </div>
-                <button onClick={() => editarProduto(p)} title="Alterar produto" className="text-gray-400 hover:text-brand-olive">
-                  <Pencil size={20} />
-                </button>
-                <button onClick={() => handleDelete(p.id)} title="Excluir produto" className="text-red-400 hover:text-red-600">
-                  <Trash2 size={20} />
-                </button>
+                <div className={`flex flex-row flex-nowrap items-center gap-2 ${exibicaoProdutos === 'grade' ? 'mt-auto pt-3 border-t border-brand-beige/20' : 'col-span-2 sm:col-span-1 justify-end'}`}>
+                  <button type="button" onClick={() => editarProduto(p)} aria-label={`Editar produto ${p.name}`} title="Alterar produto" className="inline-flex items-center justify-center w-10 h-10 rounded-xl border border-brand-beige/30 text-brand-olive hover:bg-brand-beige/10 focus-visible:ring-2 focus-visible:ring-brand-olive"><Pencil size={18} /></button>
+                  <button type="button" onClick={() => handleDelete(p.id)} aria-label={`Excluir produto ${p.name}`} title="Excluir produto" className="inline-flex items-center justify-center w-10 h-10 rounded-xl border border-red-200 text-red-600 hover:bg-red-50 focus-visible:ring-2 focus-visible:ring-red-600"><Trash2 size={18} /></button>
+                </div>
               </div>
             ))}
             </div>
@@ -3021,3 +3029,4 @@ export default function App() {
     </Router>
   );
 }
+
