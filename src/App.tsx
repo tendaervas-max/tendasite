@@ -507,6 +507,20 @@ const Products = ({ onAddToCart, isAdmin }: { onAddToCart: (p: Product, qty: num
   const [busca, setBusca] = useSearchParams();
   const ordemCategorias = useCategorias();
   const categoriasSelecionadas = busca.getAll("categoria").filter(Boolean);
+  const categoriasRef = React.useRef<HTMLDetailsElement>(null);
+  useEffect(() => {
+    const fecharFora = (evento: PointerEvent | FocusEvent) => {
+      const painel = categoriasRef.current;
+      if (painel && evento.target instanceof Node && !painel.contains(evento.target)) painel.open = false;
+    };
+    document.addEventListener('pointerdown', fecharFora);
+    document.addEventListener('focusin', fecharFora);
+    return () => {
+      document.removeEventListener('pointerdown', fecharFora);
+      document.removeEventListener('focusin', fecharFora);
+    };
+  }, []);
+
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -584,13 +598,11 @@ const Products = ({ onAddToCart, isAdmin }: { onAddToCart: (p: Product, qty: num
       <section aria-label="Buscar e ordenar produtos" className="bg-white/90 border border-brand-beige/30 rounded-2xl p-4 mb-7 grid gap-4 sm:grid-cols-2 lg:grid-cols-[minmax(0,1fr)_minmax(0,0.7fr)_minmax(0,0.7fr)_auto] lg:items-end">
         <div className="min-w-0 text-sm font-semibold text-brand-olive">
           <span id="titulo-categorias">Categorias</span>
-          <details className="relative mt-1" onKeyDown={e => {
+          <details ref={categoriasRef} className="relative mt-1 select-none" onKeyDown={e => {
             if (e.key === 'Escape') {
               e.currentTarget.open = false;
               e.currentTarget.querySelector('summary')?.focus();
             }
-          }} onBlur={e => {
-            if (!e.currentTarget.contains(e.relatedTarget as Node | null)) e.currentTarget.open = false;
           }}>
             <summary aria-label="Selecionar categorias" title={categoriasSelecionadas.join(', ') || 'Todas as categorias'}
               className="flex min-h-11 cursor-pointer list-none items-center justify-between gap-2 rounded-xl border border-brand-beige/50 bg-white px-3 py-2 text-gray-900 font-normal hover:border-brand-olive focus-visible:outline-2 focus-visible:outline-brand-olive">
