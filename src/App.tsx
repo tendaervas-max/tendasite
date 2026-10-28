@@ -27,7 +27,7 @@ const Navbar = ({ cartCount, isAdmin, acessoGestao, user }: { cartCount: number,
   };
   
   return (
-    <nav className="sticky top-0 z-50 bg-[#f7f3eb] text-[#293d2e] border-b border-[#d3c6b2] shadow-[0_3px_16px_rgba(26,58,42,0.14)]">
+    <nav className="sticky top-0 z-50 bg-[#f4ead7]/55 text-[#293d2e] border-b border-[#d3c6b2] shadow-[0_3px_16px_rgba(26,58,42,0.14)]">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="flex justify-between h-20 items-center">
           <Link to="/" className="flex items-center space-x-3">
@@ -201,7 +201,7 @@ const Home = () => (
 
           <Link 
             to="/produtos" 
-            className="inline-flex items-center gap-2 bg-[#f4ead7]/55 text-[#243d2c] border-2 border-[#f4ead7]/40 px-8 py-3 rounded-full hover:bg-[#1a3a2a] hover:border-[#1a3a2a] hover:text-white hover:shadow-xl transition-[background-color,color,border-color,box-shadow] shadow-lg group text-base font-bold"
+            className="inline-flex items-center gap-2 bg-[#bda77f]/55 text-[#243d2c] border-2 border-[#bda77f]/40 px-8 py-3 rounded-full hover:bg-[#1a3a2a] hover:border-[#1a3a2a] hover:text-white hover:shadow-xl transition-[background-color,color,border-color,box-shadow] shadow-lg group text-base font-bold"
           >
             <span>Explorar Produtos</span>
             <ChevronRight size={22} className="group-hover:translate-x-1 transition-transform" />
