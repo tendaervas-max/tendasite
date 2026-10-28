@@ -201,7 +201,7 @@ const Home = () => (
 
           <Link 
             to="/produtos" 
-            className="inline-flex items-center gap-2 bg-[#f4ead7]/75 text-[#243d2c] border-2 border-[#f4ead7]/60 px-8 py-3 rounded-full hover:bg-[#1a3a2a] hover:border-[#1a3a2a] hover:text-white hover:shadow-xl transition-[background-color,color,border-color,box-shadow] shadow-lg group text-base font-bold"
+            className="inline-flex items-center gap-2 bg-[#f4ead7]/55 text-[#243d2c] border-2 border-[#f4ead7]/40 px-8 py-3 rounded-full hover:bg-[#1a3a2a] hover:border-[#1a3a2a] hover:text-white hover:shadow-xl transition-[background-color,color,border-color,box-shadow] shadow-lg group text-base font-bold"
           >
             <span>Explorar Produtos</span>
             <ChevronRight size={22} className="group-hover:translate-x-1 transition-transform" />
