@@ -27,7 +27,7 @@ const Navbar = ({ cartCount, isAdmin, acessoGestao, user }: { cartCount: number,
   };
   
   return (
-    <nav className="sticky top-0 z-50 bg-brand-paper/80 backdrop-blur-md border-b border-brand-beige/20">
+    <nav className="sticky top-0 z-50 bg-[#f7f3eb] text-[#293d2e] border-b border-[#d3c6b2] shadow-[0_3px_16px_rgba(26,58,42,0.14)]">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="flex justify-between h-20 items-center">
           <Link to="/" className="flex items-center space-x-3">
@@ -186,24 +186,24 @@ const Home = () => (
       </div>
       
       {/* O texto fica no alto para não cobrir o nome da loja no logo da imagem de fundo */}
-      <div className="relative z-10 text-center px-4 max-w-3xl mx-auto pt-[6vh] md:pt-[10vh]">
+      <div className="relative z-10 text-center px-4 max-w-3xl mx-auto pt-[3vh] md:pt-[4vh]">
         <motion.div
           initial={{ opacity: 0, y: 30 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 1, ease: "easeOut" }}
           className="flex flex-col items-center"
         >
-          <h1 className="text-6xl md:text-8xl font-serif text-white mb-6 tracking-tight drop-shadow-2xl">
+          <h1 className="text-5xl md:text-7xl font-serif text-white mb-3 tracking-tight drop-shadow-2xl">
             Tenda Ervas
           </h1>
 
-          <p className="text-xl md:text-2xl text-white/90 mb-8 max-w-2xl mx-auto leading-relaxed font-light drop-shadow-lg">
+          <p className="text-lg md:text-xl text-white/90 mb-5 max-w-2xl mx-auto leading-relaxed font-light drop-shadow-lg">
             Ervas, incensos, acessórios e kits para quem valoriza tradição, cuidado e rituais.
           </p>
 
           <Link 
             to="/produtos" 
-            className="inline-flex items-center gap-2 bg-brand-olive text-white px-12 py-5 rounded-full hover:bg-brand-olive/90 transition-all shadow-2xl group text-lg font-bold"
+            className="inline-flex items-center gap-2 bg-[#f4ead7] text-[#243d2c] border-2 border-[#f4ead7] px-8 py-3 rounded-full hover:bg-[#1a3a2a] hover:border-[#1a3a2a] hover:text-white hover:shadow-xl transition-[background-color,color,border-color,box-shadow] shadow-lg group text-base font-bold"
           >
             <span>Explorar Produtos</span>
             <ChevronRight size={22} className="group-hover:translate-x-1 transition-transform" />
@@ -300,57 +300,57 @@ const ProductCard = ({ product, onAddToCart, onAbrir }: { product: Product, onAd
       layout
       initial={{ opacity: 0, scale: 0.9 }}
       animate={{ opacity: 1, scale: 1 }}
-      className="group h-full flex flex-col bg-white rounded-2xl overflow-hidden shadow-sm hover:shadow-xl transition-all border border-brand-beige/10"
+      className="group h-full flex flex-col bg-white rounded-xl overflow-hidden shadow-sm hover:shadow-xl transition-all border border-brand-beige/10"
     >
-      <button type="button" onClick={() => onAbrir(product)} className="block w-full aspect-square overflow-hidden relative shrink-0">
+      <button type="button" onClick={() => onAbrir(product)} className="block w-full aspect-[4/3] overflow-hidden relative shrink-0">
         <img 
           src={product.image_url || '/produto-sem-foto.svg'} 
           className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500"
           alt={product.name}
           referrerPolicy="no-referrer"
         />
-        <div className="absolute top-4 right-4 bg-white/90 backdrop-blur-sm px-3 py-1 rounded-full text-xs font-bold text-brand-olive shadow-sm">
+        <div className="absolute top-2 right-2 bg-white/90 backdrop-blur-sm px-3 py-1 rounded-full text-xs font-bold text-brand-olive shadow-sm">
           {product.precoOriginal && <span className="line-through text-gray-400 font-normal mr-1">{reais(product.precoOriginal)}</span>}
           {reais(product.price)}
         </div>
         {product.precoOriginal && (
-          <div className="absolute bottom-4 left-4 bg-brand-mint text-brand-olive px-2.5 py-1 rounded-full text-xs font-bold shadow-sm">Promoção</div>
+          <div className="absolute bottom-2 left-2 bg-brand-mint text-brand-olive px-2.5 py-1 rounded-full text-xs font-bold shadow-sm">Promoção</div>
         )}
         {product.adult && (
-          <div className="absolute top-4 left-4 bg-red-600 text-white px-2.5 py-1 rounded-full text-xs font-bold shadow-sm">18+</div>
+          <div className="absolute top-2 left-2 bg-red-600 text-white px-2.5 py-1 rounded-full text-xs font-bold shadow-sm">18+</div>
         )}
       </button>
-      <div className="p-6 flex flex-col flex-1 gap-3">
+      <div className="p-3 sm:p-4 flex flex-col flex-1 gap-2">
         <button type="button" onClick={() => onAbrir(product)} className="text-left">
-          <h3 className="text-xl font-serif text-brand-olive hover:underline line-clamp-2 min-h-[3.5rem]">{product.name}</h3>
+          <h3 className="text-lg font-serif text-brand-olive hover:underline line-clamp-2 min-h-[3rem]">{product.name}</h3>
         </button>
-        <p className="text-sm text-gray-500 line-clamp-2 leading-relaxed min-h-[2.875rem]">{product.description}</p>
-        <div className="flex flex-col gap-4 pt-2 mt-auto">
+        <p className="text-xs text-gray-500 line-clamp-2 leading-relaxed min-h-[2.25rem]">{product.description}</p>
+        <div className="flex flex-col gap-2 pt-1 mt-auto">
           {temOpcoes ? (
             <>
-              <span className="text-xs text-gray-400 uppercase tracking-widest">{Object.keys(product.color_stock || {}).length > 0 ? `${Object.keys(product.color_stock || {}).length} cores` : `${(product.options || []).length} opções`} · Estoque: {product.quantity}</span>
+              <span className="text-xs text-gray-400 tracking-wide">{Object.keys(product.color_stock || {}).length > 0 ? `${Object.keys(product.color_stock || {}).length} cores` : `${(product.options || []).length} opções`} · Estoque: {product.quantity}</span>
               <button 
                 onClick={() => onAbrir(product)}
                 disabled={esgotado}
-                className="w-full bg-brand-olive text-white py-2 rounded-full hover:bg-brand-olive/90 transition-colors shadow-md flex items-center justify-center gap-2 text-sm font-medium disabled:opacity-50 disabled:cursor-not-allowed"
+                className="w-full bg-brand-olive text-white py-2 rounded-full hover:bg-[#303d2d] transition-colors shadow-md flex items-center justify-center gap-2 text-sm font-medium disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 {esgotado ? "Esgotado" : `Escolher ${tipoOpcao(product)}`}
               </button>
             </>
           ) : (
             <>
-              <div className="flex items-center justify-between">
-                <span className="text-xs text-gray-400 uppercase tracking-widest">Estoque: {product.quantity}</span>
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <span className="text-xs text-gray-400 tracking-wide">Estoque: {product.quantity}</span>
                 {!esgotado && <div className="flex items-center border border-brand-beige/30 rounded-full px-2 py-0.5">
-                  <button type="button" aria-label={`Diminuir quantidade de ${product.name}`} onClick={() => setQty(Math.max(1, qty - 1))} className="px-2 text-brand-olive">-</button>
-                  <span className="mx-2 text-sm font-medium">{qty}</span>
-                  <button type="button" aria-label={`Aumentar quantidade de ${product.name}`} onClick={() => setQty(Math.min(Math.max(1, product.quantity), qty + 1))} className="px-2 text-brand-olive">+</button>
+                  <button type="button" aria-label={`Diminuir quantidade de ${product.name}`} onClick={() => setQty(Math.max(1, qty - 1))} className="min-h-8 min-w-8 text-brand-olive">-</button>
+                  <span className="mx-1 text-sm font-medium">{qty}</span>
+                  <button type="button" aria-label={`Aumentar quantidade de ${product.name}`} onClick={() => setQty(Math.min(Math.max(1, product.quantity), qty + 1))} className="min-h-8 min-w-8 text-brand-olive">+</button>
                 </div>}
               </div>
               <button 
                 onClick={adicionar}
                 disabled={esgotado}
-                className="w-full bg-brand-olive text-white py-2 rounded-full hover:bg-brand-olive/90 transition-colors shadow-md flex items-center justify-center gap-2 text-sm font-medium disabled:opacity-50 disabled:cursor-not-allowed"
+                className="w-full bg-brand-olive text-white py-2 rounded-full hover:bg-[#303d2d] transition-colors shadow-md flex items-center justify-center gap-2 text-sm font-medium disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 {esgotado ? "Esgotado" : adicionado ? <><Check size={16} /> Adicionado</> : <><Plus size={16} /> Adicionar {reais(product.price * qty)}</>}
               </button>
@@ -584,21 +584,19 @@ const Products = ({ onAddToCart, isAdmin }: { onAddToCart: (p: Product, qty: num
         )}
       </div>
 
-      {categorias.length > 1 && (
-        <div className="flex gap-2 overflow-x-auto pb-4 mb-8 -mx-4 px-4 sm:flex-wrap sm:justify-center">
-          {["", ...categorias].map(c => (
-            <button
-              key={c || "todos"}
-              onClick={() => setBusca(c ? { categoria: c } : {})}
-              className={`shrink-0 px-4 py-2 rounded-full text-sm font-medium border transition-all ${categoria === c ? "bg-brand-olive text-white border-brand-olive" : "bg-white/70 border-brand-beige/40 text-gray-700 hover:border-brand-olive"}`}
-            >
-              {c || "Todos"}
-            </button>
-          ))}
-        </div>
-      )}
-      
-      <section aria-label="Buscar e ordenar produtos" className="bg-white/80 border border-brand-beige/30 rounded-2xl p-4 mb-7 grid gap-4 sm:grid-cols-2 lg:grid-cols-[1fr_auto_auto] lg:items-end">
+      <section aria-label="Buscar e ordenar produtos" className="bg-white/90 border border-brand-beige/30 rounded-2xl p-4 mb-7 grid gap-4 sm:grid-cols-2 lg:grid-cols-[minmax(0,1fr)_minmax(0,0.7fr)_minmax(0,0.7fr)_auto] lg:items-end">
+        <label className="block text-sm font-semibold text-brand-olive">
+          Categoria
+          <select value={categoria} onChange={e => setBusca(anterior => {
+            const proxima = new URLSearchParams(anterior);
+            if (e.target.value) proxima.set('categoria', e.target.value);
+            else proxima.delete('categoria');
+            return proxima;
+          })} className="block w-full mt-1 min-h-11 border rounded-xl px-3 border-brand-beige/50 text-gray-900 bg-white">
+            <option value="">Todas as categorias</option>
+            {categorias.map(c => <option key={c} value={c}>{c}</option>)}
+          </select>
+        </label>
         <label className="block text-sm font-semibold text-brand-olive">
           Buscar produtos
           <span className="relative block mt-1">
@@ -626,7 +624,7 @@ const Products = ({ onAddToCart, isAdmin }: { onAddToCart: (p: Product, qty: num
       <p role="status" aria-live="polite" className="text-sm text-gray-600 mb-5">
         {visiveis.length} {visiveis.length === 1 ? 'produto encontrado' : 'produtos encontrados'}
       </p>
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-8">
+      <div className="grid grid-cols-1 min-[380px]:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-3 sm:gap-4">
         {produtosPaginaVitrine.map(product => (
           <div key={product.id} className="h-full">
             <ProductCard product={product} onAddToCart={onAddToCart} onAbrir={setAberto} />
@@ -638,13 +636,13 @@ const Products = ({ onAddToCart, isAdmin }: { onAddToCart: (p: Product, qty: num
         <nav aria-label="Paginação da coleção" className="flex flex-wrap justify-center items-center gap-3 mt-10 mb-5">
           <button type="button" disabled={paginaVitrineAtual === 1}
             onClick={() => setPaginaVitrine(p => Math.max(1, p - 1))}
-            className="rounded-full border border-brand-beige/50 bg-white px-5 py-2 font-medium text-brand-olive disabled:opacity-40 disabled:cursor-not-allowed">
+            className="rounded-full border border-brand-olive/40 bg-white px-5 py-2.5 font-semibold text-brand-olive transition-[background-color,color,box-shadow] enabled:cursor-pointer enabled:hover:bg-brand-olive enabled:hover:text-white enabled:hover:shadow-md active:scale-[0.98] disabled:opacity-40 disabled:cursor-not-allowed">
             Anterior
           </button>
           <span className="text-sm font-medium text-brand-olive">Página {paginaVitrineAtual} de {totalPaginasVitrine}</span>
           <button type="button" disabled={paginaVitrineAtual >= totalPaginasVitrine}
             onClick={() => setPaginaVitrine(p => Math.min(totalPaginasVitrine, p + 1))}
-            className="rounded-full border border-brand-beige/50 bg-white px-5 py-2 font-medium text-brand-olive disabled:opacity-40 disabled:cursor-not-allowed">
+            className="rounded-full border border-brand-olive/40 bg-white px-5 py-2.5 font-semibold text-brand-olive transition-[background-color,color,box-shadow] enabled:cursor-pointer enabled:hover:bg-brand-olive enabled:hover:text-white enabled:hover:shadow-md active:scale-[0.98] disabled:opacity-40 disabled:cursor-not-allowed">
             Próxima
           </button>
         </nav>
