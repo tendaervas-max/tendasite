@@ -508,7 +508,7 @@ const Products = ({ onAddToCart, isAdmin }: { onAddToCart: (p: Product, qty: num
 
   const [busca, setBusca] = useSearchParams();
   const ordemCategorias = useCategorias();
-  const categoria = busca.get("categoria") || "";
+  const categoriasSelecionadas = busca.getAll("categoria").filter(Boolean);
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -546,14 +546,14 @@ const Products = ({ onAddToCart, isAdmin }: { onAddToCart: (p: Product, qty: num
 
   useEffect(() => {
     setPaginaVitrine(1);
-  }, [termo, ordenacao, apenasDisponiveis, busca.get("categoria")]);
+  }, [termo, ordenacao, apenasDisponiveis, busca.toString()]);
 
   if (loading) return <div className="min-h-screen flex items-center justify-center">Carregando...</div>;
 
   const categorias = ordemCategorias.filter(c => products.some(p => p.category === c))
     .concat(Array.from(new Set<string>(products.map(p => p.category))).filter(c => c && !ordemCategorias.includes(c)));
   const visiveis = products
-    .filter(p => !categoria || p.category === categoria)
+    .filter(p => categoriasSelecionadas.length === 0 || categoriasSelecionadas.includes(p.category))
     .filter(p => !apenasDisponiveis || p.quantity > 0)
     .filter(p => [p.name, p.category, p.description || ''].some(v =>
       v.toLocaleLowerCase('pt-BR').includes(termo.trim().toLocaleLowerCase('pt-BR'))))
@@ -585,18 +585,55 @@ const Products = ({ onAddToCart, isAdmin }: { onAddToCart: (p: Product, qty: num
       </div>
 
       <section aria-label="Buscar e ordenar produtos" className="bg-white/90 border border-brand-beige/30 rounded-2xl p-4 mb-7 grid gap-4 sm:grid-cols-2 lg:grid-cols-[minmax(0,1fr)_minmax(0,0.7fr)_minmax(0,0.7fr)_auto] lg:items-end">
-        <label className="block text-sm font-semibold text-brand-olive">
-          Categoria
-          <select value={categoria} onChange={e => setBusca(anterior => {
-            const proxima = new URLSearchParams(anterior);
-            if (e.target.value) proxima.set('categoria', e.target.value);
-            else proxima.delete('categoria');
-            return proxima;
-          })} className="block w-full mt-1 min-h-11 border rounded-xl px-3 border-brand-beige/50 text-gray-900 bg-white">
-            <option value="">Todas as categorias</option>
-            {categorias.map(c => <option key={c} value={c}>{c}</option>)}
-          </select>
-        </label>
+        <div className="min-w-0 text-sm font-semibold text-brand-olive">
+          <span id="titulo-categorias">Categorias</span>
+          <details className="relative mt-1" onKeyDown={e => {
+            if (e.key === 'Escape') {
+              e.currentTarget.open = false;
+              e.currentTarget.querySelector('summary')?.focus();
+            }
+          }} onBlur={e => {
+            if (!e.currentTarget.contains(e.relatedTarget as Node | null)) e.currentTarget.open = false;
+          }}>
+            <summary aria-label="Selecionar categorias" title={categoriasSelecionadas.join(', ') || 'Todas as categorias'}
+              className="flex min-h-11 cursor-pointer list-none items-center justify-between gap-2 rounded-xl border border-brand-beige/50 bg-white px-3 py-2 text-gray-900 font-normal hover:border-brand-olive focus-visible:outline-2 focus-visible:outline-brand-olive">
+              <span className="truncate">{categoriasSelecionadas.length === 0 ? 'Todas as categorias'
+                : categoriasSelecionadas.length === 1 ? categoriasSelecionadas[0]
+                : `${categoriasSelecionadas.length} categorias selecionadas`}</span>
+              <ChevronRight size={16} className="rotate-90 shrink-0" aria-hidden="true" />
+            </summary>
+            <div className="absolute left-0 right-0 z-30 mt-2 min-w-0 rounded-xl border border-brand-beige/40 bg-white shadow-xl">
+              <fieldset className="min-w-0">
+                <legend className="px-3 pt-3 text-xs font-normal text-gray-600">Escolha uma ou mais categorias</legend>
+                <div className="max-h-64 overflow-y-auto p-2">
+                  {categorias.map(c => <label key={c} className="flex cursor-pointer items-center gap-3 rounded-lg px-2 py-2.5 font-normal text-gray-800 hover:bg-brand-olive/10">
+                    <input type="checkbox" value={c} checked={categoriasSelecionadas.includes(c)} className="h-4 w-4 shrink-0 accent-brand-olive" onChange={e => {
+                      const marcada = e.target.checked;
+                      setBusca(anterior => {
+                        const proxima = new URLSearchParams(anterior);
+                        const selecionadas = proxima.getAll('categoria').filter(valor => valor !== c);
+                        if (marcada) selecionadas.push(c);
+                        proxima.delete('categoria');
+                        selecionadas.forEach(valor => proxima.append('categoria', valor));
+                        return proxima;
+                      });
+                    }} />
+                    <span className="break-words">{c}</span>
+                  </label>)}
+                </div>
+              </fieldset>
+              <div className="flex items-center justify-between gap-2 border-t border-brand-beige/30 p-2">
+                <button type="button" disabled={!categoriasSelecionadas.length} onClick={() => setBusca(anterior => {
+                  const proxima = new URLSearchParams(anterior); proxima.delete('categoria'); return proxima;
+                })} className="rounded-lg px-3 py-2 text-xs hover:bg-brand-olive/10 disabled:opacity-40">Limpar</button>
+                <button type="button" onClick={e => {
+                  const painel = e.currentTarget.closest('details');
+                  if (painel) { painel.open = false; painel.querySelector('summary')?.focus(); }
+                }} className="rounded-lg bg-brand-olive px-3 py-2 text-xs text-white hover:bg-[#303d2d]">Concluir</button>
+              </div>
+            </div>
+          </details>
+        </div>
         <label className="block text-sm font-semibold text-brand-olive">
           Buscar produtos
           <span className="relative block mt-1">
