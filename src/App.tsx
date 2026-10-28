@@ -557,7 +557,6 @@ const Products = ({ onAddToCart, isAdmin }: { onAddToCart: (p: Product, qty: num
       v.toLocaleLowerCase('pt-BR').includes(termo.trim().toLocaleLowerCase('pt-BR'))))
     .sort((a, b) => ordenacao === 'menor-preco' ? a.price - b.price
       : ordenacao === 'maior-preco' ? b.price - a.price
-      : ordenacao === 'disponibilidade' ? b.quantity - a.quantity
       : a.name.localeCompare(b.name, 'pt-BR'));
   const totalPaginasVitrine = Math.max(1, Math.ceil(visiveis.length / PRODUTOS_POR_PAGINA_VITRINE));
   const paginaVitrineAtual = Math.min(paginaVitrine, totalPaginasVitrine);
@@ -648,7 +647,6 @@ const Products = ({ onAddToCart, isAdmin }: { onAddToCart: (p: Product, qty: num
             <option value="nome">Nome (A–Z)</option>
             <option value="menor-preco">Menor preço</option>
             <option value="maior-preco">Maior preço</option>
-            <option value="disponibilidade">Mais disponíveis</option>
           </select>
         </label>
         <label className="flex items-center gap-2 min-h-11 text-sm font-medium text-brand-olive">
