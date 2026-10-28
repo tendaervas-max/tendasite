@@ -47,12 +47,11 @@ const Navbar = ({ cartCount, isAdmin, acessoGestao, user }: { cartCount: number,
           <div className="hidden md:flex items-center space-x-8">
             <Link to="/" className="text-sm font-medium hover:text-brand-olive transition-colors">Início</Link>
             <Link to="/produtos" className="text-sm font-medium hover:text-brand-olive transition-colors">Produtos</Link>
-            {!user && <Link to="/checkout" className="text-sm font-medium hover:text-brand-olive transition-colors">Cadastro</Link>}
             {user && <Link to="/meus-pedidos" className="text-sm font-medium hover:text-brand-olive transition-colors">Meus Pedidos</Link>}
             {user && <Link to="/minha-conta" className="text-sm font-medium hover:text-brand-olive transition-colors">Minha conta</Link>}
             {user && <button onClick={sair} className="text-sm font-medium hover:text-brand-olive transition-colors">Sair</button>}
             {acessoGestao && <Link to="/configurar-frete" className="text-sm font-medium hover:text-brand-olive">Caixas e frete</Link>}
-            <Link to="/carrinho" aria-label="Abrir carrinho" className="relative p-2 text-gray-700 hover:text-brand-olive transition-colors">
+            <Link to="/carrinho" aria-label="Abrir carrinho" className="relative inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-full border border-brand-olive/50 bg-white text-brand-olive hover:bg-brand-olive hover:text-white transition-colors">
               <ShoppingCart size={20} />
               {cartCount > 0 && (
                 <span className="absolute top-0 right-0 bg-brand-olive text-white text-[10px] font-bold px-1.5 py-0.5 rounded-full">
@@ -70,7 +69,7 @@ const Navbar = ({ cartCount, isAdmin, acessoGestao, user }: { cartCount: number,
           </div>
 
           <div className="md:hidden flex items-center space-x-4">
-            <Link to="/carrinho" aria-label="Abrir carrinho" className="relative p-2 text-gray-700">
+            <Link to="/carrinho" aria-label="Abrir carrinho" className="relative inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-full border border-brand-olive/50 bg-white text-brand-olive hover:bg-brand-olive hover:text-white transition-colors">
               <ShoppingCart size={20} />
               {cartCount > 0 && (
                 <span className="absolute top-0 right-0 bg-brand-olive text-white text-[10px] font-bold px-1.5 py-0.5 rounded-full">
@@ -97,7 +96,6 @@ const Navbar = ({ cartCount, isAdmin, acessoGestao, user }: { cartCount: number,
             <div className="px-4 pt-2 pb-6 space-y-4">
               <Link to="/" onClick={() => setIsOpen(false)} className="block text-lg font-medium">Início</Link>
               <Link to="/produtos" onClick={() => setIsOpen(false)} className="block text-lg font-medium">Produtos</Link>
-              {!user && <Link to="/checkout" onClick={() => setIsOpen(false)} className="block text-lg font-medium">Cadastro</Link>}
               {!user && <Link to="/checkout" state={{ entrar: true }} onClick={() => setIsOpen(false)} className="block text-lg font-medium">Login</Link>}
               {user && <Link to="/meus-pedidos" onClick={() => setIsOpen(false)} className="block text-lg font-medium">Meus Pedidos</Link>}
               {user && <Link to="/minha-conta" onClick={() => setIsOpen(false)} className="block text-lg font-medium">Minha conta</Link>}
