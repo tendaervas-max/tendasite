@@ -32,6 +32,61 @@ export const ResumoCaixas:React.FC = ()=>{
  </section>;
 };
 
+
+type Cotacao = {cepDestino:string;opcoes:{codigo:string;valor:number;prazoDias:number|null}[]};
+const ConsultarFrete:React.FC<{caixas:Caixa[]}> = ({caixas})=>{
+ const [caixaId,setCaixaId]=useState('');
+ const [peso,setPeso]=useState('');
+ const [consultando,setConsultando]=useState(false);
+ const [resultado,setResultado]=useState<Cotacao|null>(null);
+ const [erro,setErro]=useState('');
+ const [cep,setCep]=useState('');
+ useEffect(()=>{let ativo=true; void (async()=>{
+   const {data:{user}}=await supabase.auth.getUser();
+   if(!user)return;
+   const {data}=await supabase.from('users').select('cep').eq('id',user.id).maybeSingle();
+   if(ativo)setCep(String(data?.cep||''));
+ })(); return ()=>{ativo=false;};},[]);
+ const consultar=async(e:React.FormEvent)=>{
+  e.preventDefault();setErro('');setResultado(null);
+  const caixa=caixas.find(c=>c.id===caixaId&&c.ativo);
+  const pesoTotal=Number(peso);
+  if(!caixa||!Number.isInteger(pesoTotal)||pesoTotal<1||pesoTotal>30000){setErro('Selecione a caixa e informe o peso total entre 1 e 30000 g.');return;}
+  setConsultando(true);
+  try{
+   const {data,error}=await supabase.functions.invoke('cotar-frete-correios',{body:{
+    pesoGramas:pesoTotal,comprimentoCm:Number(caixa.comprimento_cm),
+    larguraCm:Number(caixa.largura_cm),alturaCm:Number(caixa.altura_cm)
+   }});
+   if(error){
+    let mensagem='Não foi possível consultar. Confira o CEP da sua conta e a configuração dos Correios.';
+    try{const resposta=await error.context?.json();if(typeof resposta?.erro==='string')mensagem=resposta.erro;}catch{}
+    throw new Error(mensagem);
+   }
+   if(!data||!/^\d{8}$/.test(data.cepDestino)||!Array.isArray(data.opcoes)||!data.opcoes.length||
+      !data.opcoes.every((o:any)=>typeof o.codigo==='string'&&typeof o.valor==='number'&&Number.isFinite(o.valor)&&o.valor>=0&&
+       (o.prazoDias===null||(Number.isInteger(o.prazoDias)&&o.prazoDias>=0))))throw new Error('A consulta não retornou opções válidas.');
+   setResultado(data);
+  }catch(e){setErro(e instanceof Error?e.message:'Falha na consulta.');}
+  finally{setConsultando(false);}
+ };
+ return <section className="bg-white border rounded-2xl p-5 mb-6 space-y-4">
+  <h2 className="text-xl font-bold text-brand-olive">Consultar preço e prazo nos Correios</h2>
+  <p className="text-sm text-gray-700">Destino: {cep||'cadastre seu CEP em Minha conta'}. A consulta usa o CEP da conta conectada. Informe o peso de todos os produtos, da caixa e da proteção juntos.</p>
+  <form onSubmit={consultar} className="space-y-3">
+   <label className="block text-sm font-semibold">Caixa<select required disabled={consultando} value={caixaId} onChange={e=>{setCaixaId(e.target.value);setResultado(null);}} className="block border rounded-lg p-2 w-full">
+    <option value="">Selecione</option>{caixas.filter(c=>c.ativo).map(c=><option key={c.id} value={c.id}>{c.nome} — {c.comprimento_cm} × {c.largura_cm} × {c.altura_cm} cm</option>)}
+   </select></label>
+   <label className="block text-sm font-semibold">Peso total do pacote (g)<input required disabled={consultando} type="number" min="1" max="30000" step="1" value={peso} onChange={e=>{setPeso(e.target.value);setResultado(null);}} className="block border rounded-lg p-2 w-full"/></label>
+   <button disabled={consultando||!cep} className="bg-brand-olive text-white rounded-xl px-4 py-3 font-semibold disabled:opacity-50">{consultando?'Consultando…':'Consultar Correios'}</button>
+  </form>
+  {erro&&<p role="alert" className="text-red-700">{erro}</p>}
+  {resultado&&<div role="status" className="space-y-2"><p className="font-semibold">Opções para o CEP {resultado.cepDestino}</p>{resultado.opcoes.map(o=><p key={o.codigo}>Serviço {o.codigo}: {o.valor.toLocaleString('pt-BR',{style:'currency',currency:'BRL'})} · {o.prazoDias===null?'Prazo não informado':o.prazoDias+' dias úteis'}</p>)}
+   <p className="text-xs text-gray-600">Consulta sem cobrança ou emissão de etiqueta. Se usar peso estimado, confira o pacote antes de combinar o frete.</p>
+  </div>}
+ </section>;
+};
+
 export const EditarCaixasLoja:React.FC<{temAcesso:boolean}> = ({temAcesso})=>{
  const {caixas:inicial,carregando,erro:erroLeitura}=useCaixasDeEnvio();
  const [dados,setDados]=useState<Caixa[]|null>(null);
@@ -58,6 +113,7 @@ export const EditarCaixasLoja:React.FC<{temAcesso:boolean}> = ({temAcesso})=>{
    <h1 className="font-serif text-4xl text-brand-olive mb-3">Configuração de caixas e frete</h1>
    <p className="mb-5 text-gray-700">Ajuste as embalagens que também aparecem na gestão. CEP de postagem: 07025-020.</p>
    <div className="bg-amber-50 border border-amber-200 rounded-2xl p-4 mb-5 flex gap-2 text-amber-950"><AlertTriangle size={22} className="shrink-0"/> <p><strong>Teste.</strong> Os tamanhos são exemplos e não geram tarifa dos Correios. O pagamento da entrega só será integrado após a cotação e conferência do valor.</p></div>
+   <ConsultarFrete caixas={inicial}/>
    {erroLeitura&&<p role="alert">{erroLeitura}</p>}{erro&&<p role="alert" className="text-red-700 mb-3">{erro}</p>}{aviso&&<p role="status" className="text-emerald-700 mb-3">{aviso}</p>}
    {carregando?<p>Carregando modelos…</p>:<div className="grid gap-4 md:grid-cols-2">{caixas.map(c=><section key={c.id} className="bg-white border border-brand-beige/30 rounded-2xl p-5 space-y-4">
     <h2 className="font-bold text-brand-olive text-xl flex gap-2 items-center"><Package size={20}/> Caixa {c.id} {c.exemplo?'· Exemplo':''}</h2>
