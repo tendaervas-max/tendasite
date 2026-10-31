@@ -300,10 +300,10 @@ const ProductCard = ({ product, onAddToCart, onAbrir }: { product: Product, onAd
       animate={{ opacity: 1, scale: 1 }}
       className="group h-full flex flex-col bg-white rounded-xl overflow-hidden shadow-sm hover:shadow-xl transition-all border border-brand-beige/10"
     >
-      <button type="button" onClick={() => onAbrir(product)} className="block w-full aspect-[4/3] overflow-hidden relative shrink-0">
+      <button type="button" onClick={() => onAbrir(product)} className="block w-full h-28 sm:h-32 overflow-hidden relative shrink-0">
         <img 
           src={product.image_url || '/produto-sem-foto.svg'} 
-          className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500"
+          className="w-full h-full object-contain p-1 group-hover:scale-105 transition-transform duration-500"
           alt={product.name}
           referrerPolicy="no-referrer"
         />
@@ -318,11 +318,11 @@ const ProductCard = ({ product, onAddToCart, onAbrir }: { product: Product, onAd
           <div className="absolute top-2 left-2 bg-red-600 text-white px-2.5 py-1 rounded-full text-xs font-bold shadow-sm">18+</div>
         )}
       </button>
-      <div className="p-3 sm:p-4 flex flex-col flex-1 gap-2">
+      <div className="p-3 flex flex-col flex-1 gap-1.5">
         <button type="button" onClick={() => onAbrir(product)} className="text-left">
-          <h3 className="text-lg font-serif text-brand-olive hover:underline line-clamp-2 min-h-[3rem]">{product.name}</h3>
+          <h3 className="text-base font-serif text-brand-olive hover:underline line-clamp-2 min-h-10">{product.name}</h3>
         </button>
-        <p className="text-xs text-gray-500 line-clamp-2 leading-relaxed min-h-[2.25rem]">{product.description}</p>
+        <p className="text-xs text-gray-500 line-clamp-1 leading-relaxed min-h-4">{product.description}</p>
         <div className="flex flex-col gap-2 pt-1 mt-auto">
           {temOpcoes ? (
             <>
@@ -330,7 +330,7 @@ const ProductCard = ({ product, onAddToCart, onAbrir }: { product: Product, onAd
               <button 
                 onClick={() => onAbrir(product)}
                 disabled={esgotado}
-                className="w-full bg-brand-olive text-white py-2 rounded-full hover:bg-[#303d2d] transition-colors shadow-md flex items-center justify-center gap-2 text-sm font-medium disabled:opacity-50 disabled:cursor-not-allowed"
+                className="w-full bg-brand-olive text-white py-2 rounded-full hover:bg-[#303d2d] transition-colors shadow-md flex items-center justify-center gap-1 text-xs font-medium disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 {esgotado ? "Esgotado" : `Escolher ${tipoOpcao(product)}`}
               </button>
@@ -339,7 +339,7 @@ const ProductCard = ({ product, onAddToCart, onAbrir }: { product: Product, onAd
             <>
               <div className="flex flex-wrap items-center justify-between gap-2">
                 <span className="text-xs text-gray-400 tracking-wide">Estoque: {product.quantity}</span>
-                {!esgotado && <div className="flex items-center border border-brand-beige/30 rounded-full px-2 py-0.5">
+                {!esgotado && <div className="flex items-center border border-brand-beige/30 rounded-full px-1 py-0.5">
                   <button type="button" aria-label={`Diminuir quantidade de ${product.name}`} onClick={() => setQty(Math.max(1, qty - 1))} className="min-h-8 min-w-8 text-brand-olive">-</button>
                   <span className="mx-1 text-sm font-medium">{qty}</span>
                   <button type="button" aria-label={`Aumentar quantidade de ${product.name}`} onClick={() => setQty(Math.min(Math.max(1, product.quantity), qty + 1))} className="min-h-8 min-w-8 text-brand-olive">+</button>
@@ -348,7 +348,7 @@ const ProductCard = ({ product, onAddToCart, onAbrir }: { product: Product, onAd
               <button 
                 onClick={adicionar}
                 disabled={esgotado}
-                className="w-full bg-brand-olive text-white py-2 rounded-full hover:bg-[#303d2d] transition-colors shadow-md flex items-center justify-center gap-2 text-sm font-medium disabled:opacity-50 disabled:cursor-not-allowed"
+                className="w-full bg-brand-olive text-white py-2 rounded-full hover:bg-[#303d2d] transition-colors shadow-md flex items-center justify-center gap-1 text-xs font-medium disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 {esgotado ? "Esgotado" : adicionado ? <><Check size={16} /> Adicionado</> : <><Plus size={16} /> Adicionar {reais(product.price * qty)}</>}
               </button>
@@ -507,6 +507,20 @@ const Products = ({ onAddToCart, isAdmin }: { onAddToCart: (p: Product, qty: num
   const [busca, setBusca] = useSearchParams();
   const ordemCategorias = useCategorias();
   const categoriasSelecionadas = busca.getAll("categoria").filter(Boolean);
+  const categoriasRef = React.useRef<HTMLDetailsElement>(null);
+  useEffect(() => {
+    const fecharFora = (evento: PointerEvent | FocusEvent) => {
+      const painel = categoriasRef.current;
+      if (painel && evento.target instanceof Node && !painel.contains(evento.target)) painel.open = false;
+    };
+    document.addEventListener('pointerdown', fecharFora);
+    document.addEventListener('focusin', fecharFora);
+    return () => {
+      document.removeEventListener('pointerdown', fecharFora);
+      document.removeEventListener('focusin', fecharFora);
+    };
+  }, []);
+
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -584,13 +598,11 @@ const Products = ({ onAddToCart, isAdmin }: { onAddToCart: (p: Product, qty: num
       <section aria-label="Buscar e ordenar produtos" className="bg-white/90 border border-brand-beige/30 rounded-2xl p-4 mb-7 grid gap-4 sm:grid-cols-2 lg:grid-cols-[minmax(0,1fr)_minmax(0,0.7fr)_minmax(0,0.7fr)_auto] lg:items-end">
         <div className="min-w-0 text-sm font-semibold text-brand-olive">
           <span id="titulo-categorias">Categorias</span>
-          <details className="relative mt-1" onKeyDown={e => {
+          <details ref={categoriasRef} className="relative mt-1 select-none" onKeyDown={e => {
             if (e.key === 'Escape') {
               e.currentTarget.open = false;
               e.currentTarget.querySelector('summary')?.focus();
             }
-          }} onBlur={e => {
-            if (!e.currentTarget.contains(e.relatedTarget as Node | null)) e.currentTarget.open = false;
           }}>
             <summary aria-label="Selecionar categorias" title={categoriasSelecionadas.join(', ') || 'Todas as categorias'}
               className="flex min-h-11 cursor-pointer list-none items-center justify-between gap-2 rounded-xl border border-brand-beige/50 bg-white px-3 py-2 text-gray-900 font-normal hover:border-brand-olive focus-visible:outline-2 focus-visible:outline-brand-olive">
@@ -657,7 +669,7 @@ const Products = ({ onAddToCart, isAdmin }: { onAddToCart: (p: Product, qty: num
       <p role="status" aria-live="polite" className="text-sm text-gray-600 mb-5">
         {visiveis.length} {visiveis.length === 1 ? 'produto encontrado' : 'produtos encontrados'}
       </p>
-      <div className="grid grid-cols-1 min-[380px]:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-3 sm:gap-4">
+      <div className="grid grid-cols-1 min-[380px]:grid-cols-2 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-3">
         {produtosPaginaVitrine.map(product => (
           <div key={product.id} className="h-full">
             <ProductCard product={product} onAddToCart={onAddToCart} onAbrir={setAberto} />
