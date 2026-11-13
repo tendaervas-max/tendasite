@@ -8,10 +8,12 @@ import type { Session } from "@supabase/supabase-js";
 import { supabase, definirManterConectado } from "./lib/supabase";
 import { Product, CartItem } from "./types";
 import { abrirCheckoutMercadoPago, mercadoPagoHabilitado } from "./lib/mercadopago";
+import { ConfirmarFrete, ConfirmarRetirada, dataBrasilia, statusRetiradaPaga } from "./PedidoOperacao";
+import type { RetiradaAgendada } from "./PedidoOperacao";
 import { EditarCaixasLoja, ResumoCaixas } from "./Embalagens";
 import { carregarCarrinho, salvarCarrinho } from "./lib/carrinhoPersistente";
 import { gerarPixCopiaCola, gerarQrPix } from "./lib/pixDireto";
-import { LOJA, linkWhatsApp, STATUS_PEDIDO, mensagemPedido, mensagemEntrega, reais, CATEGORIAS, maiorDeIdade, chaveCarrinho, cpfValido, formatarCpf, comPromocao, comEstoqueDosKits } from "./loja";
+import { LOJA, linkWhatsApp, STATUS_PEDIDO, mensagemEntrega, reais, CATEGORIAS, maiorDeIdade, chaveCarrinho, cpfValido, formatarCpf, comPromocao, comEstoqueDosKits } from "./loja";
 
 // --- Components ---
 
@@ -795,7 +797,7 @@ const Cart = ({ cart, onUpdateQuantity, onRemove, user, edicao, onDesistirEdicao
               <span>{reais(total)}</span>
             </div>
             <p className="text-sm text-brand-paper/70 leading-relaxed">
-              Pague pelo Mercado Pago ou por PIX direto pela chave da loja. Envio pelos Correios com frete combinado pelo WhatsApp, ou retirada em {LOJA.localRetirada || LOJA.cidade}.
+              Pague pelo Mercado Pago ou por PIX direto pela chave da loja. Envio pelos Correios com frete combinado pelo WhatsApp, ou retirada com agendamento.
             </p>
             <button 
               onClick={handleGoToPayment}
@@ -852,6 +854,7 @@ const Admin = ({ isAdmin, ehDono }: { isAdmin: boolean, ehDono: boolean }) => {
   const totalPaginasProdutos = Math.max(1, Math.ceil(produtosFiltrados.length / PRODUTOS_POR_PAGINA));
   const paginaProdutosAtual = Math.min(paginaProdutos, totalPaginasProdutos);
   const produtosPaginados = produtosFiltrados.slice((paginaProdutosAtual - 1) * PRODUTOS_POR_PAGINA, paginaProdutosAtual * PRODUTOS_POR_PAGINA);
+  const [retiradas, setRetiradas] = useState<Record<number, RetiradaAgendada>>({});
   const [orders, setOrders] = useState<any[]>([]);
   const [erroBanco, setErroBanco] = useState("");
   const [newProduct, setNewProduct] = useState({ name: "", description: "", price: "", quantity: "", category: "Ervas", opcoes: "", adult: false });
@@ -899,6 +902,15 @@ const Admin = ({ isAdmin, ehDono }: { isAdmin: boolean, ehDono: boolean }) => {
       fetchData();
     }
   }, [isLoggedIn]);
+
+  useEffect(() => {
+    if (!isLoggedIn || !ehDono || activeTab !== "orders") return;
+    let ativo = true;
+    void supabase.from("agendamentos_retirada").select("pedido_id,endereco,agendado_para").then(({ data, error }) => {
+      if (ativo && !error) setRetiradas(Object.fromEntries((data || []).map(r => [r.pedido_id, r])));
+    });
+    return () => { ativo = false; };
+  }, [isLoggedIn, ehDono, activeTab]);
 
   const testSupabase = async () => {
     const tables = ['products', 'admin', 'users', 'orders', 'equipe'];
@@ -1149,7 +1161,7 @@ const Admin = ({ isAdmin, ehDono }: { isAdmin: boolean, ehDono: boolean }) => {
       .eq('id', orderId);
 
     if (!error) {
-      setOrders(orders.map(o => o.id === orderId ? { ...o, status: newStatus } : o));
+      setOrders(pedidos => pedidos.map(o => o.id === orderId ? { ...o, status: newStatus, pagamento_confirmado_em: newStatus === "pagamento confirmado" ? new Date().toISOString() : o.pagamento_confirmado_em } : o));
     } else {
       alert("Erro ao atualizar status: " + error.message);
     }
@@ -1507,7 +1519,7 @@ const Admin = ({ isAdmin, ehDono }: { isAdmin: boolean, ehDono: boolean }) => {
                 <div className="col-span-2 flex justify-between items-center">
                   <div className="text-sm text-gray-600 flex-1">
                     {order.description}
-                    <div className="text-[10px] text-gray-400 mt-1">Total: {reais(order.total_price)} • {new Date(order.created_at).toLocaleString()}</div>
+                    <div className="text-[10px] text-gray-400 mt-1">Total: {reais(totalComFrete(order) ?? order.total_price)} • {new Date(order.created_at).toLocaleString()}</div>
                   </div>
                   <div className="ml-4">
                     <select 
@@ -1522,6 +1534,18 @@ const Admin = ({ isAdmin, ehDono }: { isAdmin: boolean, ehDono: boolean }) => {
                     </select>
                   </div>
                 </div>
+                {!order.arquivado_teste && order.delivery_method === "Correios" && order.status === "aguardando pagamento" && (
+                  <div className="col-span-4 mt-4 border-t pt-4">
+                    <ConfirmarFrete pedidoId={order.id} valor={order.frete_confirmado} aoSalvar={valor =>
+                      setOrders(pedidos => pedidos.map(p => p.id === order.id ? { ...p, frete_confirmado: valor } : p))} />
+                  </div>
+                )}
+                {ehDono && !order.arquivado_teste && order.delivery_method === "Retirada" && order.pagamento_confirmado_em && statusRetiradaPaga.includes(order.status) && (
+                  <div className="col-span-4 mt-4 border-t pt-4">
+                    <ConfirmarRetirada pedidoId={order.id} retirada={retiradas[order.id]} aoSalvar={retirada =>
+                      setRetiradas(atuais => ({ ...atuais, [order.id]: retirada }))} />
+                  </div>
+                )}
               </div>
             ))}
             {orders.length === 0 && (
@@ -1732,19 +1756,59 @@ const PixQrCode = ({ codigo }: { codigo: string }) => {
   );
 };
 
-const InstrucoesPagamento = ({ pedido }: { pedido: { id: number, description: string, total_price: number, delivery_method: string } }) => {
+type PedidoPagamento = { id: number; description: string; total_price: number; delivery_method: string; frete_confirmado?: number | null };
+
+const totalComFrete = (pedido: PedidoPagamento) =>
+  pedido.delivery_method === "Retirada" ? Number(pedido.total_price)
+    : pedido.delivery_method === "Correios" && pedido.frete_confirmado != null
+      ? Number(pedido.total_price) + Number(pedido.frete_confirmado) : null;
+
+const OpcoesPagamento = ({ pedido }: { pedido: PedidoPagamento }) => {
+  const [redirecionando, setRedirecionando] = useState(false);
+  const [erro, setErro] = useState("");
+  const total = totalComFrete(pedido);
+  if (total === null) return (
+    <div className="space-y-3 text-left">
+      <p className="text-sm text-gray-700">Aguardando a loja confirmar o frete. Depois você pode pagar o total aqui{mercadoPagoHabilitado ? " pelo Mercado Pago ou por PIX direto" : " por PIX direto"}.</p>
+      <BotaoCombinarEntrega pedido={pedido} />
+    </div>
+  );
+  return (
+    <div className="space-y-3 text-left">
+      {pedido.delivery_method === "Correios" && (
+        <p className="text-sm">Produtos: {reais(pedido.total_price)} · Frete: {reais(pedido.frete_confirmado ?? 0)} · <strong>Total: {reais(total)}</strong></p>
+      )}
+      {mercadoPagoHabilitado && (
+        <button type="button" disabled={redirecionando} onClick={async () => {
+          setRedirecionando(true);
+          setErro("");
+          try { await abrirCheckoutMercadoPago(pedido.id); }
+          catch (e) { setErro(e instanceof Error ? e.message : "Pagamento indisponível."); setRedirecionando(false); }
+        }} className="w-full rounded-full bg-brand-olive px-4 py-3 font-semibold text-white disabled:opacity-50">
+          {redirecionando ? "Abrindo Mercado Pago…" : "Pagar pelo Mercado Pago"}
+        </button>
+      )}
+      {erro && <p role="alert" className="text-sm text-red-700">{erro}</p>}
+      <details className="rounded-xl border border-brand-beige/30 p-4" data-testid={`pix-direto-pedido-${pedido.id}`}>
+        <summary className="cursor-pointer font-semibold text-brand-olive">Pagar com PIX direto pela chave da loja</summary>
+        <div className="mt-4"><InstrucoesPagamento pedido={pedido} total={total} /></div>
+      </details>
+    </div>
+  );
+};
+
+const InstrucoesPagamento = ({ pedido, total }: { pedido: PedidoPagamento; total: number }) => {
   const [copiado, setCopiado] = useState(false);
   const [codigoCopiado, setCodigoCopiado] = useState(false);
-  // QR com valor exato somente para retirada; não gerar cobrança sem o frete de entrega.
   const copiaECola = React.useMemo(() => {
-    if (pedido.delivery_method !== 'Retirada' || !LOJA.chavePix) return null;
+    if (!LOJA.chavePix) return null;
     try {
       return gerarPixCopiaECola({
-        chave: LOJA.chavePix, valor: Number(pedido.total_price), pedidoId: pedido.id,
-        nome: LOJA.nome, cidade: LOJA.localRetirada.split(',')[0] || 'Guarulhos'
+        chave: LOJA.chavePix, valor: total, pedidoId: pedido.id,
+        nome: LOJA.nome, cidade: LOJA.cidade.split(',')[0]
       });
     } catch { return null; }
-  }, [pedido.id, pedido.total_price, pedido.delivery_method]);
+  }, [pedido.id, total]);
   const copiarCodigo = async () => {
     if (!copiaECola) return;
     try { await navigator.clipboard.writeText(copiaECola); setCodigoCopiado(true); }
@@ -1764,14 +1828,12 @@ const InstrucoesPagamento = ({ pedido }: { pedido: { id: number, description: st
   return (
     <div className="space-y-4 text-left">
       <p className="text-gray-700 leading-relaxed">
-        {pedido.delivery_method === "Retirada"
-          ? <>Pague <strong>{reais(Number(pedido.total_price))}</strong> com o QR Code PIX ou código copia e cola da Tenda Ervas. O recebimento será conferido pela loja antes da confirmação do pedido.</>
-          : <>Mande o pedido pelo WhatsApp para calcularmos o frete dos Correios. Depois é só pagar pelo PIX o valor dos produtos ({reais(Number(pedido.total_price))}) mais o frete.</>}
+        Pague <strong>{reais(total)}</strong> pelo PIX direto. A loja vai conferir o recebimento e atualizar o pedido. Se já pagou, aguarde a confirmação.
       </p>
       {copiaECola && (
         <div className="rounded-2xl border border-brand-beige/30 bg-white p-5 space-y-4" data-testid={`pix-qrcode-pedido-${pedido.id}`}>
           <h3 className="font-semibold text-brand-olive">PIX direto para a conta Nu Empresas</h3>
-          <p className="text-sm text-gray-700">Escaneie o QR Code pelo aplicativo do seu banco ou copie o código abaixo. Valor: <strong>{reais(Number(pedido.total_price))}</strong>.</p>
+          <p className="text-sm text-gray-700">Escaneie o QR Code pelo aplicativo do seu banco ou copie o código abaixo. Valor: <strong>{reais(total)}</strong>.</p>
           <div className="flex justify-center"><PixQrCode codigo={copiaECola}/></div>
           <button type="button" onClick={copiarCodigo}
             className="w-full rounded-full bg-brand-olive text-white font-semibold px-4 py-3 hover:opacity-90">
@@ -1797,14 +1859,13 @@ const InstrucoesPagamento = ({ pedido }: { pedido: { id: number, description: st
         )}
       </div>
       <a
-        href={linkWhatsApp(mensagemPedido(pedido))}
+        href={linkWhatsApp(`Olá! Segue o comprovante do PIX do pedido #${pedido.id}.`)}
         target="_blank"
         rel="noreferrer"
         className="w-full inline-flex items-center justify-center gap-2 bg-green-600 text-white font-bold py-4 rounded-full hover:bg-green-700 transition-all shadow-lg"
       >
-        <Phone size={18} /> Enviar pedido pelo WhatsApp
+        <Phone size={18} /> Enviar comprovante pelo WhatsApp
       </a>
-      <BotaoCombinarEntrega pedido={pedido} />
     </div>
   );
 };
@@ -1822,12 +1883,9 @@ const BotaoCombinarEntrega = ({ pedido }: { pedido: { id: number, delivery_metho
 );
 
 const PaymentPage = ({ cart, user, edicao, onPedidoFeito }: { cart: CartItem[], user: any, edicao: EdicaoPedido | null, onPedidoFeito: () => void }) => {
-  const [pedido, setPedido] = useState<{ id: number, description: string, total_price: number, delivery_method: string, anterior?: number } | null>(null);
+  const [pedido, setPedido] = useState<(PedidoPagamento & { anterior?: number }) | null>(null);
   const [entrega, setEntrega] = useState<"Correios" | "Retirada">(edicao?.entrega || "Correios");
   const [loading, setLoading] = useState(false);
-  const [redirecionando, setRedirecionando] = useState(false);
-  const [erroPagamento, setErroPagamento] = useState('');
-  const [formaEscolhida, setFormaEscolhida] = useState<'direto' | 'mercadopago'>('direto');
   const navigate = useNavigate();
   const total = cart.reduce((acc, item) => acc + item.price * item.cartQuantity, 0);
 
@@ -1892,51 +1950,7 @@ const PaymentPage = ({ cart, user, edicao, onPedidoFeito }: { cart: CartItem[], 
           </div>
           <h2 className="text-4xl font-serif text-brand-olive">Pedido #{pedido.id} recebido!</h2>
           {pedido.anterior && <p className="text-sm text-gray-600">Ele substitui o pedido #{pedido.anterior}, que foi cancelado.</p>}
-          {!mercadoPagoHabilitado && pedido.delivery_method === 'Retirada' && (
-            <div role="status" className="border border-amber-200 bg-amber-50 rounded-2xl p-4 text-left space-y-2">
-              <h3 className="font-semibold text-amber-950">Mercado Pago — modo de testes</h3>
-              <p className="text-sm text-amber-950">O botão de pagamento de teste não está habilitado nesta publicação. Na Cloudflare Pages, configure VITE_MERCADOPAGO_ATIVO=true no ambiente Preview e faça um novo deploy. Nenhuma cobrança será iniciada nesta tela.</p>
-            </div>
-          )}
-          {pedido.delivery_method === 'Retirada' ? (
-            <div className="border border-brand-beige/30 rounded-2xl p-4 space-y-4 text-left">
-              <h3 className="font-semibold text-brand-olive">Escolha como pagar</h3>
-              <p className="text-sm text-gray-700">Escolha apenas uma opção para este pedido. Não realize dois pagamentos.</p>
-              <div className="grid sm:grid-cols-2 gap-3" role="group" aria-label="Forma de pagamento">
-                <button type="button" aria-pressed={formaEscolhida === 'direto'} onClick={()=>setFormaEscolhida('direto')}
-                  className={`p-3 rounded-xl border-2 font-semibold text-sm text-left ${formaEscolhida === 'direto' ? 'border-brand-olive bg-brand-mint/20' : 'border-gray-200'}`}>
-                  PIX direto pela chave
-                  <span className="block mt-1 text-xs font-normal">QR Code e copia e cola · confirmação manual</span>
-                </button>
-                <button type="button" aria-pressed={formaEscolhida === 'mercadopago'} onClick={()=>setFormaEscolhida('mercadopago')}
-                  className={`p-3 rounded-xl border-2 font-semibold text-sm text-left ${formaEscolhida === 'mercadopago' ? 'border-brand-olive bg-brand-mint/20' : 'border-gray-200'}`}>
-                  Mercado Pago
-                  <span className="block mt-1 text-xs font-normal">PIX ou cartão · tarifa conforme a conta</span>
-                </button>
-              </div>
-              {formaEscolhida === 'direto' ? (
-                <div className="space-y-3">
-                  <p className="text-sm">PIX pela chave da loja: <strong>{reais(Number(pedido.total_price))}</strong>. Confira o nome do destinatário no aplicativo do seu banco antes de transferir.</p>
-                  <InstrucoesPagamento pedido={pedido} />
-                  <p role="status" className="text-sm text-amber-900 bg-amber-50 border border-amber-200 rounded-lg p-3">Não é necessário enviar comprovante para copiar ou escanear o PIX. O pedido permanece <strong>Aguardando pagamento</strong> até a equipe conferir a entrada do valor no Nubank; ainda não há confirmação bancária automática.</p>
-                </div>
-              ) : mercadoPagoHabilitado ? (
-                <div className="space-y-3">
-                  <p className="text-sm text-gray-700">Pagamento processado pelo Mercado Pago, sujeito às tarifas aplicáveis. A confirmação chega automaticamente após validação pelo servidor.</p>
-                  {erroPagamento && <p role="alert" className="text-sm text-red-700">{erroPagamento}</p>}
-                  <button type="button" disabled={redirecionando} onClick={async()=>{
-                    setRedirecionando(true);setErroPagamento('');
-                    try {await abrirCheckoutMercadoPago(pedido.id);}
-                    catch(e){setErroPagamento(e instanceof Error?e.message:'Erro ao iniciar pagamento');setRedirecionando(false);}
-                  }} className="w-full rounded-full bg-brand-olive text-white py-3 px-4 font-bold disabled:opacity-50">
-                    {redirecionando?'Abrindo Mercado Pago…':'Pagar pelo Mercado Pago'}
-                  </button>
-                </div>
-              ) : (
-                <p className="text-sm text-amber-900">Mercado Pago indisponível nesta publicação. Você pode escolher PIX direto e enviar o comprovante à loja.</p>
-              )}
-            </div>
-          ) : <InstrucoesPagamento pedido={pedido} />}
+          <OpcoesPagamento pedido={pedido} />
           <div className="pt-2">
             <Link to="/meus-pedidos" className="text-brand-olive font-medium underline underline-offset-4">
               Ver meus pedidos
@@ -1991,17 +2005,6 @@ const PaymentPage = ({ cart, user, edicao, onPedidoFeito }: { cart: CartItem[], 
 
         {entrega === 'Correios' && <div className="mb-6"><ResumoCaixas /></div>}
 
-        {entrega === 'Retirada' && (
-          <div className="mb-6 rounded-2xl border border-brand-beige/30 bg-white p-5 text-left space-y-2" data-testid="mercadopago-checkout-status">
-            <h3 className="font-semibold text-brand-olive">Pagamento pelo Mercado Pago {mercadoPagoHabilitado ? '— teste' : '— aguardando ativação'}</h3>
-            {mercadoPagoHabilitado ? (
-              <p className="text-sm text-gray-700">Após clicar em <strong>Finalizar pedido</strong>, você verá o botão <strong>Pagar com PIX ou cartão pelo Mercado Pago</strong> na confirmação. Use somente a conta e os métodos de teste. Não faça pagamento real.</p>
-            ) : (
-              <p className="text-sm text-amber-800">O pagamento pelo Mercado Pago está desativado nesta versão. Para testá-lo, habilite VITE_MERCADOPAGO_ATIVO=true no Preview da Cloudflare e faça um novo deploy. Não utilize cobrança real.</p>
-            )}
-          </div>
-        )}
-
         <div className="bg-brand-mint/20 p-6 rounded-2xl mb-8">
           {entrega === "Correios" ? (
             <>
@@ -2013,7 +2016,7 @@ const PaymentPage = ({ cart, user, edicao, onPedidoFeito }: { cart: CartItem[], 
                 {user?.address}<br />
                 CEP: {user?.cep}
               </p>
-              <p className="text-sm text-gray-600 mt-3">O frete dos Correios é combinado pelo WhatsApp depois de finalizar.</p>
+              <p className="text-sm text-gray-600 mt-3">Depois de finalizar, combine o frete pelo WhatsApp. Quando a loja registrar o valor, o total ficará disponível em Meus pedidos.</p>
               <a href={linkWhatsApp("Olá! Estou fazendo um pedido no site e queria combinar a entrega pelos Correios.")} target="_blank" rel="noreferrer" className="inline-flex items-center gap-2 mt-3 text-sm font-bold text-green-700 hover:underline">
                 <Phone size={16} /> Combinar a entrega pelo WhatsApp
               </a>
@@ -2024,18 +2027,15 @@ const PaymentPage = ({ cart, user, edicao, onPedidoFeito }: { cart: CartItem[], 
                 <MapPin size={18} /> Retirada
               </h4>
               <p className="text-sm text-gray-600 leading-relaxed">
-                {LOJA.localRetirada || LOJA.cidade}. Combinamos o dia e o horário pelo WhatsApp.
+                Após confirmar o pagamento, combine o dia e o horário pelo WhatsApp. A loja vai confirmar o agendamento e liberar o endereço em Meus pedidos.
               </p>
-              <a href={linkWhatsApp(`Olá! Estou fazendo um pedido no site e queria combinar a retirada em ${LOJA.localRetirada || LOJA.cidade}.`)} target="_blank" rel="noreferrer" className="inline-flex items-center gap-2 mt-3 text-sm font-bold text-green-700 hover:underline">
-                <Phone size={16} /> Combinar a retirada pelo WhatsApp
-              </a>
             </>
           )}
         </div>
 
         <div className="mb-8">
           <h4 className="font-medium text-brand-olive mb-2">Pagamento</h4>
-          <p className="text-sm text-gray-600">PIX. Depois de finalizar, mostramos a chave e o botão para enviar o comprovante pelo WhatsApp.</p>
+          <p className="text-sm text-gray-600">{mercadoPagoHabilitado ? "Mercado Pago ou PIX direto." : "PIX direto."} {entrega === "Correios" ? "Pague após a confirmação do frete." : "Escolha como pagar após finalizar o pedido."}</p>
         </div>
 
         {cart.some(item => item.adult) && !maiorDeIdade(user?.birth_date) && (
@@ -2056,11 +2056,16 @@ const PaymentPage = ({ cart, user, edicao, onPedidoFeito }: { cart: CartItem[], 
 };
 
 const MyOrders = ({ user, onCarregar }: { user: any, onCarregar: (pedido: any, editar: boolean) => Promise<boolean> }) => {
-  const retornoPagamento = new URLSearchParams(window.location.search).get('retorno') === 'mercadopago';
+  const parametros = new URLSearchParams(useLocation().search);
+  const retornoPagamento = parametros.get("retorno") === "mercadopago";
+  const pedidoRetorno = Number(parametros.get("pedido"));
+  const [retiradas, setRetiradas] = useState<Record<number, RetiradaAgendada>>({});
   const [orders, setOrders] = useState<any[]>([]);
   const [pedidoAberto, setPedidoAberto] = useState<number | null>(null);
   type DadosPagamento = { pedido_id: number; status: string; metodo: string | null; valor: number | null; verificado_em: string | null; atualizado_em: string | null };
   const [pagamentos, setPagamentos] = useState<Record<number, DadosPagamento>>({});
+  const retornoConfirmado = retornoPagamento && pagamentos[pedidoRetorno]?.status === "approved" &&
+    orders.some(p => p.id === pedidoRetorno && p.status !== "pedido cancelado");
   const [avisoConfirmacao, setAvisoConfirmacao] = useState<number | null>(null);
   const statusVistos = React.useRef<Map<number, string>>(new Map());
   const [processando, setProcessando] = useState<number | null>(null);
@@ -2089,14 +2094,16 @@ const MyOrders = ({ user, onCarregar }: { user: any, onCarregar: (pedido: any, e
         }
         statusVistos.current.set(pedido.id, pedido.status);
       }
-      if (meusPedidos.length === 0) { setPagamentos({}); return; }
-      // RLS garante que cada cliente visualize somente os pagamentos dos seus pedidos.
-      const { data: registros, error: erroPagamento } = await supabase
-        .from('pagamentos_mercadopago')
-        .select('pedido_id,status,metodo,valor,verificado_em,atualizado_em')
-        .in('pedido_id', meusPedidos.map(p => p.id));
-      if (!ativo || erroPagamento) return;
-      setPagamentos(Object.fromEntries(((registros || []) as DadosPagamento[]).map(p => [p.pedido_id, p])));
+      if (meusPedidos.length === 0) { setPagamentos({}); setRetiradas({}); return; }
+      const ids = meusPedidos.map(p => p.id);
+      const [pagamentosResult, retiradasResult] = await Promise.all([
+        supabase.from("pagamentos_mercadopago")
+          .select("pedido_id,status,metodo,valor,verificado_em,atualizado_em").in("pedido_id", ids),
+        supabase.from("agendamentos_retirada").select("pedido_id,endereco,agendado_para").in("pedido_id", ids)
+      ]);
+      if (!ativo) return;
+      if (!pagamentosResult.error) setPagamentos(Object.fromEntries(((pagamentosResult.data || []) as DadosPagamento[]).map(p => [p.pedido_id, p])));
+      setRetiradas(Object.fromEntries((retiradasResult.data || []).map(r => [r.pedido_id, r])));
     };
     void fetchMyOrders();
     const timer = window.setInterval(() => { if (!document.hidden) void fetchMyOrders(); }, 15000);
@@ -2105,9 +2112,6 @@ const MyOrders = ({ user, onCarregar }: { user: any, onCarregar: (pedido: any, e
     return () => { ativo = false; window.clearInterval(timer); document.removeEventListener('visibilitychange', atualizarAoVoltar); };
   }, [user?.id]);
 
-  const dataBrasilia = (valor: string) => new Intl.DateTimeFormat('pt-BR', {
-    dateStyle: 'short', timeStyle: 'short', timeZone: 'America/Sao_Paulo'
-  }).format(new Date(valor));
   const descricaoMetodo = (metodo: string | null) => {
     const chave = (metodo || '').toLowerCase();
     if (chave === 'pix') return 'PIX';
@@ -2141,6 +2145,8 @@ const MyOrders = ({ user, onCarregar }: { user: any, onCarregar: (pedido: any, e
             <p><strong>Situação:</strong> Aguardando confirmação do pagamento.</p>
             <p><strong>Forma de pagamento:</strong> Ainda não confirmada.</p>
           </>
+        ) : pedido.pagamento_confirmado_em && pedido.status !== "pedido cancelado" ? (
+          <p><strong>Situação:</strong> Pagamento confirmado pela loja.</p>
         ) : (
           <>
             <p><strong>Situação do pedido:</strong> {STATUS_PEDIDO[pedido.status] || pedido.status}</p>
@@ -2186,12 +2192,12 @@ const MyOrders = ({ user, onCarregar }: { user: any, onCarregar: (pedido: any, e
   return (
     <div className="max-w-4xl mx-auto px-4 py-20 min-h-screen">
       <h2 className="text-4xl font-serif text-brand-olive mb-6">Meus Pedidos</h2>
-      {(avisoConfirmacao !== null || (retornoPagamento && orders.some(p => p.status === 'pagamento confirmado'))) && (
+      {(avisoConfirmacao !== null || retornoConfirmado) && (
         <div role="status" aria-live="polite" className="mb-6 rounded-xl bg-emerald-50 border border-emerald-300 p-5 text-emerald-900">
           <strong>Pagamento confirmado!</strong> {avisoConfirmacao !== null ? `O pedido #${avisoConfirmacao} foi confirmado.` : 'O sistema já registrou um pagamento aprovado. Confira os detalhes no pedido abaixo.'}
         </div>
       )}
-      {retornoPagamento && !orders.some(p => p.status === 'pagamento confirmado') && avisoConfirmacao === null && (
+      {retornoPagamento && !retornoConfirmado && avisoConfirmacao === null && (
         <p role="status" className="mb-6 rounded-xl bg-brand-mint/20 border border-brand-mint/40 p-4 text-sm text-gray-700">
           Você voltou do Mercado Pago. A confirmação ainda não chegou; esta página verifica automaticamente o status.
         </p>
@@ -2215,7 +2221,7 @@ const MyOrders = ({ user, onCarregar }: { user: any, onCarregar: (pedido: any, e
             </div>
             <div className="border-t border-brand-beige/10 pt-4 mb-6">
               <p className="text-sm text-gray-600">{order.description}</p>
-              <p className="text-sm font-bold text-brand-olive mt-2">Total: {reais(order.total_price)}</p>
+              <p className="text-sm font-bold text-brand-olive mt-2">{totalComFrete(order) === null ? "Produtos" : "Total"}: {reais(totalComFrete(order) ?? order.total_price)}</p>
             </div>
             <button type="button" onClick={()=>setPedidoAberto(pedidoAberto === order.id ? null : order.id)}
               aria-expanded={pedidoAberto === order.id} aria-controls={`detalhe-pedido-${order.id}`}
@@ -2233,26 +2239,14 @@ const MyOrders = ({ user, onCarregar }: { user: any, onCarregar: (pedido: any, e
                 ))}</ul>
                 <p><strong>Pedido feito em:</strong> {dataBrasilia(order.created_at)} (Brasília)</p>
                 <p><strong>Entrega:</strong> {order.delivery_method}</p>
-                <p><strong>Total:</strong> {reais(Number(order.total_price))}</p>
+                {order.delivery_method === "Correios" && <p><strong>Frete:</strong> {order.frete_confirmado == null ? "Aguardando confirmação da loja" : reais(order.frete_confirmado)}</p>}
+                <p><strong>{totalComFrete(order) === null ? "Produtos:" : "Total:"}</strong> {reais(totalComFrete(order) ?? order.total_price)}</p>
                 {detalhesPagamento(order)}
               </section>
             )}
             {order.status === "aguardando pagamento" && (
               <>
-                <div className="space-y-3">
-                  <details className="border border-brand-beige/30 rounded-xl p-4" data-testid={`pix-direto-pedido-${order.id}`}>
-                    <summary className="cursor-pointer font-semibold text-brand-olive">Pagar com PIX direto pela chave da loja</summary>
-                    <div className="mt-4"><InstrucoesPagamento pedido={order} /></div>
-                    <p className="text-sm bg-amber-50 rounded-lg p-3 mt-3">A loja precisa conferir o PIX recebido antes de confirmar o pedido. Não pague novamente se já fez a transferência.</p>
-                  </details>
-                  {mercadoPagoHabilitado && order.delivery_method === 'Retirada' && (
-                    <button type="button" disabled={processando === order.id} onClick={async()=>{
-                      setProcessando(order.id);
-                      try{await abrirCheckoutMercadoPago(order.id);}
-                      catch(e){alert(e instanceof Error?e.message:'Pagamento indisponível');setProcessando(null);}
-                    }} className="w-full rounded-full bg-brand-olive text-white py-3 font-semibold">Pagar pelo Mercado Pago (pode ter tarifa)</button>
-                  )}
-                </div>
+                <OpcoesPagamento pedido={order} />
                 <div className="grid grid-cols-2 gap-3 mt-3">
                   <button
                     onClick={() => levarParaCarrinho(order, true)}
@@ -2274,10 +2268,22 @@ const MyOrders = ({ user, onCarregar }: { user: any, onCarregar: (pedido: any, e
                 </p>
               </>
             )}
-            {["pagamento confirmado", "pedido sendo separado", "pronto para retirada", "pedido enviado para entrega"].includes(order.status) && (
-              <div className="mb-4">
-                <BotaoCombinarEntrega pedido={order} />
-              </div>
+            {order.delivery_method === "Retirada" && order.pagamento_confirmado_em && (statusRetiradaPaga.includes(order.status) || order.status === "pedido entregue") && (
+              retiradas[order.id] ? (
+                <section className="mb-4 rounded-xl border border-brand-beige/30 bg-brand-mint/10 p-4 space-y-1" aria-label="Retirada confirmada">
+                  <h3 className="font-semibold text-brand-olive">Retirada confirmada</h3>
+                  <p>{dataBrasilia(retiradas[order.id].agendado_para)} (horário de Brasília)</p>
+                  <p className="break-words">{retiradas[order.id].endereco}</p>
+                </section>
+              ) : statusRetiradaPaga.includes(order.status) && !["refunded", "charged_back"].includes(pagamentos[order.id]?.status) && (
+                <div className="mb-4 space-y-2">
+                  <p className="text-sm">Combine a retirada pelo WhatsApp. Após a confirmação da loja, o endereço, a data e a hora aparecem aqui.</p>
+                  <BotaoCombinarEntrega pedido={order} />
+                </div>
+              )
+            )}
+            {order.delivery_method === "Correios" && ["pagamento confirmado", "pedido sendo separado", "pedido enviado para entrega"].includes(order.status) && (
+              <div className="mb-4"><BotaoCombinarEntrega pedido={order} /></div>
             )}
             {order.status === "pedido enviado para entrega" && (
               <button 
@@ -3028,10 +3034,10 @@ export default function App() {
               <Route path="/nova-senha" element={<NovaSenha user={user} />} />
               <Route path="/privacidade" element={<Privacidade />} />
               <Route path="/trocas" element={<Trocas />} />
-              <Route path="/meus-pedidos" element={<MyOrders user={user} onCarregar={carregarPedido} />} />
+              <Route path="/meus-pedidos" element={React.createElement(MyOrders, { key: user?.id, user, onCarregar: carregarPedido })} />
               <Route path="/minha-conta" element={<MinhaConta user={user} onCadastroAtualizado={dados => setUser((u: any) => ({ ...u, ...dados }))} />} />
               <Route path="/pagamento" element={<PaymentPage cart={cart} user={user} edicao={edicao} onPedidoFeito={encerrarEdicao} />} />
-              <Route path="/admin" element={<Admin isAdmin={isAdmin} ehDono={ehDono} />} />
+              <Route path="/admin" element={React.createElement(Admin, { key: user?.id, isAdmin, ehDono })} />
               <Route path="/configurar-frete" element={<EditarCaixasLoja temAcesso={acessoGestao} />} />
             </Routes>
           )}

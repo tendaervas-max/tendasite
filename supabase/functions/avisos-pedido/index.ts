@@ -8,7 +8,6 @@ const GMAIL_USUARIO = Deno.env.get("GMAIL_USUARIO") ?? "";
 const GMAIL_SENHA_APP = Deno.env.get("GMAIL_SENHA_APP") ?? "";
 const EMAIL_LOJA = Deno.env.get("EMAIL_LOJA") || GMAIL_USUARIO;
 const SITE_URL = (Deno.env.get("SITE_URL") ?? "").replace(/\/$/, "");
-const CHAVE_PIX = Deno.env.get("CHAVE_PIX") ?? "";
 const WHATSAPP_LOJA = Deno.env.get("WHATSAPP_LOJA") ?? "";
 
 const supabase = createClient(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!);
@@ -61,7 +60,7 @@ const emailsPedidoNovo = (p: Pedido): Email[] => {
 
   if (cliente?.email) {
     const mensagem = `Olá! Fiz o pedido #${p.id} no site: ${p.description}. Total dos produtos: ${reais(p.total_price)}. ` +
-      (p.delivery_method === "Retirada" ? "Vou retirar. Segue o comprovante do PIX." : "Envio pelos Correios: pode me passar o valor do frete?");
+      (p.delivery_method === "Retirada" ? "Quero combinar a retirada após a confirmação do pagamento." : "Envio pelos Correios: pode me passar o valor do frete?");
     emails.push({
       para: cliente.email,
       assunto: `Recebemos seu pedido #${p.id}`,
@@ -72,9 +71,8 @@ const emailsPedidoNovo = (p: Pedido): Email[] => {
         `Total dos produtos: ${reais(p.total_price)}.`,
         ``,
         p.delivery_method === "Retirada"
-          ? `Pague o total pelo PIX e mande o comprovante pelo WhatsApp. Combinamos a retirada por lá.`
-          : `Mande o pedido pelo WhatsApp para calcularmos o frete dos Correios. Depois é só pagar pelo PIX os produtos mais o frete.`,
-        CHAVE_PIX ? `Chave PIX: ${CHAVE_PIX}` : ``,
+          ? `Escolha como pagar em Meus pedidos. Após a confirmação do pagamento, combine a retirada pelo WhatsApp. A loja vai registrar a data, a hora e o endereço em Meus pedidos.`
+          : `Combine o frete dos Correios pelo WhatsApp. Assim que a loja confirmar o valor, pague o total em Meus pedidos.`,
         whatsapp(mensagem) ? `WhatsApp: ${whatsapp(mensagem)}` : ``,
         ``,
         SITE_URL ? `Acompanhe em ${SITE_URL}/meus-pedidos` : ``,
@@ -92,7 +90,7 @@ const emailMudancaStatus = (p: Pedido): Email | null => {
   if (!p.users?.email) return null;
   const textos: { [status: string]: string } = {
     "pagamento confirmado": "Recebemos seu pagamento. Agora vamos separar seu pedido.",
-    "pronto para retirada": "Seu pedido está pronto para retirada. Combine o dia e o horário pelo WhatsApp.",
+    "pronto para retirada": "Seu pedido está pronto para retirada. Confira o agendamento em Meus pedidos. Se ainda não combinou a retirada, fale com a loja pelo WhatsApp.",
     "pedido enviado para entrega": "Seu pedido foi enviado pelos Correios. Quando chegar, confirme em Meus pedidos.",
     "pedido cancelado": "Seu pedido foi cancelado. Se tiver dúvida, fale com a gente pelo WhatsApp.",
   };

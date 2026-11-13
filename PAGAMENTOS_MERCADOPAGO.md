@@ -1,8 +1,5 @@
 # Pagamentos Tenda Ervas — preparação segura
 
-**Situação:** banco e Edge Functions implantados no projeto Site Tenda, mas a cobrança NÃO está habilitada na loja. Faltam credenciais, configuração de webhook e testes em sandbox.
-O checkout manual por PIX continua disponível até existir ambiente de testes homologado.
-
 ## Arquitetura
 
 1. A criação de um pedido existente usa a RPC `criar_pedido` do Supabase:
@@ -20,22 +17,20 @@ O checkout manual por PIX continua disponível até existir ambiente de testes h
    na transação e altera o pedido para `pagamento confirmado` quando aprovado.
 7. As informações do cartão **não** são processadas pelo site nem salvas no Supabase.
 
-## Limite operacional importante
+## Retirada e entrega
 
-**Pagamento integrado está preparado somente para RETIRADA.**
-O frete dos Correios é atualmente combinado depois do pedido; a Edge Function
-rejeita pedidos de entrega até existir cálculo e aprovação de frete no total.
-**Não cobrar o preço incompleto com cartão ou Pix.**
+- **Retirada:** o pagamento usa o total dos produtos. Depois de confirmar o recebimento, combine a retirada pelo WhatsApp e use **Admin → Pedidos → Agendar retirada** para registrar o endereço, a data e a hora de Brasília. A loja só libera esses dados na conta do cliente do pedido, com pagamento confirmado.
+- **Correios:** combine o frete pelo WhatsApp e registre o valor em **Admin → Pedidos → Confirmar frete**. O cliente paga os produtos mais esse valor em **Meus pedidos**. O valor fica fixo depois da confirmação para que uma preferência de pagamento anterior não fique com um total incorreto.
 
-## Implantação após homologação
+## Configuração e verificação
 
-- Criar uma aplicação no painel Mercado Pago e ativar credenciais de **teste**.
+- Usar a aplicação Mercado Pago da loja. Usar credenciais de teste em homologação e de produção na loja.
 - Configurar segredos **somente** nas Supabase Edge Functions:
   `MP_ACCESS_TOKEN`, `MP_WEBHOOK_SECRET`, `MP_ENV=sandbox`,
   `SITE_URL=https://<dominio-da-loja>`,
   `MP_WEBHOOK_URL=https://<supabase-ref>.supabase.co/functions/v1/webhook-mercadopago`.
   Nunca colocar tokens secretos em `VITE_*` nem fazer commit de `.env`.
-- A migração `supabase/pagamentos_mercadopago_preparacao.sql` já foi aplicada ao projeto Site Tenda; confirmar permissões após atualizações.
+- Aplicar a migração de pagamento e agendamento ao Supabase antes de publicar o novo checkout.
 - A Edge Function `criar-preferencia-mercadopago` já foi implantada com validação de JWT ativada; configurações faltantes resultam em recusa do fluxo.
 - A Edge Function `webhook-mercadopago` já foi implantada com `verify_jwt=false`: a autenticação dessa
   rota pública é feita **internamente** pela assinatura HMAC do provedor.
@@ -45,10 +40,7 @@ rejeita pedidos de entrega até existir cálculo e aprovação de frete no total
   webhook duplicado, valor incorreto, notificações falsas, pedido cancelado,
   sessão de outro cliente, retorno de navegador forjado e erro de provedor.
 - Confirmar que nenhum fluxo confirma o pagamento somente por query string ou mensagem da interface.
-- **Somente após passar por tudo isso**, ativar `VITE_MERCADOPAGO_ATIVO=true`
-  no deploy de produção e utilizar credenciais de produção e URL aprovada.
-- Planejar política de conciliação, reembolso, chargeback, retenção de dados
-  e conciliação financeira antes da operação real.
+- Usar `VITE_MERCADOPAGO_ATIVO=true` na publicação que oferece Checkout Pro.
 
 ## Controles e ameaças
 
@@ -60,18 +52,9 @@ rejeita pedidos de entrega até existir cálculo e aprovação de frete no total
 | Webhook duplicado | Chave primária `pedido_id`, chave única de `pagamento_id` e operação idempotente |
 | Vazamento de token | Credenciais ficam em segredos das funções, nunca no React |
 | Falso positivo após retorno de pagamento | Página informa que o retorno não confirma a cobrança |
-| Cobrar sem incluir frete | Bloqueio de pagamento automático para `Correios` |
+| Cobrar sem incluir frete | Cobrança de `Correios` liberada após confirmação do frete; o valor inclui produtos e frete |
 | Confirmação de pedido cancelado | RPC rejeita pedidos cancelados |
 | Cobrança errada ou duplicada | Bloqueio por status + chave de idempotência por pedido |
-
-## Pendências de homologação
-
-As credenciais Mercado Pago, a assinatura do webhook, a configuração de domínio e o
-acesso à simulação real ainda não foram fornecidos nem usados. O SQL e as
-Edge Functions foram implantados, mas **não há cobrança ativa**: o navegador continua
-com `VITE_MERCADOPAGO_ATIVO` desativado e as funções só operam depois de configuradas.
-A presença desses arquivos e das funções no Supabase **não significa** que Pix automático
-ou cartão estejam funcionando. É obrigatório homologar o fluxo antes de habilitá-lo.
 
 Referências: documentação oficial de Checkout Pro (preferências) e webhooks do Mercado Pago,
 segredos e autenticação de Edge Functions do Supabase.

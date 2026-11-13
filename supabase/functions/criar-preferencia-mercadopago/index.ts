@@ -41,25 +41,27 @@ Deno.serve(async req => {
   } catch { return json({ error: 'Requisição inválida' }, 400); }
   if (!Number.isSafeInteger(pedidoId) || pedidoId <= 0) return json({ error: 'Pedido inválido' }, 400);
   const { data: pedido, error } = await client.from('orders')
-    .select('id,user_id,status,total_price,items,delivery_method').eq('id', pedidoId).single();
+    .select('id,user_id,status,total_price,items,delivery_method,frete_confirmado,arquivado_teste').eq('id', pedidoId).single();
   if (error || !pedido || pedido.user_id !== auth.user.id) return json({ error: 'Pedido não encontrado' }, 404);
-  if (pedido.status !== 'aguardando pagamento') return json({ error: 'Este pedido não está aguardando pagamento' }, 409);
-  // Frete dos Correios ainda é combinado manualmente e NÃO compõe o total do pedido.
-  // Não criar cobrança incompleta para entrega sem frete calculado.
-  if (pedido.delivery_method !== 'Retirada') return json({ error: 'Pagamento online para entrega requer frete confirmado; use a opção de atendimento da loja' }, 422);
-  const total = Number(pedido.total_price);
+  if (pedido.arquivado_teste || pedido.status !== 'aguardando pagamento') return json({ error: 'Este pedido não está aguardando pagamento' }, 409);
+  if (pedido.delivery_method === 'Correios' && pedido.frete_confirmado == null)
+    return json({ error: 'Aguardando confirmação do frete pela loja' }, 422);
+  if (pedido.delivery_method !== 'Retirada' && pedido.delivery_method !== 'Correios')
+    return json({ error: 'Forma de entrega inválida' }, 422);
+  const total = Number(pedido.total_price) + Number(pedido.frete_confirmado ?? 0);
   if (!Number.isFinite(total) || total <= 0 || !Array.isArray(pedido.items) || !pedido.items.length)
     return json({ error: 'Pedido sem total válido' }, 422);
 
   const base = SITE_URL.replace(/\/$/, '');
   const referencia = `tenda-${pedidoId}`;
+  const retorno = `${base}/meus-pedidos?retorno=mercadopago&pedido=${pedidoId}`;
   const preference = {
     items: [{ id: referencia, title: `Pedido Tenda Ervas #${pedidoId}`, quantity: 1, currency_id: 'BRL', unit_price: Number(total.toFixed(2)) }],
     external_reference: referencia,
     back_urls: {
-      success: `${base}/meus-pedidos?retorno=mercadopago`,
-      failure: `${base}/meus-pedidos?retorno=mercadopago`,
-      pending: `${base}/meus-pedidos?retorno=mercadopago`
+      success: retorno,
+      failure: retorno,
+      pending: retorno
     },
     auto_return: 'approved',
     notification_url: MP_WEBHOOK_URL

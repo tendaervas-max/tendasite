@@ -12,7 +12,6 @@ export const LOJA = {
   instagram: "tendaervas",
   chavePix: "63.097.835/0001-21",
   favorecidoPix: "",
-  localRetirada: "Guarulhos, SP",
   urlGestao: "https://sistematenda.pages.dev"
 };
 
@@ -33,13 +32,6 @@ export const STATUS_PEDIDO: { [status: string]: string } = {
   "pedido entregue": "Entregue",
   "pedido cancelado": "Cancelado"
 };
-
-// Método que monta a mensagem do WhatsApp com o resumo do pedido
-export const mensagemPedido = (pedido: { id: number, description: string, total_price: number, delivery_method: string }) =>
-  `Olá! Fiz o pedido #${pedido.id} no site: ${pedido.description}. Total dos produtos: ${reais(pedido.total_price)}. ` +
-  (pedido.delivery_method === "Retirada"
-    ? "Vou retirar. Segue o comprovante do PIX."
-    : "Envio pelos Correios: pode me passar o valor do frete?");
 
 // Método que monta a mensagem do WhatsApp para combinar a entrega do pedido
 export const mensagemEntrega = (pedido: { id: number, delivery_method: string }) =>
