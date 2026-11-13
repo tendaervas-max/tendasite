@@ -101,7 +101,7 @@ Deno.serve(async req => {
       for (const item of itens) {
         const produto = catalogo.get(item.id);
         if (!produto?.peso_envio_g || !produto.comprimento_envio_cm || !produto.largura_envio_cm || !produto.altura_envio_cm) {
-          return json(422, { erro: "Um ou mais produtos ainda precisam de peso e medidas de envio." });
+          return json(422, { erro: "O frete precisa ser confirmado pela loja." });
         }
         const [maior, menor, espessura] = [produto.comprimento_envio_cm, produto.largura_envio_cm, produto.altura_envio_cm]
           .map(Number).sort((a, b) => b - a);

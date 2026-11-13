@@ -66,8 +66,7 @@ const emailsPedidoNovo = (p: Pedido): Email[] => {
   }];
 
   if (cliente?.email) {
-    const mensagem = `Olá! Fiz o pedido #${p.id} no site: ${p.description}. Total dos produtos: ${reais(p.total_price)}. ` +
-      (p.delivery_method === "Retirada" ? "Quero combinar a retirada após a confirmação do pagamento." : "Envio pelos Correios: pode me passar o valor do frete?");
+    const mensagem = `Olá! Fiz o pedido #${p.id} e quero combinar a retirada após a confirmação do pagamento.`;
     emails.push({
       para: cliente.email,
       assunto: `Recebemos seu pedido #${p.id}`,
@@ -80,8 +79,8 @@ const emailsPedidoNovo = (p: Pedido): Email[] => {
         p.delivery_method === "Retirada"
           ? `Escolha como pagar em Meus pedidos. Após a confirmação do pagamento, combine a retirada pelo WhatsApp. A loja vai registrar a data, a hora e o endereço em Meus pedidos.`
           : frete ? `${frete}. Pague o total em Meus pedidos.`
-            : `Combine o frete dos Correios pelo WhatsApp. Assim que a loja confirmar o valor, pague o total em Meus pedidos.`,
-        (p.delivery_method === "Retirada" || !frete) && whatsapp(mensagem) ? `WhatsApp: ${whatsapp(mensagem)}` : ``,
+            : `O pagamento está pendente enquanto a loja confirma o frete. Quando o total estiver disponível, pague em Meus pedidos.`,
+        p.delivery_method === "Retirada" && whatsapp(mensagem) ? `WhatsApp: ${whatsapp(mensagem)}` : ``,
         ``,
         SITE_URL ? `Acompanhe em ${SITE_URL}/meus-pedidos` : ``,
         ``,

@@ -1574,7 +1574,14 @@ const Admin = ({ isAdmin, ehDono }: { isAdmin: boolean, ehDono: boolean }) => {
               <div>Entrega</div>
               <div className="col-span-2">Descrição do Pedido</div>
             </div>
-            {orders.map(order => (
+            {orders.map(order => {
+              const fretePendente = !order.arquivado_teste && order.delivery_method === "Correios" &&
+                order.status === "aguardando pagamento" && order.frete_confirmado == null;
+              const itensSemMedidas = fretePendente && Array.isArray(order.items) ? products.filter(produto =>
+                order.items.some(item => Number(item.id) === produto.id) &&
+                (!produto.peso_envio_g || !produto.comprimento_envio_cm || !produto.largura_envio_cm || !produto.altura_envio_cm)
+              ) : [];
+              return (
               <div key={order.id} className="grid grid-cols-4 p-6 border-b border-brand-beige/10 last:border-0 items-center">
                 <div>
                   <div className="font-medium text-brand-olive">{order.customer_name}</div>
@@ -1610,13 +1617,31 @@ const Admin = ({ isAdmin, ehDono }: { isAdmin: boolean, ehDono: boolean }) => {
                       className="text-xs border border-brand-beige/30 rounded-lg px-2 py-1 bg-white outline-none focus:ring-1 focus:ring-brand-olive disabled:opacity-60"
                     >
                       {Object.entries(STATUS_PEDIDO).map(([valor, nome]) => (
-                        <option key={valor} value={valor}>{nome}</option>
+                        <option key={valor} value={valor} disabled={fretePendente && valor !== "aguardando pagamento" && valor !== "pedido cancelado"}>{nome}</option>
                       ))}
                     </select>
                   </div>
                 </div>
                 {!order.arquivado_teste && order.delivery_method === "Correios" && order.status === "aguardando pagamento" && (
                   <div className="col-span-4 mt-4 border-t pt-4">
+                    {fretePendente && (
+                      <div className="mb-3 space-y-2 rounded-lg bg-amber-50 p-3 text-sm text-amber-950">
+                        <p className="font-semibold">Pagamento pendente · frete a confirmar</p>
+                        {itensSemMedidas.length > 0 && (
+                          <>
+                            <p>Cadastre o peso e as medidas de envio destes produtos:</p>
+                            <ul className="list-disc pl-5">
+                              {itensSemMedidas.map(produto => (
+                                <li key={produto.id}>
+                                  <button type="button" className="underline" onClick={() => editarProduto(produto)}>{produto.name}</button>
+                                </li>
+                              ))}
+                            </ul>
+                          </>
+                        )}
+                        <p>Confirme o valor do frete neste pedido para liberar o pagamento.</p>
+                      </div>
+                    )}
                     <ConfirmarFrete pedidoId={order.id} valor={order.frete_confirmado} aoSalvar={valor =>
                       setOrders(pedidos => pedidos.map(p => p.id === order.id ? { ...p, frete_confirmado: valor } : p))} />
                   </div>
@@ -1628,7 +1653,8 @@ const Admin = ({ isAdmin, ehDono }: { isAdmin: boolean, ehDono: boolean }) => {
                   </div>
                 )}
               </div>
-            ))}
+              );
+            })}
             {orders.length === 0 && (
               <div className="p-12 text-center text-gray-400">Nenhum pedido recebido ainda.</div>
             )}
@@ -1850,8 +1876,8 @@ const OpcoesPagamento = ({ pedido }: { pedido: PedidoPagamento }) => {
   const total = totalComFrete(pedido);
   if (total === null) return (
     <div className="space-y-3 text-left">
-      <p className="text-sm text-gray-700">Aguardando a loja confirmar o frete. Depois você pode pagar o total aqui{mercadoPagoHabilitado ? " pelo Mercado Pago ou por PIX direto" : " por PIX direto"}.</p>
-      <BotaoCombinarEntrega pedido={pedido} />
+      <p role="status" className="font-semibold text-brand-olive">Pagamento pendente</p>
+      <p className="text-sm text-gray-700">A loja está confirmando o frete. Assim que o total estiver disponível, você poderá pagar em Meus pedidos.</p>
     </div>
   );
   return (
@@ -2132,8 +2158,7 @@ const PaymentPage = ({ cart, user, edicao, onPedidoFeito }: { cart: CartItem[], 
                 <p role="status" className="mt-4 text-sm">Consultando preço e prazo nos Correios…</p>
               ) : cotacao.erro ? (
                 <div className="mt-4 space-y-2 text-sm">
-                  <p role="status">{cotacao.erro} {!cotacao.somenteRetirada && "Você pode tentar novamente ou pedir a cotação à loja."}</p>
-                  {!cotacao.somenteRetirada && <button type="button" disabled={loading} onClick={() => setTentativa(valor => valor + 1)} className="font-semibold underline">Consultar novamente</button>}
+                  <p role="status">{cotacao.somenteRetirada ? cotacao.erro : "Você pode finalizar o pedido agora. O pagamento ficará pendente até a loja confirmar o frete."}</p>
                 </div>
               ) : (
                 <fieldset className="mt-4 space-y-2" disabled={loading}>
@@ -2175,7 +2200,7 @@ const PaymentPage = ({ cart, user, edicao, onPedidoFeito }: { cart: CartItem[], 
           disabled={loading || (entrega === "Correios" && !frete && (!cotacao?.erro || cotacao.somenteRetirada)) || (cart.some(item => item.adult) && !maiorDeIdade(user?.birth_date))}
           className="w-full bg-brand-olive text-white font-bold py-5 rounded-full hover:opacity-90 transition-all shadow-xl flex items-center justify-center gap-3 text-lg disabled:opacity-50"
         >
-          {loading ? "Processando..." : entrega === "Correios" && cotacao?.erro && !cotacao.somenteRetirada ? "Solicitar frete à loja" : "Finalizar Pedido"}
+          {loading ? "Processando..." : "Finalizar Pedido"}
         </button>
       </div>
     </div>
@@ -2269,7 +2294,7 @@ const MyOrders = ({ user, onCarregar }: { user: any, onCarregar: (pedido: any, e
           <p><strong>Situação:</strong> Pagamento não aprovado. Confira o status antes de tentar novamente.</p>
         ) : pedido.status === 'aguardando pagamento' ? (
           <>
-            <p><strong>Situação:</strong> Aguardando confirmação do pagamento.</p>
+            <p><strong>Situação:</strong> {totalComFrete(pedido) === null ? "Pagamento pendente. A loja está confirmando o frete." : "Aguardando confirmação do pagamento."}</p>
             <p><strong>Forma de pagamento:</strong> Ainda não confirmada.</p>
           </>
         ) : pedido.pagamento_confirmado_em && pedido.status !== "pedido cancelado" ? (
