@@ -20,7 +20,7 @@
 ## Retirada e entrega
 
 - **Retirada:** o pagamento usa o total dos produtos. Depois de confirmar o recebimento, combine a retirada pelo WhatsApp e use **Admin → Pedidos → Agendar retirada** para registrar o endereço, a data e a hora de Brasília. A loja só libera esses dados na conta do cliente do pedido, com pagamento confirmado.
-- **Correios:** combine o frete pelo WhatsApp e registre o valor em **Admin → Pedidos → Confirmar frete**. O cliente paga os produtos mais esse valor em **Meus pedidos**. O valor fica fixo depois da confirmação para que uma preferência de pagamento anterior não fique com um total incorreto.
+- **Correios:** o checkout consulta preço e prazo com o CEP do cadastro. Cadastre o peso e as dimensões de cada produto ou kit em **Admin → Produtos** e confira as caixas ativas em **Caixas e frete**. A cotação vale por 15 minutos e fica vinculada ao carrinho e endereço. O pedido grava o serviço escolhido e libera o pagamento pelo total. Se a cotação estiver indisponível, a loja pode combinar o valor e registrá-lo em **Admin → Pedidos → Confirmar frete**. Para consultar a API, configure o CEP de postagem, os serviços e as credenciais contratuais dos Correios nos segredos da função `cotar-frete-correios`.
 
 ## Configuração e verificação
 

@@ -16,6 +16,10 @@ export interface Product {
   category: string;
   options: OpcaoProduto[];
   adult: boolean;
+  peso_envio_g?: number | null;
+  comprimento_envio_cm?: number | null;
+  largura_envio_cm?: number | null;
+  altura_envio_cm?: number | null;
   preco_promocional?: number | null;
   promocao_ate?: string | null;
   precoOriginal?: number;

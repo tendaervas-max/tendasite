@@ -10,7 +10,9 @@ import { Product, CartItem } from "./types";
 import { abrirCheckoutMercadoPago, mercadoPagoHabilitado } from "./lib/mercadopago";
 import { ConfirmarFrete, ConfirmarRetirada, dataBrasilia, statusRetiradaPaga } from "./PedidoOperacao";
 import type { RetiradaAgendada } from "./PedidoOperacao";
-import { EditarCaixasLoja, ResumoCaixas } from "./Embalagens";
+import { cotarFreteCorreios, ErroFreteCorreios } from "./lib/freteCorreios";
+import type { OpcaoFrete } from "./lib/freteCorreios";
+import { EditarCaixasLoja } from "./Embalagens";
 import { carregarCarrinho, salvarCarrinho } from "./lib/carrinhoPersistente";
 import { gerarPixCopiaCola, gerarQrPix } from "./lib/pixDireto";
 import { LOJA, linkWhatsApp, STATUS_PEDIDO, mensagemEntrega, reais, CATEGORIAS, maiorDeIdade, chaveCarrinho, cpfValido, formatarCpf, comPromocao, comEstoqueDosKits } from "./loja";
@@ -224,7 +226,7 @@ const Home = () => (
         </div>
         <div className="bg-white/85 rounded-2xl border border-brand-beige/30 p-5">
           <p className="text-sm font-bold text-brand-olive mb-2">3. Combine a entrega</p>
-          <p className="text-sm text-gray-700">Escolha retirada ou combine o frete com a loja antes de pagar o envio.</p>
+          <p className="text-sm text-gray-700">Consulte o frete dos Correios no checkout ou escolha retirada.</p>
         </div>
       </div>
     </section>
@@ -797,7 +799,7 @@ const Cart = ({ cart, onUpdateQuantity, onRemove, user, edicao, onDesistirEdicao
               <span>{reais(total)}</span>
             </div>
             <p className="text-sm text-brand-paper/70 leading-relaxed">
-              Pague pelo Mercado Pago ou por PIX direto pela chave da loja. Envio pelos Correios com frete combinado pelo WhatsApp, ou retirada com agendamento.
+              Pague pelo Mercado Pago ou por PIX direto pela chave da loja. Envio pelos Correios ou retirada com agendamento.
             </p>
             <button 
               onClick={handleGoToPayment}
@@ -857,7 +859,7 @@ const Admin = ({ isAdmin, ehDono }: { isAdmin: boolean, ehDono: boolean }) => {
   const [retiradas, setRetiradas] = useState<Record<number, RetiradaAgendada>>({});
   const [orders, setOrders] = useState<any[]>([]);
   const [erroBanco, setErroBanco] = useState("");
-  const [newProduct, setNewProduct] = useState({ name: "", description: "", price: "", quantity: "", category: "Ervas", opcoes: "", adult: false });
+  const [newProduct, setNewProduct] = useState({ name: "", description: "", price: "", quantity: "", category: "Ervas", opcoes: "", adult: false, peso_envio_g: "", comprimento_envio_cm: "", largura_envio_cm: "", altura_envio_cm: "" });
   const [imagesNovas, setImagesNovas] = useState<File[]>([]);
   const [coresExistentes, setCoresExistentes] = useState<Record<string,string>>({});
   const [fotosRemovidas, setFotosRemovidas] = useState<string[]>([]);
@@ -1056,7 +1058,7 @@ const Admin = ({ isAdmin, ehDono }: { isAdmin: boolean, ehDono: boolean }) => {
   // Método que abre o formulário vazio para cadastrar um produto novo
   const novoProduto = () => {
     setEditando(null);
-    setNewProduct({ name: "", description: "", price: "", quantity: "", category: "Ervas", opcoes: "", adult: false });
+    setNewProduct({ name: "", description: "", price: "", quantity: "", category: "Ervas", opcoes: "", adult: false, peso_envio_g: "", comprimento_envio_cm: "", largura_envio_cm: "", altura_envio_cm: "" });
     setCategoriaNova(false);
     setImagesNovas([]);
     setCoresNovas([]);
@@ -1076,7 +1078,11 @@ const Admin = ({ isAdmin, ehDono }: { isAdmin: boolean, ehDono: boolean }) => {
       quantity: String(p.quantity),
       category: p.category,
       opcoes: (p.options || []).map(o => o.nome).join(", "),
-      adult: p.adult
+      adult: p.adult,
+      peso_envio_g: String(p.peso_envio_g ?? ""),
+      comprimento_envio_cm: String(p.comprimento_envio_cm ?? ""),
+      largura_envio_cm: String(p.largura_envio_cm ?? ""),
+      altura_envio_cm: String(p.altura_envio_cm ?? "")
     });
     setCategoriaNova(false);
     setImagesNovas([]);
@@ -1127,6 +1133,10 @@ const Admin = ({ isAdmin, ehDono }: { isAdmin: boolean, ehDono: boolean }) => {
         category: categoriasCadastro.find(c => c.toLowerCase() === newProduct.category.trim().toLowerCase()) ?? newProduct.category.trim(),
         // Opção que já existia mantém a foto dela
         options: newProduct.opcoes.split(",").map(o => o.trim()).filter(Boolean).map(nome => editando?.options?.find(o => o.nome === nome) ?? { nome }),
+        peso_envio_g: newProduct.peso_envio_g === "" ? null : Number(newProduct.peso_envio_g),
+        comprimento_envio_cm: newProduct.comprimento_envio_cm === "" ? null : Number(newProduct.comprimento_envio_cm),
+        largura_envio_cm: newProduct.largura_envio_cm === "" ? null : Number(newProduct.largura_envio_cm),
+        altura_envio_cm: newProduct.altura_envio_cm === "" ? null : Number(newProduct.altura_envio_cm),
         adult: newProduct.adult
       };
 
@@ -1139,7 +1149,7 @@ const Admin = ({ isAdmin, ehDono }: { isAdmin: boolean, ehDono: boolean }) => {
           JSON.stringify(data.color_stock || {}) !== JSON.stringify(colorStock))
         throw new Error("A gravação das cores e quantidades não foi confirmada pelo banco.");
       setProducts(editando ? products.map(p => p.id === editando.id ? data : p) : [...products, data]);
-      setNewProduct({ name: "", description: "", price: "", quantity: "", category: "Ervas", opcoes: "", adult: false });
+      setNewProduct({ name: "", description: "", price: "", quantity: "", category: "Ervas", opcoes: "", adult: false, peso_envio_g: "", comprimento_envio_cm: "", largura_envio_cm: "", altura_envio_cm: "" });
       setCategoriaNova(false);
       setImagesNovas([]);
       setCoresNovas([]);
@@ -1304,6 +1314,23 @@ const Admin = ({ isAdmin, ehDono }: { isAdmin: boolean, ehDono: boolean }) => {
                   required
                 />
               </div>
+              <fieldset className="grid grid-cols-2 gap-3 rounded-xl border p-4">
+                <legend className="px-1 font-semibold text-brand-olive">Medidas para envio</legend>
+                <p className="col-span-2 text-sm text-gray-600">Informe as medidas e o peso de uma unidade pronta para embalar. Para kits, use os dados do kit inteiro.</p>
+                {([
+                  ["peso_envio_g", "Peso (g)", 1, 30000],
+                  ["comprimento_envio_cm", "Comprimento (cm)", 0.1, 150],
+                  ["largura_envio_cm", "Largura (cm)", 0.1, 150],
+                  ["altura_envio_cm", "Altura (cm)", 0.1, 150]
+                ] as const).map(([campo, titulo, passo, maximo]) => (
+                  <label key={campo} className="text-sm">
+                    {titulo}
+                    <input type="number" min={passo} step={passo} max={maximo} value={newProduct[campo]}
+                      onChange={e => setNewProduct({ ...newProduct, [campo]: e.target.value })}
+                      className="block w-full rounded-lg border p-2" />
+                  </label>
+                ))}
+              </fieldset>
               <select
                 value={categoriaNova ? "__nova__" : newProduct.category}
                 onChange={e => {
@@ -1505,7 +1532,7 @@ const Admin = ({ isAdmin, ehDono }: { isAdmin: boolean, ehDono: boolean }) => {
                         </a>
                       )}
                       <div>{order.users.email}</div>
-                      <div>{order.users.address} · CEP {order.users.cep}</div>
+                      <div>{order.frete_endereco || order.users.address} · CEP {order.frete_cep || order.users.cep}</div>
                       {order.users.cpf && <div>CPF {order.users.cpf}</div>}
                     </div>
                   )}
@@ -1756,7 +1783,7 @@ const PixQrCode = ({ codigo }: { codigo: string }) => {
   );
 };
 
-type PedidoPagamento = { id: number; description: string; total_price: number; delivery_method: string; frete_confirmado?: number | null };
+type PedidoPagamento = { id: number; description: string; total_price: number; delivery_method: string; frete_confirmado?: number | null; frete_servico?: string | null; frete_prazo_dias?: number | null };
 
 const totalComFrete = (pedido: PedidoPagamento) =>
   pedido.delivery_method === "Retirada" ? Number(pedido.total_price)
@@ -1889,6 +1916,29 @@ const PaymentPage = ({ cart, user, edicao, onPedidoFeito }: { cart: CartItem[], 
   const navigate = useNavigate();
   const total = cart.reduce((acc, item) => acc + item.price * item.cartQuantity, 0);
 
+  const itens = React.useMemo(() => cart.map(item => ({
+    id: item.id, quantidade: item.cartQuantity, opcao: item.opcao ?? null
+  })), [cart]);
+  const [cotacao, setCotacao] = useState<{ opcoes: OpcaoFrete[]; erro: string; somenteRetirada?: boolean } | null>(null);
+  const [freteId, setFreteId] = useState("");
+  const [tentativa, setTentativa] = useState(0);
+  const frete = cotacao?.opcoes.find(opcao => opcao.id === freteId);
+
+  useEffect(() => {
+    if (pedido || entrega !== "Correios" || !user?.id || !itens.length) return;
+    let ativo = true;
+    setCotacao(null);
+    setFreteId("");
+    cotarFreteCorreios(itens).then(opcoes => {
+      if (!ativo) return;
+      setCotacao({ opcoes, erro: "" });
+      setFreteId(opcoes[0].id);
+    }).catch((erro: Error) => {
+      if (ativo) setCotacao({ opcoes: [], erro: erro.message, somenteRetirada: erro instanceof ErroFreteCorreios && erro.somenteRetirada });
+    });
+    return () => { ativo = false; };
+  }, [pedido, entrega, user?.id, user?.cep, user?.address, itens, tentativa]);
+
   useEffect(() => {
     if (cart.length === 0 && !pedido) navigate("/produtos");
     if (!user || !cadastroCompleto(user)) navigate("/checkout");
@@ -1900,21 +1950,25 @@ const PaymentPage = ({ cart, user, edicao, onPedidoFeito }: { cart: CartItem[], 
     try {
       // O banco confere o estoque, calcula o total pelos preços cadastrados e grava o pedido no nome do cliente logado;
       // na edição, cancela o pedido anterior e grava o novo na mesma transação
-      const dados = {
-        p_itens: cart.map(item => ({ id: item.id, quantidade: item.cartQuantity, opcao: item.opcao })),
-        p_forma_pagamento: "PIX",
-        p_entrega: entrega
-      };
-      const { data, error } = edicao
-        ? await supabase.rpc('refazer_pedido', { p_pedido: edicao.id, ...dados })
-        : await supabase.rpc('criar_pedido', dados);
+      if (entrega === "Correios" && frete && Date.parse(frete.expira_em) <= Date.now()) {
+        setTentativa(valor => valor + 1);
+        throw new Error("A cotação venceu. Confira as novas opções antes de finalizar.");
+      }
+      const dados = { p_itens: itens, p_forma_pagamento: "PIX", p_entrega: entrega };
+      const { data, error } = entrega === "Correios" && frete
+        ? await supabase.rpc("finalizar_pedido_com_frete", {
+            p_itens: itens, p_cotacao: frete.id, p_pedido_anterior: edicao?.id ?? null
+          })
+        : edicao
+          ? await supabase.rpc("refazer_pedido", { p_pedido: edicao.id, ...dados })
+          : await supabase.rpc("criar_pedido", dados);
 
       if (error) throw error;
 
       // O total definitivo pertence ao banco: promoções e disponibilidade podem
       // mudar enquanto o carrinho está aberto.
       const {data:pedidoSalvo,error:erroConsulta} = await supabase.from('orders')
-        .select('id,description,total_price,delivery_method').eq('id',data).single();
+        .select('id,description,total_price,delivery_method,frete_confirmado,frete_servico,frete_prazo_dias').eq('id',data).single();
       if(erroConsulta || !pedidoSalvo){
         onPedidoFeito();
         alert('Pedido criado, mas não foi possível consultar o valor final. Confira em Meus pedidos antes de pagar.');
@@ -1926,6 +1980,9 @@ const PaymentPage = ({ cart, user, edicao, onPedidoFeito }: { cart: CartItem[], 
         description: pedidoSalvo.description,
         total_price: Number(pedidoSalvo.total_price),
         delivery_method: pedidoSalvo.delivery_method,
+        frete_confirmado: pedidoSalvo.frete_confirmado,
+        frete_servico: pedidoSalvo.frete_servico,
+        frete_prazo_dias: pedidoSalvo.frete_prazo_dias,
         anterior: edicao?.id
       });
       onPedidoFeito();
@@ -1990,7 +2047,8 @@ const PaymentPage = ({ cart, user, edicao, onPedidoFeito }: { cart: CartItem[], 
             {(["Correios", "Retirada"] as const).map(opcao => (
               <button
                 key={opcao}
-                onClick={() => setEntrega(opcao)}
+                disabled={loading}
+                onClick={() => { if (opcao !== entrega) { setCotacao(null); setFreteId(""); setEntrega(opcao); } }}
                 className={`py-3 rounded-xl border-2 transition-all font-medium ${
                   entrega === opcao 
                     ? "border-brand-olive bg-brand-olive text-white" 
@@ -2003,7 +2061,6 @@ const PaymentPage = ({ cart, user, edicao, onPedidoFeito }: { cart: CartItem[], 
           </div>
         </div>
 
-        {entrega === 'Correios' && <div className="mb-6"><ResumoCaixas /></div>}
 
         <div className="bg-brand-mint/20 p-6 rounded-2xl mb-8">
           {entrega === "Correios" ? (
@@ -2016,10 +2073,26 @@ const PaymentPage = ({ cart, user, edicao, onPedidoFeito }: { cart: CartItem[], 
                 {user?.address}<br />
                 CEP: {user?.cep}
               </p>
-              <p className="text-sm text-gray-600 mt-3">Depois de finalizar, combine o frete pelo WhatsApp. Quando a loja registrar o valor, o total ficará disponível em Meus pedidos.</p>
-              <a href={linkWhatsApp("Olá! Estou fazendo um pedido no site e queria combinar a entrega pelos Correios.")} target="_blank" rel="noreferrer" className="inline-flex items-center gap-2 mt-3 text-sm font-bold text-green-700 hover:underline">
-                <Phone size={16} /> Combinar a entrega pelo WhatsApp
-              </a>
+              <Link to="/minha-conta" className="mt-2 inline-block text-sm font-semibold underline">Alterar endereço</Link>
+              {cotacao === null ? (
+                <p role="status" className="mt-4 text-sm">Consultando preço e prazo nos Correios…</p>
+              ) : cotacao.erro ? (
+                <div className="mt-4 space-y-2 text-sm">
+                  <p role="status">{cotacao.erro} {!cotacao.somenteRetirada && "Você pode tentar novamente ou pedir a cotação à loja."}</p>
+                  {!cotacao.somenteRetirada && <button type="button" disabled={loading} onClick={() => setTentativa(valor => valor + 1)} className="font-semibold underline">Consultar novamente</button>}
+                </div>
+              ) : (
+                <fieldset className="mt-4 space-y-2" disabled={loading}>
+                  <legend className="mb-1 font-semibold text-brand-olive">Opções dos Correios</legend>
+                  {cotacao.opcoes.map(opcao => (
+                    <label key={opcao.id} className="flex items-center gap-2 rounded-lg border bg-white p-3 text-sm">
+                      <input type="radio" name="frete" checked={freteId === opcao.id} onChange={() => setFreteId(opcao.id)} />
+                      Correios · Serviço {opcao.servico} · {opcao.prazo_dias} dia(s) útil(eis) · {reais(opcao.valor)}
+                    </label>
+                  ))}
+                  {frete && <p className="font-semibold">Total com frete: {reais(total + Number(frete.valor))}</p>}
+                </fieldset>
+              )}
             </>
           ) : (
             <>
@@ -2035,7 +2108,7 @@ const PaymentPage = ({ cart, user, edicao, onPedidoFeito }: { cart: CartItem[], 
 
         <div className="mb-8">
           <h4 className="font-medium text-brand-olive mb-2">Pagamento</h4>
-          <p className="text-sm text-gray-600">{mercadoPagoHabilitado ? "Mercado Pago ou PIX direto." : "PIX direto."} {entrega === "Correios" ? "Pague após a confirmação do frete." : "Escolha como pagar após finalizar o pedido."}</p>
+          <p className="text-sm text-gray-600">{mercadoPagoHabilitado ? "Mercado Pago ou PIX direto." : "PIX direto."} {entrega === "Correios" && cotacao?.erro ? "Pague após a confirmação do frete." : "Escolha como pagar após finalizar o pedido."}</p>
         </div>
 
         {cart.some(item => item.adult) && !maiorDeIdade(user?.birth_date) && (
@@ -2045,10 +2118,10 @@ const PaymentPage = ({ cart, user, edicao, onPedidoFeito }: { cart: CartItem[], 
         )}
         <button 
           onClick={handleFinalize}
-          disabled={loading || (cart.some(item => item.adult) && !maiorDeIdade(user?.birth_date))}
+          disabled={loading || (entrega === "Correios" && !frete && (!cotacao?.erro || cotacao.somenteRetirada)) || (cart.some(item => item.adult) && !maiorDeIdade(user?.birth_date))}
           className="w-full bg-brand-olive text-white font-bold py-5 rounded-full hover:opacity-90 transition-all shadow-xl flex items-center justify-center gap-3 text-lg disabled:opacity-50"
         >
-          {loading ? "Processando..." : "Finalizar Pedido"}
+          {loading ? "Processando..." : entrega === "Correios" && cotacao?.erro && !cotacao.somenteRetirada ? "Solicitar frete à loja" : "Finalizar Pedido"}
         </button>
       </div>
     </div>
@@ -2240,6 +2313,7 @@ const MyOrders = ({ user, onCarregar }: { user: any, onCarregar: (pedido: any, e
                 <p><strong>Pedido feito em:</strong> {dataBrasilia(order.created_at)} (Brasília)</p>
                 <p><strong>Entrega:</strong> {order.delivery_method}</p>
                 {order.delivery_method === "Correios" && <p><strong>Frete:</strong> {order.frete_confirmado == null ? "Aguardando confirmação da loja" : reais(order.frete_confirmado)}</p>}
+                {order.frete_servico && <p><strong>Serviço:</strong> Correios {order.frete_servico} · {order.frete_prazo_dias} dia(s) útil(eis)</p>}
                 <p><strong>{totalComFrete(order) === null ? "Produtos:" : "Total:"}</strong> {reais(totalComFrete(order) ?? order.total_price)}</p>
                 {detalhesPagamento(order)}
               </section>

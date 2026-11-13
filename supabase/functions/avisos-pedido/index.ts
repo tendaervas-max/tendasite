@@ -20,6 +20,10 @@ type Pedido = {
   delivery_method: string;
   description: string;
   total_price: number;
+  frete_confirmado: number | null;
+  frete_prazo_dias: number | null;
+  frete_endereco: string | null;
+  frete_cep: string | null;
   users: { email: string; phone: string | null; cpf: string | null; address: string | null; cep: string | null; number: string | null } | null;
 };
 
@@ -38,6 +42,8 @@ const whatsapp = (mensagem: string) => WHATSAPP_LOJA ? `https://wa.me/${WHATSAPP
 // Método que monta os e-mails do pedido novo: um para a loja e um para o cliente
 const emailsPedidoNovo = (p: Pedido): Email[] => {
   const cliente = p.users;
+  const frete = p.frete_confirmado === null ? "" :
+    `Frete: ${reais(p.frete_confirmado)} · Total: ${reais(Number(p.total_price) + Number(p.frete_confirmado))}${p.frete_prazo_dias === null ? "" : ` · Prazo dos Correios: ${p.frete_prazo_dias} dia(s) útil(eis)`}`;
   const emails: Email[] = [{
     para: EMAIL_LOJA,
     assunto: `Novo pedido #${p.id} - ${reais(p.total_price)} - ${p.delivery_method}`,
@@ -47,12 +53,13 @@ const emailsPedidoNovo = (p: Pedido): Email[] => {
       `Itens: ${p.description}`,
       `Total dos produtos: ${reais(p.total_price)}`,
       `Entrega: ${p.delivery_method}`,
+      frete,
       ``,
       `Cliente: ${p.customer_name}`,
       `WhatsApp: ${cliente?.phone ?? "-"}`,
       `E-mail: ${cliente?.email ?? "-"}`,
       `CPF: ${cliente?.cpf ?? "-"}`,
-      `Endereço: ${cliente?.address ?? "-"} - CEP ${cliente?.cep ?? "-"}`,
+      `Endereço: ${p.frete_endereco || cliente?.address || "-"} - CEP ${p.frete_cep || cliente?.cep || "-"}`,
       ``,
       SITE_URL ? `Painel: ${SITE_URL}/admin` : ``,
     ].join("\n"),
@@ -72,8 +79,9 @@ const emailsPedidoNovo = (p: Pedido): Email[] => {
         ``,
         p.delivery_method === "Retirada"
           ? `Escolha como pagar em Meus pedidos. Após a confirmação do pagamento, combine a retirada pelo WhatsApp. A loja vai registrar a data, a hora e o endereço em Meus pedidos.`
-          : `Combine o frete dos Correios pelo WhatsApp. Assim que a loja confirmar o valor, pague o total em Meus pedidos.`,
-        whatsapp(mensagem) ? `WhatsApp: ${whatsapp(mensagem)}` : ``,
+          : frete ? `${frete}. Pague o total em Meus pedidos.`
+            : `Combine o frete dos Correios pelo WhatsApp. Assim que a loja confirmar o valor, pague o total em Meus pedidos.`,
+        (p.delivery_method === "Retirada" || !frete) && whatsapp(mensagem) ? `WhatsApp: ${whatsapp(mensagem)}` : ``,
         ``,
         SITE_URL ? `Acompanhe em ${SITE_URL}/meus-pedidos` : ``,
         ``,
@@ -136,7 +144,7 @@ Deno.serve(async (req) => {
 
   const { data: pedido, error } = await supabase
     .from("orders")
-    .select("id, status, ultimo_aviso, customer_name, delivery_method, description, total_price, users(email, phone, cpf, address, cep, number)")
+    .select("id, status, ultimo_aviso, customer_name, delivery_method, description, total_price, frete_confirmado, frete_prazo_dias, frete_endereco, frete_cep, users(email, phone, cpf, address, cep, number)")
     .eq("id", id)
     .maybeSingle<Pedido>();
   if (error) return responder(500, { erro: error.message });

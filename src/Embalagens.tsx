@@ -21,18 +21,6 @@ export const useCaixasDeEnvio=()=>{
   return {caixas,carregando,erro};
 };
 
-export const ResumoCaixas:React.FC = ()=>{
- const {caixas,carregando,erro}=useCaixasDeEnvio();
- return <section aria-label="Modelos de embalagem" className="border border-amber-200 bg-amber-50 rounded-2xl p-5 space-y-2">
-  <h3 className="font-bold text-amber-950 flex items-center gap-2"><Package size={19}/> Caixas cadastradas para envio — modo de teste</h3>
-  {carregando?<p className="text-sm text-amber-950">Carregando embalagens…</p>:erro?<p role="alert" className="text-sm text-red-800">{erro}</p>:<>
-   <p className="text-sm text-amber-950">Estas medidas são modelos editáveis, <strong>não são preço de frete</strong>. O frete real será definido antes de cobrar a entrega.</p>
-   <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">{caixas.filter(c=>c.ativo).map(c=><div key={c.id} className="rounded-xl border border-amber-200 bg-white p-3 text-sm text-gray-800"><strong>{c.nome}</strong><p>{c.comprimento_cm} × {c.largura_cm} × {c.altura_cm} cm</p><p className="text-xs">{c.exemplo?'Medidas de exemplo':'Dimensões cadastradas'} · {c.peso_embalagem_g>0?c.peso_embalagem_g+' g de embalagem':'Peso não informado'}</p></div>)}</div>
-  </>}
- </section>;
-};
-
-
 type Cotacao = {cepDestino:string;opcoes:{codigo:string;valor:number;prazoDias:number|null}[]};
 const ConsultarFrete:React.FC<{caixas:Caixa[]}> = ({caixas})=>{
  const [caixaId,setCaixaId]=useState('');
@@ -112,7 +100,7 @@ export const EditarCaixasLoja:React.FC<{temAcesso:boolean}> = ({temAcesso})=>{
  return <main className="max-w-5xl mx-auto px-4 py-12 min-h-screen">
    <h1 className="font-serif text-4xl text-brand-olive mb-3">Configuração de caixas e frete</h1>
    <p className="mb-5 text-gray-700">Ajuste as embalagens que também aparecem na gestão. CEP de postagem: 07025-020.</p>
-   <div className="bg-amber-50 border border-amber-200 rounded-2xl p-4 mb-5 flex gap-2 text-amber-950"><AlertTriangle size={22} className="shrink-0"/> <p><strong>Teste.</strong> Os tamanhos são exemplos e não geram tarifa dos Correios. O pagamento da entrega só será integrado após a cotação e conferência do valor.</p></div>
+   <div className="bg-amber-50 border border-amber-200 rounded-2xl p-4 mb-5 flex gap-2 text-amber-950"><AlertTriangle size={22} className="shrink-0"/> <p>O checkout usa as caixas ativas marcadas com medidas reais e os dados de envio cadastrados nos produtos.</p></div>
    <ConsultarFrete caixas={inicial}/>
    {erroLeitura&&<p role="alert">{erroLeitura}</p>}{erro&&<p role="alert" className="text-red-700 mb-3">{erro}</p>}{aviso&&<p role="status" className="text-emerald-700 mb-3">{aviso}</p>}
    {carregando?<p>Carregando modelos…</p>:<div className="grid gap-4 md:grid-cols-2">{caixas.map(c=><section key={c.id} className="bg-white border border-brand-beige/30 rounded-2xl p-5 space-y-4">
