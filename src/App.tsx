@@ -839,6 +839,11 @@ const Admin = ({ isAdmin, ehDono }: { isAdmin: boolean, ehDono: boolean }) => {
   }, [location]);
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
+  const [custos, setCustos] = useState<Record<number, number | null>>({});
+  const [carregandoCustos, setCarregandoCustos] = useState(true);
+  const [custo, setCusto] = useState("");
+  const [custoAlterado, setCustoAlterado] = useState(false);
+  const [salvandoProduto, setSalvandoProduto] = useState(false);
   const [products, setProducts] = useState<Product[]>([]);
   const [paginaProdutos, setPaginaProdutos] = useState(1);
   const [buscaProdutos, setBuscaProdutos] = useState("");
@@ -903,6 +908,19 @@ const Admin = ({ isAdmin, ehDono }: { isAdmin: boolean, ehDono: boolean }) => {
       };
       fetchData();
     }
+  }, [isLoggedIn]);
+
+  useEffect(() => {
+    if (!isLoggedIn) return;
+    let ativo = true;
+    void supabase.from("produtos_custos").select("produto_id,custo_unitario").then(({ data, error }) => {
+      if (!ativo) return;
+      if (!error) {
+        setCustos(atuais => ({ ...Object.fromEntries((data || []).map(item => [item.produto_id, item.custo_unitario])), ...atuais }));
+        setCarregandoCustos(false);
+      }
+    });
+    return () => { ativo = false; };
   }, [isLoggedIn]);
 
   useEffect(() => {
@@ -1058,6 +1076,8 @@ const Admin = ({ isAdmin, ehDono }: { isAdmin: boolean, ehDono: boolean }) => {
   // Método que abre o formulário vazio para cadastrar um produto novo
   const novoProduto = () => {
     setEditando(null);
+    setCusto("");
+    setCustoAlterado(false);
     setNewProduct({ name: "", description: "", price: "", quantity: "", category: "Ervas", opcoes: "", adult: false, peso_envio_g: "", comprimento_envio_cm: "", largura_envio_cm: "", altura_envio_cm: "" });
     setCategoriaNova(false);
     setImagesNovas([]);
@@ -1071,6 +1091,8 @@ const Admin = ({ isAdmin, ehDono }: { isAdmin: boolean, ehDono: boolean }) => {
   // Método que abre o formulário com os dados do produto para alterar
   const editarProduto = (p: Product) => {
     setEditando(p);
+    setCusto(String(custos[p.id] ?? "").replace(".", ","));
+    setCustoAlterado(false);
     setNewProduct({
       name: p.name,
       description: p.description || "",
@@ -1095,7 +1117,13 @@ const Admin = ({ isAdmin, ehDono }: { isAdmin: boolean, ehDono: boolean }) => {
 
   const handleAddProduct = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (salvandoProduto) return;
+    setSalvandoProduto(true);
     try {
+      const textoCusto = custo.trim().replace(",", ".");
+      if (custoAlterado && textoCusto && !/^\d{1,10}(?:\.\d{1,4})?$/.test(textoCusto))
+        throw new Error("Informe um custo válido, com até quatro casas decimais.");
+      const valorCusto = textoCusto ? Number(textoCusto) : null;
       const imagensExistentes = editando ? Array.from(new Set([...(editando.image_urls || []), editando.image_url || ""].filter(Boolean))).filter(url => !fotosRemovidas.includes(url)) : [];
       const imagensEnviadas: string[] = [];
       for (const arquivo of imagesNovas) {
@@ -1148,7 +1176,20 @@ const Admin = ({ isAdmin, ehDono }: { isAdmin: boolean, ehDono: boolean }) => {
       if (!data || JSON.stringify(data.image_colors || {}) !== JSON.stringify(cores) ||
           JSON.stringify(data.color_stock || {}) !== JSON.stringify(colorStock))
         throw new Error("A gravação das cores e quantidades não foi confirmada pelo banco.");
-      setProducts(editando ? products.map(p => p.id === editando.id ? data : p) : [...products, data]);
+      setProducts(atuais => editando ? atuais.map(p => p.id === data.id ? data : p) : [...atuais, data]);
+      if (custoAlterado) {
+        const { error: erroCusto } = await supabase.from("produtos_custos").upsert({
+          produto_id: data.id, custo_unitario: valorCusto
+        });
+        if (erroCusto) {
+          editarProduto(data);
+          setCusto(custo);
+          setCustoAlterado(true);
+          alert("Produto salvo. O custo ficou pendente: " + erroCusto.message);
+          return;
+        }
+        setCustos(atuais => ({ ...atuais, [data.id]: valorCusto }));
+      }
       setNewProduct({ name: "", description: "", price: "", quantity: "", category: "Ervas", opcoes: "", adult: false, peso_envio_g: "", comprimento_envio_cm: "", largura_envio_cm: "", altura_envio_cm: "" });
       setCategoriaNova(false);
       setImagesNovas([]);
@@ -1157,9 +1198,12 @@ const Admin = ({ isAdmin, ehDono }: { isAdmin: boolean, ehDono: boolean }) => {
       setEstoquePorCor({});
       setFotosRemovidas([]);
       setEditando(null);
+      setActiveTab("products");
       alert(editando ? "Produto alterado com sucesso!" : "Produto cadastrado com sucesso!");
     } catch (err: any) {
       alert((editando ? "Erro ao alterar produto: " : "Erro ao cadastrar produto: ") + err.message);
+    } finally {
+      setSalvandoProduto(false);
     }
   };
 
@@ -1278,7 +1322,7 @@ const Admin = ({ isAdmin, ehDono }: { isAdmin: boolean, ehDono: boolean }) => {
         <div className="max-w-2xl mx-auto">
           <div className="bg-white p-8 rounded-3xl shadow-sm border border-brand-beige/20">
             <h3 className="text-2xl font-serif text-brand-olive mb-6">{editando ? "Alterar Produto" : "Cadastrar Novo Produto"}</h3>
-            <form onSubmit={(e) => { handleAddProduct(e); setActiveTab("products"); }} className="space-y-4">
+            <form onSubmit={handleAddProduct} className="space-y-4">
               <input 
                 placeholder="Nome do produto" 
                 value={newProduct.name} 
@@ -1314,6 +1358,14 @@ const Admin = ({ isAdmin, ehDono }: { isAdmin: boolean, ehDono: boolean }) => {
                   required
                 />
               </div>
+              <label className="block text-sm font-medium text-brand-olive">
+                Preço de custo unitário (R$)
+                <input inputMode="decimal" value={custoAlterado || !editando ? custo : String(custos[editando.id] ?? "").replace(".", ",")}
+                  onChange={e => { setCusto(e.target.value); setCustoAlterado(true); }}
+                  disabled={carregandoCustos || salvandoProduto} placeholder="Ex.: 0,2491"
+                  className="mt-1 block w-full rounded-lg border border-brand-beige/30 px-4 py-2 disabled:opacity-60" />
+              </label>
+              {carregandoCustos && <p className="text-sm text-gray-600">Custo indisponível enquanto o cadastro de custos não carregar.</p>}
               <fieldset className="grid grid-cols-2 gap-3 rounded-xl border p-4">
                 <legend className="px-1 font-semibold text-brand-olive">Medidas para envio</legend>
                 <p className="col-span-2 text-sm text-gray-600">Informe as medidas e o peso de uma unidade pronta para embalar. Para kits, use os dados do kit inteiro.</p>
@@ -1422,8 +1474,8 @@ const Admin = ({ isAdmin, ehDono }: { isAdmin: boolean, ehDono: boolean }) => {
                   </label>
                 ))}
               </div>
-              <button className="w-full bg-brand-olive text-white py-3 rounded-full font-bold shadow-md hover:shadow-lg transition-all">
-                {editando ? "Salvar Alterações" : "Cadastrar Produto"}
+              <button type="submit" disabled={salvandoProduto} className="w-full bg-brand-olive text-white py-3 rounded-full font-bold shadow-md hover:shadow-lg transition-all">
+                {salvandoProduto ? "Salvando…" : editando ? "Salvar Alterações" : "Cadastrar Produto"}
               </button>
               {editando && (
                 <button type="button" onClick={() => { setEditando(null); setActiveTab("products"); }} className="w-full py-3 rounded-full font-medium text-gray-500 border border-brand-beige/30 hover:bg-gray-50">
@@ -1486,6 +1538,7 @@ const Admin = ({ isAdmin, ehDono }: { isAdmin: boolean, ehDono: boolean }) => {
                   <h4 className="font-medium text-brand-olive break-words">{p.name}</h4>
                   <p className="text-xs text-gray-500 break-words mt-1">{p.category}{(p.options || []).length > 0 ? ` • ${p.options.length} opções` : ""}{p.adult ? " • 18+" : ""}</p>
                   <div className="flex flex-wrap items-center gap-2 mt-2"><strong className="text-sm text-brand-olive">{reais(p.price)}</strong><span className={`text-xs rounded-full px-2 py-1 ${p.quantity > 0 ? 'bg-green-50 text-green-800' : 'bg-red-50 text-red-700'}`}>{p.quantity > 0 ? `Estoque: ${p.quantity}` : 'Esgotado'}</span></div>
+                  {!carregandoCustos && <p className="mt-1 text-xs text-gray-600">Custo: {custos[p.id] == null ? "Não informado" : Number(custos[p.id]).toLocaleString("pt-BR", { style: "currency", currency: "BRL", maximumFractionDigits: 4 })}</p>}
                 </div>
                 <div className={`flex flex-row flex-nowrap items-center gap-2 ${exibicaoProdutos === 'grade' ? 'mt-auto pt-3 border-t border-brand-beige/20' : 'col-span-2 sm:col-span-1 justify-end'}`}>
                   <button type="button" onClick={() => editarProduto(p)} aria-label={`Editar produto ${p.name}`} title="Alterar produto" className="inline-flex items-center justify-center w-10 h-10 rounded-xl border border-brand-beige/30 text-brand-olive hover:bg-brand-beige/10 focus-visible:ring-2 focus-visible:ring-brand-olive"><Pencil size={18} /></button>
