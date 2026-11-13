@@ -61,12 +61,31 @@ const ConsultarFrete:React.FC<{caixas:Caixa[]}> = ({caixas})=>{
  return <section className="bg-white border rounded-2xl p-5 mb-6 space-y-4">
   <h2 className="text-xl font-bold text-brand-olive">Consultar preço e prazo nos Correios</h2>
   <p className="text-sm text-gray-700">Destino: {cep||'cadastre seu CEP em Minha conta'}. A consulta usa o CEP da conta conectada. Informe o peso de todos os produtos, da caixa e da proteção juntos.</p>
-  <form onSubmit={consultar} className="space-y-3">
-   <label className="block text-sm font-semibold">Caixa<select required disabled={consultando} value={caixaId} onChange={e=>{setCaixaId(e.target.value);setResultado(null);}} className="block border rounded-lg p-2 w-full">
-    <option value="">Selecione</option>{caixas.filter(c=>c.ativo).map(c=><option key={c.id} value={c.id}>{c.nome} — {c.comprimento_cm} × {c.largura_cm} × {c.altura_cm} cm</option>)}
-   </select></label>
-   <label className="block text-sm font-semibold">Peso total do pacote (g)<input required disabled={consultando} type="number" min="1" max="30000" step="1" value={peso} onChange={e=>{setPeso(e.target.value);setResultado(null);}} className="block border rounded-lg p-2 w-full"/></label>
-   <button disabled={consultando||!cep} className="bg-brand-olive text-white rounded-xl px-4 py-3 font-semibold disabled:opacity-50">{consultando?'Consultando…':'Consultar Correios'}</button>
+  <form onSubmit={consultar} className="space-y-5">
+   <fieldset disabled={consultando} className="min-w-0">
+    <legend className="mb-2 text-sm font-semibold text-brand-olive">Caixa</legend>
+    <div className="grid gap-2 sm:grid-cols-2">
+     {caixas.filter(c => c.ativo).map(c => (
+      <label key={c.id} className="flex min-w-0 items-start gap-3 rounded-xl border border-brand-beige/60 bg-white px-3 py-3 cursor-pointer has-checked:border-brand-olive has-checked:bg-brand-mint/15">
+       <input type="radio" name="caixa-frete" required value={c.id} checked={caixaId === c.id}
+        onChange={() => { setCaixaId(c.id); setResultado(null); setErro(''); }}
+        className="mt-1 shrink-0 accent-brand-olive" />
+       <span className="min-w-0 text-sm">
+        <span className="block break-words font-semibold">{c.nome}</span>
+        <span className="block text-gray-600">{c.comprimento_cm} × {c.largura_cm} × {c.altura_cm} cm</span>
+       </span>
+      </label>
+     ))}
+    </div>
+    {!caixas.some(c => c.ativo) && <p className="text-sm text-gray-600">Nenhuma caixa ativa disponível.</p>}
+   </fieldset>
+   <label className="grid gap-2">
+    <span className="text-sm font-semibold text-brand-olive">Peso total do pacote (g)</span>
+    <input required disabled={consultando} type="number" inputMode="numeric" min="1" max="30000" step="1"
+     value={peso} onChange={e => { setPeso(e.target.value); setResultado(null); setErro(''); }}
+     className="min-h-11 w-full rounded-xl border border-brand-beige/60 px-3 py-2" />
+   </label>
+   <button disabled={consultando || !cep || !caixaId} className="bg-brand-olive text-white rounded-xl px-4 py-3 font-semibold disabled:opacity-50">{consultando?'Consultando…':'Consultar Correios'}</button>
   </form>
   {erro&&<p role="alert" className="text-red-700">{erro}</p>}
   {resultado&&<div role="status" className="space-y-2"><p className="font-semibold">Opções para o CEP {resultado.cepDestino}</p>{resultado.opcoes.map(o=><p key={o.codigo}>Serviço {o.codigo}: {o.valor.toLocaleString('pt-BR',{style:'currency',currency:'BRL'})} · {o.prazoDias===null?'Prazo não informado':o.prazoDias+' dias úteis'}</p>)}
@@ -106,7 +125,7 @@ export const EditarCaixasLoja:React.FC<{temAcesso:boolean}> = ({temAcesso})=>{
    {carregando?<p>Carregando modelos…</p>:<div className="grid gap-4 md:grid-cols-2">{caixas.map(c=><section key={c.id} className="bg-white border border-brand-beige/30 rounded-2xl p-5 space-y-4">
     <h2 className="font-bold text-brand-olive text-xl flex gap-2 items-center"><Package size={20}/> Caixa {c.id} {c.exemplo?'· Exemplo':''}</h2>
     <label className="block text-sm font-semibold">Nome<input value={c.nome} onChange={e=>alterar(c.id,'nome',e.target.value)} className="block border rounded-lg px-3 py-2 mt-1 w-full"/></label>
-    <div className="grid grid-cols-2 gap-2">{([['comprimento_cm','Comprimento (cm)'],['largura_cm','Largura (cm)'],['altura_cm','Altura (cm)'],['peso_embalagem_g','Peso da caixa (g)']] as const).map(([campo,label])=><label key={campo} className="text-xs font-semibold">{label}<input type="number" min={campo==='peso_embalagem_g'?0:1} step={campo==='peso_embalagem_g'?1:0.1} value={c[campo]} onChange={e=>alterar(c.id,campo,e.target.value)} className="block border rounded-lg px-3 py-2 mt-1 w-full"/></label>)}</div>
+    <div className="grid grid-cols-1 gap-3 min-[360px]:grid-cols-2">{([['comprimento_cm','Comprimento (cm)'],['largura_cm','Largura (cm)'],['altura_cm','Altura (cm)'],['peso_embalagem_g','Peso da caixa (g)']] as const).map(([campo,label])=><label key={campo} className="grid min-w-0 gap-2 text-xs font-semibold"><span>{label}</span><input type="number" min={campo==='peso_embalagem_g'?0:1} step={campo==='peso_embalagem_g'?1:0.1} value={c[campo]} onChange={e=>alterar(c.id,campo,e.target.value)} className="min-h-11 w-full min-w-0 rounded-lg border px-3 py-2"/></label>)}</div>
     <label className="flex gap-2 text-sm"><input type="checkbox" checked={c.exemplo} onChange={e=>alterar(c.id,'exemplo',e.target.checked)}/> Medidas ainda são exemplo</label>
     <label className="flex gap-2 text-sm"><input type="checkbox" checked={c.ativo} onChange={e=>alterar(c.id,'ativo',e.target.checked)}/> Caixa ativa</label>
     <button disabled={salvando!==null} onClick={()=>void salvar(c)} className="bg-brand-olive text-white px-4 py-3 rounded-xl font-semibold inline-flex items-center gap-2 disabled:opacity-50"><Save size={17}/>{salvando===c.id?'Salvando…':'Salvar caixa '+c.id}</button>
