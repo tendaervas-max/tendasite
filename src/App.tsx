@@ -10,6 +10,7 @@ import { Product, CartItem } from "./types";
 import { abrirCheckoutMercadoPago, mercadoPagoHabilitado } from "./lib/mercadopago";
 import { ConfirmarFrete, ConfirmarRetirada, dataBrasilia, statusRetiradaPaga } from "./PedidoOperacao";
 import type { RetiradaAgendada } from "./PedidoOperacao";
+import { consultarCep, formatarCep } from "./lib/cep";
 import { cotarFreteCorreios, ErroFreteCorreios } from "./lib/freteCorreios";
 import type { OpcaoFrete } from "./lib/freteCorreios";
 import { EditarCaixasLoja } from "./Embalagens";
@@ -2504,40 +2505,42 @@ const montarEndereco = (d: DadosCliente) =>
 // Método que confere os dados do cliente antes de gravar e devolve o aviso do que está errado (null quando está tudo certo)
 const problemaDadosCliente = (d: DadosCliente, conferirCpf: boolean) =>
   conferirCpf && !cpfValido(d.cpf) ? "CPF inválido. Confira os números digitados."
-    : !d.cidade ? "Digite um CEP válido para preencher o endereço de entrega."
+    : !/^\d{8}$/.test(d.cep.replace(/\D/g, "")) ? "Informe os oito dígitos do CEP."
+    : !d.rua.trim() || !d.number.trim() || !d.cidade.trim() || !/^[A-Z]{2}$/.test(d.uf) ? "Preencha a rua, o número, a cidade e a UF do endereço."
     : null;
 
 // Campos de nome, CPF, endereço pelo CEP (ViaCEP) e WhatsApp, usados no cadastro e ao completar o cadastro
 const CamposCliente = ({ dados, setDados, travarNomeCpf = false }: { dados: DadosCliente, setDados: React.Dispatch<React.SetStateAction<DadosCliente>>, travarNomeCpf?: boolean }) => {
-  const [cepStatus, setCepStatus] = useState<"" | "buscando" | "achou" | "erro">(dados.cidade ? "achou" : "");
+  const [cepStatus, setCepStatus] = useState<"" | "buscando" | "achou" | "nao_encontrado" | "indisponivel">(dados.cidade ? "achou" : "");
+  const [manual, setManual] = useState(false);
+  const [tentativaCep, setTentativaCep] = useState(0);
+  const cep = dados.cep.replace(/\D/g, "");
 
-  // Com o CEP já preenchido (tela Minha conta), busca a rua e o bairro ao abrir
   useEffect(() => {
-    if (!dados.cidade && dados.cep.replace(/\D/g, "").length === 8) buscarCep(dados.cep);
-  }, []);
+    if (cep.length !== 8 || manual || (tentativaCep === 0 && dados.cidade)) return;
+    const controle = new AbortController();
+    setCepStatus("buscando");
+    void consultarCep(cep, controle.signal).then(resultado => {
+      if (controle.signal.aborted) return;
+      if (resultado.status === "achou") {
+        setDados(d => d.cep.replace(/\D/g, "") === cep ? { ...d, ...resultado.endereco } : d);
+      }
+      setCepStatus(resultado.status);
+    });
+    return () => controle.abort();
+  }, [cep, manual, tentativaCep, setDados]);
 
-  // Método que preenche rua, bairro e cidade a partir do CEP
-  const buscarCep = async (valor: string) => {
-    setDados(d => ({ ...d, cep: valor }));
-    const cep = valor.replace(/\D/g, "");
-    if (cep.length !== 8) {
-      setCepStatus("");
-      setDados(d => ({ ...d, cidade: "" }));
+  function alterarCep(valor: string) {
+    const formatado = formatarCep(valor);
+    if (formatado.replace(/\D/g, "") === cep) {
+      setDados(d => ({ ...d, cep: formatado }));
       return;
     }
-    setCepStatus("buscando");
-    try {
-      const r = await fetch(`https://viacep.com.br/ws/${cep}/json/`).then(resposta => resposta.json());
-      if (r.erro) {
-        setCepStatus("erro");
-        return;
-      }
-      setDados(d => ({ ...d, rua: r.logradouro || "", bairro: r.bairro || "", cidade: r.localidade || "", uf: r.uf || "" }));
-      setCepStatus("achou");
-    } catch {
-      setCepStatus("erro");
-    }
-  };
+    setCepStatus("");
+    setManual(false);
+    setTentativaCep(0);
+    setDados(d => ({ ...d, cep: formatado, rua: "", bairro: "", cidade: "", uf: "", number: "", complemento: "" }));
+  }
 
   const campo = "w-full px-4 py-3 rounded-xl border border-brand-beige/30";
 
@@ -2568,14 +2571,31 @@ const CamposCliente = ({ dados, setDados, travarNomeCpf = false }: { dados: Dado
         </label>
       )}
       <div>
-        <input placeholder="CEP" inputMode="numeric" maxLength={9} value={dados.cep} onChange={e => buscarCep(e.target.value)} className={campo} required />
-        {cepStatus === "buscando" && <p className="text-xs text-gray-500 mt-1 px-1">Buscando o endereço...</p>}
-        {cepStatus === "erro" && <p className="text-xs text-red-600 mt-1 px-1">Não achamos esse CEP. Confira os números.</p>}
+        <input aria-label="CEP" placeholder="CEP" autoComplete="postal-code" inputMode="numeric" maxLength={9}
+          value={dados.cep} onChange={e => alterarCep(e.target.value)} className={campo} required />
+        {!manual && cepStatus === "buscando" && <p role="status" className="mt-1 text-sm">Buscando o endereço…</p>}
+        {!manual && cepStatus === "nao_encontrado" && <p role="status" className="mt-1 text-sm text-red-700">CEP não encontrado. Confira os oito dígitos.</p>}
+        {!manual && cepStatus === "indisponivel" && <p role="status" className="mt-1 text-sm">A consulta de CEP está indisponível no momento.</p>}
+        {cep.length === 8 && !manual && cepStatus !== "achou" && (
+          <div className="mt-2 flex flex-wrap gap-4 text-sm font-semibold text-brand-olive">
+            {cepStatus !== "buscando" && <button type="button" className="underline" onClick={() => setTentativaCep(n => n + 1)}>Buscar CEP novamente</button>}
+            <button type="button" className="underline" onClick={() => setManual(true)}>Preencher endereço manualmente</button>
+          </div>
+        )}
       </div>
-      {cepStatus === "achou" && (
+      {(manual || cepStatus === "achou") && (
         <>
-          <input placeholder="Rua" value={dados.rua} onChange={e => setDados({ ...dados, rua: e.target.value })} className={campo} required />
-          <p className="text-sm text-gray-600 px-1">{[dados.bairro, `${dados.cidade}/${dados.uf}`].filter(Boolean).join(" · ")}</p>
+          <input aria-label="Rua" placeholder="Rua" autoComplete="address-line1" value={dados.rua} onChange={e => setDados(d => ({ ...d, rua: e.target.value }))} className={campo} required />
+          {manual || !dados.bairro ? (
+            <input aria-label="Bairro" placeholder="Bairro" value={dados.bairro} onChange={e => setDados(d => ({ ...d, bairro: e.target.value }))} className={campo} />
+          ) : <p className="text-sm text-gray-600 px-1">{dados.bairro}</p>}
+          {manual ? (
+            <div className="grid grid-cols-[1fr_5rem] gap-4">
+              <input aria-label="Cidade" placeholder="Cidade" value={dados.cidade} onChange={e => setDados(d => ({ ...d, cidade: e.target.value }))} className={campo} required />
+              <input aria-label="UF" placeholder="UF" maxLength={2} pattern="[A-Z]{2}" value={dados.uf}
+                onChange={e => setDados(d => ({ ...d, uf: e.target.value.toUpperCase().replace(/[^A-Z]/g, "") }))} className={campo} required />
+            </div>
+          ) : <p className="text-sm text-gray-600 px-1">{dados.cidade}/{dados.uf}</p>}
           <div className="grid grid-cols-2 gap-4">
             <input placeholder="Número" value={dados.number} onChange={e => setDados({ ...dados, number: e.target.value })} className={campo} required />
             <input placeholder="Complemento" value={dados.complemento} onChange={e => setDados({ ...dados, complemento: e.target.value })} className={campo} />
