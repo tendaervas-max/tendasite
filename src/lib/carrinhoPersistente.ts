@@ -35,6 +35,9 @@ export function carregarCarrinho(): CartItem[] {
         options: Array.isArray(p.options) ? p.options.filter((v: unknown) =>
           !!v && typeof v === 'object' && typeof (v as {nome?: unknown}).nome === 'string'
         ).slice(0, 100) : [],
+        kit_variacoes: Array.isArray(p.kit_variacoes) ? p.kit_variacoes.filter((v: any) =>
+          v && typeof v.nome === 'string' && Number.isInteger(v.quantidade) && v.quantidade > 0 &&
+          typeof v.preco === 'number' && Number.isFinite(v.preco) && v.preco > 0) : [],
         adult: p.adult === true,
         preco_promocional: typeof p.preco_promocional === 'number' ? p.preco_promocional : null,
         promocao_ate: typeof p.promocao_ate === 'string' ? p.promocao_ate : null

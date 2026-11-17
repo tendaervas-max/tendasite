@@ -15,6 +15,7 @@ export interface Product {
   color_stock?: Record<string, number> | null;
   category: string;
   options: OpcaoProduto[];
+  kit_variacoes?: { nome: string; quantidade: number; preco: number }[];
   adult: boolean;
   peso_envio_g?: number | null;
   comprimento_envio_cm?: number | null;

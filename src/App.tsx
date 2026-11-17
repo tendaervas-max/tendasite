@@ -11,6 +11,9 @@ import { abrirCheckoutMercadoPago, mercadoPagoHabilitado } from "./lib/mercadopa
 import { ConfirmarFrete, ConfirmarRetirada, dataBrasilia, statusRetiradaPaga } from "./PedidoOperacao";
 import type { RetiradaAgendada } from "./PedidoOperacao";
 import { consultarCep, formatarCep } from "./lib/cep";
+import { EditorVariacoesKit } from "./EditorVariacoesKit";
+import type { VariacaoKit } from "./EditorVariacoesKit";
+import { variacoesKit, precoPorOpcao, quantidadePorOpcao } from "./lib/variacoesKit";
 import { cotarFreteCorreios, ErroFreteCorreios } from "./lib/freteCorreios";
 import type { OpcaoFrete } from "./lib/freteCorreios";
 import { EditarCaixasLoja } from "./Embalagens";
@@ -283,13 +286,16 @@ const useCategorias = () => {
 
 // Método que diz o que o cliente escolhe no produto: aroma, sabor ou cor
 const tipoOpcao = (product: Product) =>
+  variacoesKit(product).length ? "quantidade" :
   ["Incensos", "Defumadores"].includes(product.category) ? "aroma" : product.category === "Fumo" ? "sabor" : "cor";
 
 const ProductCard = ({ product, onAddToCart, onAbrir }: { product: Product, onAddToCart: (p: Product, qty: number, opcao?: string) => void, onAbrir: (p: Product) => void }) => {
   const [qty, setQty] = useState(1);
   const [adicionado, setAdicionado] = useState(false);
   const esgotado = product.quantity <= 0;
-  const temOpcoes = (product.options || []).length > 0 || Object.keys(product.color_stock || {}).length > 0;
+  const variacoes = variacoesKit(product);
+  const precoVitrine = variacoes.length ? Math.min(...variacoes.map(v => v.preco)) : product.price;
+  const temOpcoes = variacoesKit(product).length > 0 || (product.options || []).length > 0 || Object.keys(product.color_stock || {}).length > 0;
 
   // Método que adiciona ao carrinho e mostra "Adicionado" no botão por um instante
   const adicionar = () => {
@@ -313,10 +319,10 @@ const ProductCard = ({ product, onAddToCart, onAbrir }: { product: Product, onAd
           referrerPolicy="no-referrer"
         />
         <div className="absolute top-2 right-2 bg-white/90 backdrop-blur-sm px-3 py-1 rounded-full text-xs font-bold text-brand-olive shadow-sm">
-          {product.precoOriginal && <span className="line-through text-gray-400 font-normal mr-1">{reais(product.precoOriginal)}</span>}
-          {reais(product.price)}
+          {!variacoes.length && product.precoOriginal && <span className="line-through text-gray-400 font-normal mr-1">{reais(product.precoOriginal)}</span>}
+          {variacoes.length ? "A partir de " : ""}{reais(precoVitrine)}
         </div>
-        {product.precoOriginal && (
+        {!variacoes.length && product.precoOriginal && (
           <div className="absolute bottom-2 left-2 bg-brand-mint text-brand-olive px-2.5 py-1 rounded-full text-xs font-bold shadow-sm">Promoção</div>
         )}
         {product.adult && (
@@ -389,8 +395,10 @@ const JanelaProduto = ({ product, onFechar, onAddToCart }: { product: Product, o
     return () => {document.removeEventListener('keydown', teclado); anterior?.focus();};
   }, []);
   // Com duas opções ou mais, o cliente também pode deixar a loja escolher (Aleatório)
-  const coresCadastradas = Object.keys(product.color_stock || {});
-  const opcoes = coresCadastradas.length > 0
+  const variacoes = variacoesKit(product);
+  const temVariacoes = variacoes.length > 0;
+  const coresCadastradas = temVariacoes ? [] : Object.keys(product.color_stock || {});
+  const opcoes = temVariacoes ? variacoes.map(v => ({ nome: v.nome, imagem: undefined as string | undefined })) : coresCadastradas.length > 0
     ? coresCadastradas.map(nome=>({nome, imagem: undefined as string | undefined}))
     : (product.options || []).length >= 2 ? [...product.options, { nome: "Aleatório" }] : (product.options || []);
   const [opcao, setOpcao] = useState<string | undefined>(opcoes.length === 1 ? opcoes[0].nome : undefined);
@@ -400,9 +408,10 @@ const JanelaProduto = ({ product, onFechar, onAddToCart }: { product: Product, o
   const [fotoSelecionada, setFotoSelecionada] = useState(0);
   const foto = opcoes.find(o => o.nome === opcao)?.imagem || galeria[fotoSelecionada] || '/produto-sem-foto.svg';
   const corFoto = product.image_colors?.[galeria[fotoSelecionada]] || '';
-  const coresEstoque = Object.entries(product.color_stock || {});
-  const estoqueDaOpcao = coresEstoque.length > 0 ? Number(product.color_stock?.[opcao || ''] ?? 0) : product.quantity;
-  const falta = coresEstoque.length > 0 ? !opcao || estoqueDaOpcao <= 0 : opcoes.length > 0 && !opcao;
+  const coresEstoque = temVariacoes ? [] : Object.entries(product.color_stock || {});
+  const estoqueDaOpcao = coresEstoque.length > 0 ? Number(product.color_stock?.[opcao || ''] ?? 0) : Math.floor(product.quantity / quantidadePorOpcao(product, opcao));
+  const preco = precoPorOpcao(product, opcao);
+  const falta = estoqueDaOpcao <= 0 || (coresEstoque.length > 0 ? !opcao || estoqueDaOpcao <= 0 : opcoes.length > 0 && !opcao);
 
   // Método que adiciona a opção escolhida ao carrinho e fecha a janela
   const adicionar = () => {
@@ -425,7 +434,7 @@ const JanelaProduto = ({ product, onFechar, onAddToCart }: { product: Product, o
           {galeria.length > 1 && (
             <div className="flex gap-2 overflow-x-auto p-3" aria-label="Fotos do produto">
               {galeria.map((url, i) => (
-                <button type="button" key={url} onClick={() => { setFotoSelecionada(i); const cor=product.image_colors?.[url]?.trim(); if(cor && Object.prototype.hasOwnProperty.call(product.color_stock || {},cor)) setOpcao(cor); }}
+                <button type="button" key={url} onClick={() => { setFotoSelecionada(i); const cor=product.image_colors?.[url]?.trim(); if(!temVariacoes && cor && Object.prototype.hasOwnProperty.call(product.color_stock || {},cor)) setOpcao(cor); }}
                   aria-label={`Ver foto ${i + 1}`} aria-pressed={fotoSelecionada === i}
                   className={`shrink-0 rounded-lg border-2 ${fotoSelecionada === i ? 'border-brand-olive' : 'border-transparent'}`}>
                   <img src={url} alt={`Miniatura ${i + 1}`} className="h-16 w-16 rounded object-cover" />
@@ -441,9 +450,9 @@ const JanelaProduto = ({ product, onFechar, onAddToCart }: { product: Product, o
             <div className="text-xs text-gray-500 uppercase tracking-widest">{product.category}</div>
             <h3 className="text-3xl font-serif text-brand-olive pr-8">{product.name}</h3>
             <div className="text-xl font-bold text-brand-olive mt-1">
-              {product.precoOriginal && <span className="line-through text-gray-400 font-normal text-base mr-2">{reais(product.precoOriginal)}</span>}
-              {reais(product.price)}
-              {product.precoOriginal && <span className="ml-2 align-middle text-xs bg-brand-mint text-brand-olive px-2 py-0.5 rounded-full">Promoção</span>}
+              {!temVariacoes && product.precoOriginal && <span className="line-through text-gray-400 font-normal text-base mr-2">{reais(product.precoOriginal)}</span>}
+              {temVariacoes && !opcao ? "A partir de " + reais(Math.min(...variacoes.map(v => v.preco))) : reais(preco)}
+              {!temVariacoes && product.precoOriginal && <span className="ml-2 align-middle text-xs bg-brand-mint text-brand-olive px-2 py-0.5 rounded-full">Promoção</span>}
             </div>
           </div>
           {product.description && <p className="text-sm text-gray-600 leading-relaxed">{product.description}</p>}
@@ -456,13 +465,14 @@ const JanelaProduto = ({ product, onFechar, onAddToCart }: { product: Product, o
           )}
           {opcoes.length > 0 && (
             <div>
-              <div className="text-sm font-medium text-brand-olive mb-2">Escolha {tipoOpcao(product) === "cor" ? "a cor" : `o ${tipoOpcao(product)}`}</div>
+              <div className="text-sm font-medium text-brand-olive mb-2">Escolha {temVariacoes ? "a quantidade do kit" : tipoOpcao(product) === "cor" ? "a cor" : `o ${tipoOpcao(product)}`}</div>
               <div className="flex flex-wrap gap-2">
                 {opcoes.map(o => (
                   <button
                     key={o.nome}
                     type="button"
-                    disabled={coresCadastradas.length > 0 && Number(product.color_stock?.[o.nome] || 0) <= 0}
+                    aria-pressed={opcao === o.nome}
+                    disabled={temVariacoes ? Math.floor(product.quantity / quantidadePorOpcao(product, o.nome)) <= 0 : coresCadastradas.length > 0 && Number(product.color_stock?.[o.nome] || 0) <= 0}
                     onClick={() => {
                       setOpcao(o.nome);
                       const index=galeria.findIndex(url => (product.image_colors?.[url] || '').trim().toLocaleLowerCase('pt-BR') === o.nome.trim().toLocaleLowerCase('pt-BR'));
@@ -471,14 +481,14 @@ const JanelaProduto = ({ product, onFechar, onAddToCart }: { product: Product, o
                     }}
                     className={`px-3 py-1.5 rounded-full text-sm border transition-all ${opcao === o.nome ? "bg-brand-olive text-white border-brand-olive" : "border-brand-beige/50 text-gray-700 hover:border-brand-olive"}`}
                   >
-                    {o.nome}{coresCadastradas.length > 0 ? ` (${product.color_stock?.[o.nome] || 0})` : ''}
+                    {temVariacoes ? `${quantidadePorOpcao(product, o.nome)} kit(s) · ${reais(precoPorOpcao(product, o.nome))}` : o.nome}{!temVariacoes && coresCadastradas.length > 0 ? ` (${product.color_stock?.[o.nome] || 0})` : ''}
                   </button>
                 ))}
               </div>
             </div>
           )}
           <div className="flex items-center justify-between">
-            <span className="text-xs text-gray-500 uppercase tracking-widest">Estoque: {coresCadastradas.length && opcao ? estoqueDaOpcao : product.quantity}</span>
+            <span className="text-xs text-gray-500 uppercase tracking-widest">Estoque: {opcao ? estoqueDaOpcao : product.quantity}</span>
             {!esgotado && <div className="flex items-center border border-brand-beige/30 rounded-full px-2 py-0.5">
               <button type="button" aria-label={`Diminuir quantidade de ${product.name}`} onClick={() => setQty(Math.max(1, qty - 1))} className="px-2 text-brand-olive">-</button>
               <span className="mx-2 text-sm font-medium">{qty}</span>
@@ -490,7 +500,7 @@ const JanelaProduto = ({ product, onFechar, onAddToCart }: { product: Product, o
             disabled={esgotado || falta}
             className="w-full bg-brand-olive text-white py-3 rounded-full font-bold shadow-md flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
           >
-            {esgotado ? "Esgotado" : falta ? `Escolha ${tipoOpcao(product) === "cor" ? "a cor" : `o ${tipoOpcao(product)}`}` : <><Plus size={16} /> Adicionar {reais(product.price * qty)}</>}
+            {esgotado ? "Esgotado" : falta ? temVariacoes ? "Escolha a quantidade do kit" : `Escolha ${tipoOpcao(product) === "cor" ? "a cor" : `o ${tipoOpcao(product)}`}` : <><Plus size={16} /> Adicionar {reais(preco * qty)}</>}
           </button>
         </div>
       </motion.div>
@@ -865,6 +875,7 @@ const Admin = ({ isAdmin, ehDono }: { isAdmin: boolean, ehDono: boolean }) => {
   const [retiradas, setRetiradas] = useState<Record<number, RetiradaAgendada>>({});
   const [orders, setOrders] = useState<any[]>([]);
   const [erroBanco, setErroBanco] = useState("");
+  const [variacoesEdicao, setVariacoesEdicao] = useState<VariacaoKit[]>([]);
   const [newProduct, setNewProduct] = useState({ name: "", description: "", price: "", quantity: "", category: "Ervas", opcoes: "", adult: false, peso_envio_g: "", comprimento_envio_cm: "", largura_envio_cm: "", altura_envio_cm: "" });
   const [imagesNovas, setImagesNovas] = useState<File[]>([]);
   const [coresExistentes, setCoresExistentes] = useState<Record<string,string>>({});
@@ -1077,6 +1088,7 @@ const Admin = ({ isAdmin, ehDono }: { isAdmin: boolean, ehDono: boolean }) => {
   // Método que abre o formulário vazio para cadastrar um produto novo
   const novoProduto = () => {
     setEditando(null);
+    setVariacoesEdicao([]);
     setCusto("");
     setCustoAlterado(false);
     setNewProduct({ name: "", description: "", price: "", quantity: "", category: "Ervas", opcoes: "", adult: false, peso_envio_g: "", comprimento_envio_cm: "", largura_envio_cm: "", altura_envio_cm: "" });
@@ -1092,6 +1104,7 @@ const Admin = ({ isAdmin, ehDono }: { isAdmin: boolean, ehDono: boolean }) => {
   // Método que abre o formulário com os dados do produto para alterar
   const editarProduto = (p: Product) => {
     setEditando(p);
+    setVariacoesEdicao(p.kit_variacoes || []);
     setCusto(String(custos[p.id] ?? "").replace(".", ","));
     setCustoAlterado(false);
     setNewProduct({
@@ -1166,6 +1179,7 @@ const Admin = ({ isAdmin, ehDono }: { isAdmin: boolean, ehDono: boolean }) => {
         comprimento_envio_cm: newProduct.comprimento_envio_cm === "" ? null : Number(newProduct.comprimento_envio_cm),
         largura_envio_cm: newProduct.largura_envio_cm === "" ? null : Number(newProduct.largura_envio_cm),
         altura_envio_cm: newProduct.altura_envio_cm === "" ? null : Number(newProduct.altura_envio_cm),
+        kit_variacoes: newProduct.category === "Kits" ? variacoesEdicao : [],
         adult: newProduct.adult
       };
 
@@ -1367,6 +1381,7 @@ const Admin = ({ isAdmin, ehDono }: { isAdmin: boolean, ehDono: boolean }) => {
                   className="mt-1 block w-full rounded-lg border border-brand-beige/30 px-4 py-2 disabled:opacity-60" />
               </label>
               {carregandoCustos && <p className="text-sm text-gray-600">Custo indisponível enquanto o cadastro de custos não carregar.</p>}
+              {newProduct.category === "Kits" && <EditorVariacoesKit value={variacoesEdicao} onChange={setVariacoesEdicao} />}
               <fieldset className="grid grid-cols-2 gap-3 rounded-xl border p-4">
                 <legend className="px-1 font-semibold text-brand-olive">Medidas para envio</legend>
                 <p className="col-span-2 text-sm text-gray-600">Informe as medidas e o peso de uma unidade pronta para embalar. Para kits, use os dados do kit inteiro.</p>
@@ -3030,6 +3045,23 @@ export default function App() {
 
   // Persiste inclusões, mudanças de quantidade e remoções; depois de finalizar limpa também o armazenamento.
   useEffect(() => { salvarCarrinho(cart); }, [cart]);
+  useEffect(() => {
+    if (!cart.length) return;
+    let ativo = true;
+    void supabase.from("products").select("*").eq("ativo", true).then(({ data, error }) => {
+      if (!ativo || error || !data) return;
+      const atuais = new Map(comEstoqueDosKits(data).map(comPromocao).map(p => [p.id, p]));
+      setCart(itens => itens.flatMap(item => {
+        const produto = atuais.get(item.id) as Product | undefined;
+        if (!produto) return [];
+        const variacoes = variacoesKit(produto);
+        if (variacoes.length && !variacoes.some(v => v.nome === item.opcao)) return [];
+        return [{ ...produto, price: precoPorOpcao(produto, item.opcao), opcao: item.opcao, cartQuantity: item.cartQuantity }];
+      }));
+    });
+    return () => { ativo = false; };
+  }, []);
+
   const [isAdmin, setIsAdmin] = useState(false);
   const [acessoGestao, setAcessoGestao] = useState(false);
   const [ehDono, setEhDono] = useState(false);
@@ -3083,7 +3115,7 @@ export default function App() {
   const estoque = (product: Product) => product.quantity + (edicao?.reservado[product.id] || 0);
 
   // Método que põe no carrinho os itens de um pedido: para editar (o pedido é refeito) ou para fazer um pedido igual
-  const carregarPedido = async (pedido: { id: number, delivery_method: string, items: { id: number, nome: string, opcao?: string | null, quantidade: number }[] }, editar: boolean) => {
+  const carregarPedido = async (pedido: { id: number, delivery_method: string, items: { id: number, nome: string, opcao?: string | null, quantidade: number; multiplicador_kit?: number }[] }, editar: boolean) => {
     const itens = pedido.items || [];
     if (itens.length === 0) {
       alert("Este pedido não tem os itens gravados. Escolha os produtos de novo na loja, ou fale com a gente pelo WhatsApp.");
@@ -3100,7 +3132,7 @@ export default function App() {
 
     // Na edição, o estoque que o próprio pedido segura conta como disponível
     const reservado: { [produto: number]: number } = {};
-    if (editar) itens.forEach(item => { reservado[item.id] = (reservado[item.id] || 0) + item.quantidade; });
+    if (editar) itens.forEach(item => { reservado[item.id] = (reservado[item.id] || 0) + item.quantidade * (item.multiplicador_kit || 1); });
 
     const fora: string[] = [];
     const avisos: string[] = [];
@@ -3108,7 +3140,7 @@ export default function App() {
     const novoCarrinho: CartItem[] = [];
     itens.forEach(item => {
       const produto = (produtos || []).find(p => p.id === item.id) as Product | undefined;
-      const opcoes = produto?.options || [];
+      const opcoes = produto && variacoesKit(produto).length ? variacoesKit(produto) : produto?.options || [];
       const opcao = opcoes.length === 0 ? undefined : item.opcao || undefined;
       const nome = item.opcao ? `${item.nome} (${item.opcao})` : item.nome;
       if (!produto || (opcoes.length > 0 && opcao !== "Aleatório" && !opcoes.some(o => o.nome === opcao))) {
@@ -3116,14 +3148,14 @@ export default function App() {
         return;
       }
       const disponivel = produto.quantity + (reservado[produto.id] || 0) - (usado[produto.id] || 0);
-      const quantidade = Math.min(item.quantidade, disponivel);
+      const quantidade = Math.min(item.quantidade, Math.floor(disponivel / quantidadePorOpcao(produto, opcao)));
       if (quantidade <= 0) {
         avisos.push(`${nome}: esgotado`);
         return;
       }
       if (quantidade < item.quantidade) avisos.push(`${nome}: só ${quantidade} em estoque`);
-      usado[produto.id] = (usado[produto.id] || 0) + quantidade;
-      novoCarrinho.push({ ...produto, opcao, cartQuantity: quantidade });
+      usado[produto.id] = (usado[produto.id] || 0) + quantidade * quantidadePorOpcao(produto, opcao);
+      novoCarrinho.push({ ...produto, price: precoPorOpcao(produto, opcao), opcao, cartQuantity: quantidade });
     });
 
     if (novoCarrinho.length === 0) {
@@ -3146,8 +3178,8 @@ export default function App() {
 
   // O estoque é do produto: as cores e aromas do mesmo produto somam juntos
   const addToCart = (product: Product, qty: number, opcao?: string) => {
-    const noCarrinho = cart.filter(item => item.id === product.id).reduce((total, item) => total + item.cartQuantity, 0);
-    const quantidade = Math.min(qty, estoque(product) - noCarrinho);
+    const noCarrinho = cart.filter(item => item.id === product.id).reduce((total, item) => total + item.cartQuantity * quantidadePorOpcao(item, item.opcao), 0);
+    const quantidade = Math.min(qty, Math.floor((estoque(product) - noCarrinho) / quantidadePorOpcao(product, opcao)));
     if (quantidade <= 0) {
       mostrarAviso(`Você já tem todo o estoque de ${product.name} no carrinho`);
       return;
@@ -3160,7 +3192,7 @@ export default function App() {
           chaveCarrinho(item.id, item.opcao) === chave ? { ...item, cartQuantity: item.cartQuantity + quantidade } : item
         );
       }
-      return [...prev, { ...product, opcao, cartQuantity: quantidade }];
+      return [...prev, { ...product, price: precoPorOpcao(product, opcao), opcao, cartQuantity: quantidade }];
     });
     const nome = opcao ? `${product.name} (${opcao})` : product.name;
     mostrarAviso(`${quantidade}x ${nome} ${quantidade > 1 ? "adicionados" : "adicionado"} ao carrinho`);
@@ -3169,8 +3201,8 @@ export default function App() {
   const updateCartQuantity = (chave: string, delta: number) => {
     setCart(prev => prev.map(item => {
       if (chaveCarrinho(item.id, item.opcao) === chave) {
-        const outros = prev.filter(i => i.id === item.id && chaveCarrinho(i.id, i.opcao) !== chave).reduce((total, i) => total + i.cartQuantity, 0);
-        const newQty = Math.min(Math.max(1, estoque(item) - outros), Math.max(1, item.cartQuantity + delta));
+        const outros = prev.filter(i => i.id === item.id && chaveCarrinho(i.id, i.opcao) !== chave).reduce((total, i) => total + i.cartQuantity * quantidadePorOpcao(i, i.opcao), 0);
+        const newQty = Math.min(Math.max(1, Math.floor((estoque(item) - outros) / quantidadePorOpcao(item, item.opcao))), Math.max(1, item.cartQuantity + delta));
         return { ...item, cartQuantity: newQty };
       }
       return item;

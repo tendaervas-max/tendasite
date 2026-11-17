@@ -78,7 +78,7 @@ Deno.serve(async req => {
       }
       const ids = [...new Set(itens.map(item => item.id))];
       const [produtos, caixas] = await Promise.all([
-        supabase.from("products").select("id,category,kit_itens,peso_envio_g,comprimento_envio_cm,largura_envio_cm,altura_envio_cm").eq("ativo", true).in("id", ids),
+        supabase.from("products").select("id,category,kit_itens,kit_variacoes,peso_envio_g,comprimento_envio_cm,largura_envio_cm,altura_envio_cm").eq("ativo", true).in("id", ids),
         supabase.from("configuracao_frete_tenda").select("id,comprimento_cm,largura_cm,altura_cm,peso_embalagem_g")
           .eq("ativo", true).eq("exemplo", false).gt("peso_embalagem_g", 0).order("id")
       ]);
@@ -100,15 +100,19 @@ Deno.serve(async req => {
       let pilha = 0;
       for (const item of itens) {
         const produto = catalogo.get(item.id);
+        const variacoes = Array.isArray(produto?.kit_variacoes) ? produto.kit_variacoes : [];
+        const variacao = variacoes.find(v => v.nome === item.opcao);
+        if (variacoes.length && !variacao) return json(422, { erro: "Escolha uma quantidade válida para o kit." });
+        const quantidade = item.quantidade * (variacao?.quantidade || 1);
         if (!produto?.peso_envio_g || !produto.comprimento_envio_cm || !produto.largura_envio_cm || !produto.altura_envio_cm) {
           return json(422, { erro: "O frete precisa ser confirmado pela loja." });
         }
         const [maior, menor, espessura] = [produto.comprimento_envio_cm, produto.largura_envio_cm, produto.altura_envio_cm]
           .map(Number).sort((a, b) => b - a);
-        pesoProdutos += produto.peso_envio_g * item.quantidade;
+        pesoProdutos += produto.peso_envio_g * quantidade;
         baseMaior = Math.max(baseMaior, maior);
         baseMenor = Math.max(baseMenor, menor);
-        pilha += espessura * item.quantidade;
+        pilha += espessura * quantidade;
       }
       const pacote = [baseMaior, baseMenor, Math.round(pilha * 10) / 10].sort((a, b) => b - a);
       const modelos = (caixas.data || []).map(caixa => ({
