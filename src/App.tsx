@@ -1,6 +1,8 @@
 import { gerarPixCopiaECola } from "./lib/pixEstatico";
 import { qrcodegen } from "./lib/qrcodegen";
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
+import { GaleriaOrdenavel, ImagemArquivo } from "./GaleriaOrdenavel";
+import { ordenarFotos } from "./lib/ordemFotos";
 import { BrowserRouter as Router, Routes, Route, Link, useNavigate, useLocation, useSearchParams } from "react-router-dom";
 import { motion, AnimatePresence } from "motion/react";
 import { ShoppingCart, User, LogOut, Plus, Pencil, Trash2, Instagram, Phone, MapPin, Menu, X, ChevronRight, Leaf, Check, Database, Eye, EyeOff, Search } from "lucide-react";
@@ -884,6 +886,18 @@ const Admin = ({ isAdmin, ehDono }: { isAdmin: boolean, ehDono: boolean }) => {
   const [estoquePorCor, setEstoquePorCor] = useState<Record<string,number>>({});
   const [categoriaNova, setCategoriaNova] = useState(false);
   const [editando, setEditando] = useState<Product | null>(null);
+  const [ordemFotos, setOrdemFotos] = useState<string[]>([]);
+  const idsArquivos = useRef(new WeakMap<File, string>());
+  const chaveArquivo = (arquivo: File) => {
+    let id = idsArquivos.current.get(arquivo);
+    if (!id) { id = 'nova:' + crypto.randomUUID(); idsArquivos.current.set(arquivo, id); }
+    return id;
+  };
+  type FotoEdicao = { id: string; tipo: 'salva'; url: string } | { id: string; tipo: 'nova'; arquivo: File; indiceNova: number };
+  const fotosGaleria = ordenarFotos<FotoEdicao>([
+    ...(editando ? Array.from(new Set([...(editando.image_urls || []), editando.image_url || ""].filter(Boolean))).filter(url => !fotosRemovidas.includes(url)).map(url => ({ id: url, tipo: 'salva' as const, url })) : []),
+    ...imagesNovas.map((arquivo, indiceNova) => ({ id: chaveArquivo(arquivo), tipo: 'nova' as const, arquivo, indiceNova }))
+  ], ordemFotos);
   const [tabelaAberta, setTabelaAberta] = useState("");
   const [registros, setRegistros] = useState<any[]>([]);
   const [carregandoRegistros, setCarregandoRegistros] = useState(false);
@@ -1087,6 +1101,7 @@ const Admin = ({ isAdmin, ehDono }: { isAdmin: boolean, ehDono: boolean }) => {
 
   // Método que abre o formulário vazio para cadastrar um produto novo
   const novoProduto = () => {
+    setOrdemFotos([]);
     setEditando(null);
     setVariacoesEdicao([]);
     setCusto("");
@@ -1103,6 +1118,7 @@ const Admin = ({ isAdmin, ehDono }: { isAdmin: boolean, ehDono: boolean }) => {
 
   // Método que abre o formulário com os dados do produto para alterar
   const editarProduto = (p: Product) => {
+    setOrdemFotos(Array.from(new Set([...(p.image_urls || []), p.image_url || ""].filter(Boolean))));
     setEditando(p);
     setVariacoesEdicao(p.kit_variacoes || []);
     setCusto(String(custos[p.id] ?? "").replace(".", ","));
@@ -1150,7 +1166,10 @@ const Admin = ({ isAdmin, ehDono }: { isAdmin: boolean, ehDono: boolean }) => {
         const { data: { publicUrl } } = supabase.storage.from("product-images").getPublicUrl(caminho);
         imagensEnviadas.push(publicUrl);
       }
-      const galeria = [...imagensExistentes, ...imagensEnviadas];
+      const galeria = ordenarFotos([
+        ...imagensExistentes.map(url => ({ id: url, url })),
+        ...imagensEnviadas.map((url, i) => ({ id: chaveArquivo(imagesNovas[i]), url }))
+      ], ordemFotos).map(foto => foto.url);
       const cores = { ...coresExistentes };
       fotosRemovidas.forEach(url => delete cores[url]);
       imagensEnviadas.forEach((url,i) => { if (coresNovas[i]?.trim()) cores[url] = coresNovas[i].trim(); });
@@ -1168,7 +1187,7 @@ const Admin = ({ isAdmin, ehDono }: { isAdmin: boolean, ehDono: boolean }) => {
         price: parseFloat(newProduct.price),
         quantity: variacoes.length ? Object.values(colorStock).reduce((a,b)=>a+Number(b),0) : parseInt(newProduct.quantity),
         color_stock: colorStock,
-        // Na alteração sem foto nova, fica a foto que o produto já tinha
+        // A primeira imagem na ordem escolhida é a capa.
         image_url: galeria[0] || "",
         image_urls: galeria,
         image_colors: cores,
@@ -1188,7 +1207,9 @@ const Admin = ({ isAdmin, ehDono }: { isAdmin: boolean, ehDono: boolean }) => {
         : await supabase.from('products').insert([dados]).select().single();
 
       if (error) throw error;
-      if (!data || JSON.stringify(data.image_colors || {}) !== JSON.stringify(cores) ||
+      if (!data || data.image_url !== (galeria[0] || "") || JSON.stringify(data.image_urls || []) !== JSON.stringify(galeria))
+        throw new Error("A ordem das fotos não foi confirmada pelo banco. Confira e tente salvar novamente.");
+      if (JSON.stringify(data.image_colors || {}) !== JSON.stringify(cores) ||
           JSON.stringify(data.color_stock || {}) !== JSON.stringify(colorStock))
         throw new Error("A gravação das cores e quantidades não foi confirmada pelo banco.");
       setProducts(atuais => editando ? atuais.map(p => p.id === data.id ? data : p) : [...atuais, data]);
@@ -1433,45 +1454,37 @@ const Admin = ({ isAdmin, ehDono }: { isAdmin: boolean, ehDono: boolean }) => {
               </label>
               <div className="space-y-3">
                 <label className="text-xs text-gray-500 uppercase tracking-widest">Galeria de fotos do produto</label>
-                <p className="text-sm text-gray-600">Adicione imagens de outras cores. As fotos anteriores serão mantidas e a primeira continuará como capa.</p>
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                  {editando && Array.from(new Set([...(editando.image_urls || []),editando.image_url || ""].filter(Boolean)))
-                    .filter(url => !fotosRemovidas.includes(url)).map((url,i)=>(
-                    <div key={url} className="min-w-0 rounded-2xl border border-brand-beige/30 bg-white p-3 space-y-3 shadow-sm">
-                      <div className="relative overflow-hidden rounded-xl bg-brand-beige/10">
-                        <img src={url} alt={`Foto ${i+1}`} className="w-full aspect-square object-contain" />
-                        <span className="absolute top-2 left-2 rounded-full bg-brand-olive text-white text-xs px-3 py-1">{i===0?'Capa':'Salva'}</span>
-                      </div>
-                      <label className="block text-xs uppercase tracking-wider text-brand-olive">Cor desta foto
-                        <input value={coresExistentes[url] || ''} onChange={e=>setCoresExistentes(prev=>({...prev,[url]:e.target.value}))} placeholder="Ex.: Rosa" className="mt-1 w-full rounded-xl border border-brand-beige/40 px-3 py-2 text-sm normal-case tracking-normal" />
-                      </label>
-                      {(coresExistentes[url] || '').trim() && <label className="block text-xs uppercase tracking-wider text-brand-olive">Quantidade desta cor
-                        <input type="number" min="0" step="1" value={estoquePorCor[coresExistentes[url].trim()] ?? ''}
-                          onChange={e=>setEstoquePorCor(prev=>({...prev,[coresExistentes[url].trim()]:Math.max(0,Math.floor(Number(e.target.value)||0))}))}
-                          placeholder="Quantidade" className="mt-1 w-full rounded-xl border border-brand-beige/40 px-3 py-2 text-sm" />
-                      </label>}
-                      <button type="button" onClick={()=>setFotosRemovidas(prev=>[...prev,url])} className="text-sm text-red-700 underline">Remover foto</button>
+                <p className="text-sm text-gray-600">Arraste pelo botão de ordenar para mudar a posição das fotos. A primeira será a capa. Salve o produto para confirmar.</p>
+                <GaleriaOrdenavel fotos={fotosGaleria} onOrdenar={setOrdemFotos} disabled={salvandoProduto} renderFoto={(foto, i) => {
+                  const cor = foto.tipo === 'nova' ? coresNovas[foto.indiceNova] || '' : coresExistentes[foto.url] || '';
+                  return <>
+                    <div className="relative overflow-hidden rounded-xl bg-brand-beige/10">
+                      {foto.tipo === 'nova' ? <ImagemArquivo arquivo={foto.arquivo} indice={i} /> : <img src={foto.url} alt={`Foto ${i + 1}`} draggable={false} className="w-full aspect-square object-contain" />}
+                      <span className="absolute top-2 left-2 rounded-full bg-brand-olive text-white text-xs px-3 py-1">{i === 0 ? 'Capa' : foto.tipo === 'nova' ? 'Nova' : 'Salva'}</span>
                     </div>
-                  ))}
-                  {imagesNovas.map((arquivo,i)=>(
-                    <div key={`${arquivo.name}-${i}`} className="min-w-0 rounded-2xl border border-brand-beige/30 bg-white p-3 space-y-3 shadow-sm">
-                      <div className="aspect-square rounded-xl bg-brand-beige/10 flex items-center justify-center text-sm text-brand-olive p-3 text-center">
-                        <img src={URL.createObjectURL(arquivo)} alt={`Nova foto ${i+1}`} className="w-full h-full object-contain rounded-xl" onLoad={e=>URL.revokeObjectURL(e.currentTarget.src)} />
-                      </div>
-                      <label className="block text-xs uppercase tracking-wider text-brand-olive">Cor desta foto
-                        <input value={coresNovas[i] || ''} onChange={e=>setCoresNovas(prev=>prev.map((v,n)=>n===i?e.target.value:v))} placeholder="Ex.: Azul" className="mt-1 w-full rounded-xl border border-brand-beige/40 px-3 py-2 text-sm normal-case tracking-normal" />
-                      </label>
-                      {coresNovas[i]?.trim() && <label className="block text-xs uppercase tracking-wider text-brand-olive">Quantidade desta cor
-                        <input type="number" min="0" step="1" value={estoquePorCor[coresNovas[i].trim()] ?? ''}
-                          onChange={e=>setEstoquePorCor(prev=>({...prev,[coresNovas[i].trim()]:Math.max(0,Math.floor(Number(e.target.value)||0))}))}
-                          placeholder="Quantidade" className="mt-1 w-full rounded-xl border border-brand-beige/40 px-3 py-2 text-sm" />
-                      </label>}
-                      <button type="button" onClick={()=>{setImagesNovas(prev=>prev.filter((_,n)=>n!==i));setCoresNovas(prev=>prev.filter((_,n)=>n!==i));}} className="text-sm text-red-700 underline">Remover foto</button>
-                    </div>
-                  ))}
-                </div>
+                    <label className="block text-xs uppercase tracking-wider text-brand-olive">Cor desta foto
+                      <input value={cor} onChange={e => {
+                        const valor = e.target.value;
+                        if (foto.tipo === 'nova') setCoresNovas(prev => prev.map((v, n) => n === foto.indiceNova ? valor : v));
+                        else setCoresExistentes(prev => ({ ...prev, [foto.url]: valor }));
+                      }} placeholder="Ex.: Rosa" className="mt-1 w-full rounded-xl border border-brand-beige/40 px-3 py-2 text-sm normal-case tracking-normal" />
+                    </label>
+                    {cor.trim() && <label className="block text-xs uppercase tracking-wider text-brand-olive">Quantidade desta cor
+                      <input type="number" min="0" step="1" value={estoquePorCor[cor.trim()] ?? ''}
+                        onChange={e => setEstoquePorCor(prev => ({ ...prev, [cor.trim()]: Math.max(0, Math.floor(Number(e.target.value) || 0)) }))}
+                        placeholder="Quantidade" className="mt-1 w-full rounded-xl border border-brand-beige/40 px-3 py-2 text-sm" />
+                    </label>}
+                    <button type="button" disabled={salvandoProduto} onClick={() => {
+                      if (foto.tipo === 'nova') {
+                        setImagesNovas(prev => prev.filter((_, n) => n !== foto.indiceNova));
+                        setCoresNovas(prev => prev.filter((_, n) => n !== foto.indiceNova));
+                      } else setFotosRemovidas(prev => [...prev, foto.url]);
+                      setOrdemFotos(prev => prev.filter(id => id !== foto.id));
+                    }} className="text-sm text-red-700 underline">Remover foto</button>
+                  </>;
+                }} />
                 <label className="inline-flex justify-center items-center rounded-full bg-brand-olive px-5 py-3 text-white text-sm font-semibold cursor-pointer">Adicionar fotos
-                  <input type="file" accept="image/*" multiple className="sr-only" onChange={e=>{const arquivos=Array.from(e.target.files || []);setImagesNovas(prev=>[...prev,...arquivos]);setCoresNovas(prev=>[...prev,...arquivos.map(()=>'')]);e.target.value='';}} />
+                  <input type="file" accept="image/*" multiple className="sr-only" onChange={e=>{const arquivos=Array.from(e.target.files || []);setImagesNovas(prev=>[...prev,...arquivos]);setCoresNovas(prev=>[...prev,...arquivos.map(()=>'')]);setOrdemFotos(prev=>[...prev,...arquivos.map(chaveArquivo)]);e.target.value='';}} />
                 </label>
                 {fotosRemovidas.length>0 && <p className="text-xs text-red-700">{fotosRemovidas.length} foto(s) serão retiradas da galeria ao salvar.</p>}
               </div>
