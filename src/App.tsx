@@ -140,9 +140,6 @@ const Footer = () => (
               <a href={linkWhatsApp("Olá! Vim pelo site da Tenda Ervas.")} target="_blank" rel="noreferrer" className="hover:text-white">{LOJA.whatsappExibicao}</a>
             </li>
             <li className="flex items-center gap-2">
-              <Phone size={16} /> {LOJA.whatsappOutroExibicao}
-            </li>
-            <li className="flex items-center gap-2">
               <Instagram size={16} /> @{LOJA.instagram}
             </li>
             <li className="flex items-center gap-2">
