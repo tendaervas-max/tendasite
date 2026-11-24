@@ -8,16 +8,6 @@ Loja virtual da Tenda Ervas: catálogo por categoria, carrinho, pedido com pagam
 
 Feito com React 19, Vite 6, Tailwind 4, React Router e Supabase (banco, login, fotos e Edge Functions).
 
-## Portfólio — Sistema de gestão Tenda Ervas
-
-O Tenda Ervas reúne uma loja virtual e um painel interno de gestão. A loja atende a jornada de compra, do catálogo ao acompanhamento do pedido. O painel centraliza o trabalho da equipe comercial e a operação de estoque e financeiro.
-
-- **Captação e cadastro de clientes.** A equipe acompanha contatos comerciais e cadastra clientes nas categorias Comércio, Terreiro e Empório, com nome e telefone do responsável.
-- **Vendas, estoque e kits.** A confirmação de uma venda externa baixa o estoque dos produtos e dos componentes dos kits na mesma transação.
-- **Financeiro e importação de planilhas.** A equipe acompanha movimentações e importa arquivos XLSX com rastreabilidade por arquivo, aba e linha. A reimportação do mesmo conteúdo evita duplicatas.
-
-O painel usa React, TypeScript, Vite e Supabase. O acesso à gestão exige autenticação e autorização da equipe. A [loja pública](https://tendasite.pages.dev) permite conhecer a experiência de compra. O código da gestão está em um repositório privado.
-
 ## Rodar no computador
 
 Precisa do Node.js 20 ou mais novo.
